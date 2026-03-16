@@ -17,11 +17,10 @@ linters:
     - unparam
   settings:
     gocritic:
-      enabledTags:
-        - diagnostic
-        - performance
-      disabledChecks:
-        - hugeParam # TUI models are passed by value in BubbleTea
+      disabled-tags:
+        - style
+        - experimental
+        - opinionated
   exclusions:
     paths:
       - vendor
