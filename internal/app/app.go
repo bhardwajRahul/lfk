@@ -2186,7 +2186,7 @@ func (m *Model) visibleMiddleItems() []model.Item {
 			if item.Kind != "" {
 				searchText += " " + item.Kind
 			}
-			if item.Extra != "" {
+			if item.Extra != "" && m.nav.Level != model.LevelOwned {
 				searchText += " " + item.Extra
 			}
 			if strings.Contains(strings.ToLower(searchText), filter) {
