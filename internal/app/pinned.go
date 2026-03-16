@@ -77,12 +77,3 @@ func togglePinnedGroup(s *PinnedState, context, group string) bool {
 	return true
 }
 
-// isPinnedForContext checks if a group is pinned for the given context.
-func isPinnedForContext(s *PinnedState, context, group string) bool {
-	for _, g := range s.Contexts[context] {
-		if g == group {
-			return true
-		}
-	}
-	return false
-}

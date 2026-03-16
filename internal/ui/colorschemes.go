@@ -280,7 +280,8 @@ func GroupedSchemeEntries() []SchemeEntry {
 	sort.Strings(dark)
 	sort.Strings(light)
 
-	entries := []SchemeEntry{{Name: "Dark Themes", IsHeader: true}}
+	entries := make([]SchemeEntry, 0, 2+len(dark)+len(light))
+	entries = append(entries, SchemeEntry{Name: "Dark Themes", IsHeader: true})
 	for _, n := range dark {
 		entries = append(entries, SchemeEntry{Name: n})
 	}

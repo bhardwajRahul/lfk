@@ -144,7 +144,7 @@ var ActiveShowSecretValues bool
 func MaskSecretYAML(yaml string) string {
 	lines := strings.Split(yaml, "\n")
 	inDataBlock := false
-	var result []string
+	result := make([]string, 0, len(lines))
 	for _, line := range lines {
 		trimmed := strings.TrimRight(line, " \t")
 		// Detect top-level `data:` or `stringData:` keys (no leading whitespace).
@@ -255,11 +255,12 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 	}
 
 	if len(items) == 0 {
-		if loading {
+		switch {
+		case loading:
 			b.WriteString(DimStyle.Render(spinnerView + " Loading..."))
-		} else if errMsg != "" {
+		case errMsg != "":
 			b.WriteString(ErrorStyle.Render(Truncate(errMsg, width)))
-		} else {
+		default:
 			b.WriteString(DimStyle.Render("No items"))
 		}
 		return b.String()
@@ -274,7 +275,7 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 		isPlaceholder bool // collapsed group placeholder (header-only, no item line)
 	}
 
-	var entries []displayEntry
+	entries := make([]displayEntry, 0, len(items))
 	lastCategory := ""
 	for i, item := range items {
 		e := displayEntry{itemIdx: i}
@@ -412,7 +413,7 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 				line := Truncate(headerText, width)
 				lineWidth := lipgloss.Width(line)
 				if lineWidth < width {
-					line = line + strings.Repeat(" ", width-lineWidth)
+					line += strings.Repeat(" ", width-lineWidth)
 				}
 				b.WriteString(SelectedStyle.MaxWidth(width).Render(line))
 			} else {
@@ -430,7 +431,8 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 			b.WriteString("\n")
 		}
 		var line string
-		if e.itemIdx == cursor && isActive {
+		switch {
+		case e.itemIdx == cursor && isActive:
 			line = FormatItemPlain(item, width)
 			// Apply search/filter highlight on the selected item with contrasting style.
 			if ActiveHighlightQuery != "" {
@@ -439,22 +441,22 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 			// Pad line to full column width for consistent background.
 			lineWidth := lipgloss.Width(line)
 			if lineWidth < width {
-				line = line + strings.Repeat(" ", width-lineWidth)
+				line += strings.Repeat(" ", width-lineWidth)
 			}
 			line = SelectedStyle.MaxWidth(width).Render(line)
-		} else if e.itemIdx == cursor && cursor >= 0 {
+		case e.itemIdx == cursor && cursor >= 0:
 			// Parent column highlight (dimmer than active selection).
 			line = FormatItemNameOnlyPlain(item, width)
 			lineWidth := lipgloss.Width(line)
 			if lineWidth < width {
-				line = line + strings.Repeat(" ", width-lineWidth)
+				line += strings.Repeat(" ", width-lineWidth)
 			}
 			line = ParentHighlightStyle.MaxWidth(width).Render(line)
-		} else if !isActive {
+		case !isActive:
 			// Inactive columns (parent/child): show name only.
 			line = FormatItemNameOnly(item, width)
 			line = NormalStyle.Width(width).MaxWidth(width).Render(line)
-		} else {
+		default:
 			line = FormatItem(item, width)
 			line = NormalStyle.Width(width).MaxWidth(width).Render(line)
 		}
@@ -684,13 +686,14 @@ func RenderContainerDetail(item *model.Item, width, height int) string {
 		value string
 		style lipgloss.Style // value style override
 	}
-	var rows []row
+	rows := make([]row, 0, 10)
 
 	rows = append(rows, row{"Name", item.Name, valueStyle})
 	// Show container type if not a regular container.
-	if item.Category == "Init Containers" {
+	switch item.Category {
+	case "Init Containers":
 		rows = append(rows, row{"Type", "Init Container", DimStyle})
-	} else if item.Category == "Sidecar Containers" {
+	case "Sidecar Containers":
 		rows = append(rows, row{"Type", "Sidecar Container", DimStyle})
 	}
 	rows = append(rows, row{"Status", item.Status, StatusStyle(item.Status)})
@@ -724,7 +727,7 @@ func RenderContainerDetail(item *model.Item, width, height int) string {
 	}
 
 	// Render all rows with aligned labels.
-	var lines []string
+	lines := make([]string, 0, len(rows)+3)
 	lines = append(lines, DimStyle.Bold(true).Render("CONTAINER DETAILS"))
 	lines = append(lines, "")
 	for _, r := range rows {
@@ -919,11 +922,12 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 	var b strings.Builder
 
 	if len(items) == 0 {
-		if loading {
+		switch {
+		case loading:
 			b.WriteString(DimStyle.Render(spinnerView + " Loading..."))
-		} else if errMsg != "" {
+		case errMsg != "":
 			b.WriteString(ErrorStyle.Render(Truncate(errMsg, width)))
-		} else {
+		default:
 			b.WriteString(DimStyle.Render("No resources found"))
 		}
 		return b.String()
@@ -1214,7 +1218,7 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 			// Pad to full width for clean highlight.
 			lineW := lipgloss.Width(row)
 			if lineW < width {
-				row = row + strings.Repeat(" ", width-lineW)
+				row += strings.Repeat(" ", width-lineW)
 			}
 			b.WriteString(SelectedStyle.MaxWidth(width).Render(row))
 		} else {
@@ -1317,17 +1321,18 @@ func formatTableRowStyled(item model.Item, nameW, nsW, readyW, restartsW, status
 	if hasRestarts {
 		restartCount, _ := strconv.Atoi(item.Restarts)
 		recentRestart := !item.LastRestartAt.IsZero() && time.Since(item.LastRestartAt) < time.Hour
-		if restartCount > 0 && recentRestart {
+		switch {
+		case restartCount > 0 && recentRestart:
 			restartText := "↑" + item.Restarts
 			if restartCount >= 5 {
 				parts = append(parts, ErrorStyle.Render(padRight(restartText, restartsW)))
 			} else {
 				parts = append(parts, StatusFailed.Render(padRight(restartText, restartsW)))
 			}
-		} else if anyRecentRestart {
+		case anyRecentRestart:
 			// Use " " prefix as placeholder to align with rows that have "↑".
 			parts = append(parts, DimStyle.Render(padRight(" "+item.Restarts, restartsW)))
-		} else {
+		default:
 			parts = append(parts, DimStyle.Render(padRight(item.Restarts, restartsW)))
 		}
 	}
@@ -1386,7 +1391,8 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 	// Per-resource-type columns take precedence over global columns.
 	configCols := ColumnsForKind(kind)
 	var candidates []string
-	if len(configCols) > 0 {
+	switch {
+	case len(configCols) > 0:
 		if len(configCols) == 1 && configCols[0] == "*" {
 			candidates = order
 		} else {
@@ -1396,13 +1402,13 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 				}
 			}
 		}
-	} else if len(ActiveExtraColumns) > 0 {
+	case len(ActiveExtraColumns) > 0:
 		for _, key := range ActiveExtraColumns {
 			if _, ok := seen[key]; ok {
 				candidates = append(candidates, key)
 			}
 		}
-	} else {
+	default:
 		// Auto-detect: show columns that have data for at least 20% of items (or at least 1).
 		// Exclude columns that are too verbose or not useful in a table view.
 		// In fullscreen mode, show more columns (IP, Node, etc.).
@@ -1465,7 +1471,7 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 		return nil
 	}
 
-	var result []extraColumn
+	result := make([]extraColumn, 0, len(candidates))
 	remainingW := available
 	maxColW := 20
 	if ActiveFullscreenMode {
@@ -1533,14 +1539,15 @@ func formatTableRowWithExtra(name, ns, ready, restarts, status, age string,
 		// Handle arrow values the same way as the styled path:
 		// strip the arrow prefix and render it as a separate character,
 		// or use a space placeholder for non-arrow rows in arrow columns.
-		if strings.HasPrefix(val, "↑ ") || strings.HasPrefix(val, "↓ ") {
+		switch {
+		case strings.HasPrefix(val, "↑ ") || strings.HasPrefix(val, "↓ "):
 			arrow := string([]rune(val)[0])
 			baseVal := val[len("↑ "):]
 			row += arrow + padRight(Truncate(baseVal, ec.width-1), ec.width-1)
-		} else if ec.hasArrow {
+		case ec.hasArrow:
 			// Placeholder space to align with rows that have arrows.
 			row += " " + padRight(Truncate(val, ec.width-1), ec.width-1)
-		} else {
+		default:
 			row += padRight(Truncate(val, ec.width), ec.width)
 		}
 	}
@@ -1567,16 +1574,17 @@ func formatTableRowStyledWithExtra(item model.Item, nameW, nsW, readyW, restarts
 
 		// Color trend arrows in metric values (arrows before value).
 		// Use a space placeholder for rows without arrows to keep values aligned.
-		if strings.HasPrefix(val, "↑ ") {
+		switch {
+		case strings.HasPrefix(val, "↑ "):
 			baseVal := val[len("↑ "):]
 			base += ErrorStyle.Render("↑") + style.Render(padRight(Truncate(baseVal, ec.width-1), ec.width-1))
-		} else if strings.HasPrefix(val, "↓ ") {
+		case strings.HasPrefix(val, "↓ "):
 			baseVal := val[len("↓ "):]
 			base += StatusRunning.Render("↓") + style.Render(padRight(Truncate(baseVal, ec.width-1), ec.width-1))
-		} else if ec.hasArrow {
+		case ec.hasArrow:
 			// Placeholder space to align with rows that have arrows.
 			base += " " + style.Render(padRight(Truncate(val, ec.width-1), ec.width-1))
-		} else {
+		default:
 			base += style.Render(padRight(Truncate(val, ec.width), ec.width))
 		}
 	}
@@ -1898,7 +1906,7 @@ func RenderResourceSummary(item *model.Item, yaml string, width, height int) str
 func RenderResourceUsage(cpuUsed, cpuReq, cpuLim, memUsed, memReq, memLim int64, width int) string {
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSecondary)).Bold(true)
 
-	var lines []string
+	lines := make([]string, 0, 4)
 	lines = append(lines, DimStyle.Bold(true).Render("RESOURCE USAGE"))
 	lines = append(lines, "")
 
@@ -2113,7 +2121,7 @@ func renderTreeNodeLabel(node *model.ResourceNode, parentNamespace string) strin
 }
 
 func renderTreeChildren(children []*model.ResourceNode, prefix, parentNamespace string, width int) []string {
-	var lines []string
+	lines := make([]string, 0, len(children))
 	for i, child := range children {
 		isLast := i == len(children)-1
 

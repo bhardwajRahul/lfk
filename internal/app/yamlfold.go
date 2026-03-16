@@ -23,7 +23,7 @@ type yamlSection struct {
 // (e.g., "metadata", "metadata.labels", "spec.containers.ports").
 func parseYAMLSections(content string) []yamlSection {
 	lines := strings.Split(content, "\n")
-	var sections []yamlSection
+	sections := make([]yamlSection, 0, len(lines)/4)
 
 	for i, line := range lines {
 		if len(line) == 0 || strings.TrimSpace(line) == "" {
@@ -302,10 +302,7 @@ func buildDotPath(lines []string, lineIdx, indent int, key string) string {
 
 		if lineIndent < currentIndent {
 			// This could be an ancestor -- but only if it's a section header.
-			keyLine := trimmed
-			if strings.HasPrefix(keyLine, "- ") {
-				keyLine = keyLine[2:]
-			}
+			keyLine := strings.TrimPrefix(trimmed, "- ")
 			colonIdx := strings.Index(keyLine, ":")
 			if colonIdx > 0 {
 				afterColon := strings.TrimSpace(keyLine[colonIdx+1:])
@@ -371,8 +368,8 @@ func buildVisibleLines(content string, sections []yamlSection, collapsed map[str
 		}
 	}
 
-	var visible []string
-	var mapping []int
+	visible := make([]string, 0, len(lines))
+	mapping := make([]int, 0, len(lines))
 	for i, line := range lines {
 		if hidden[i] {
 			continue
@@ -401,10 +398,7 @@ func buildVisibleLines(content string, sections []yamlSection, collapsed map[str
 			// Content line (only if listItem is not collapsed).
 			if !collapsed[listSec.key] {
 				trimmed := strings.TrimSpace(line)
-				content := trimmed
-				if strings.HasPrefix(content, "- ") {
-					content = content[2:]
-				}
+				content := strings.TrimPrefix(trimmed, "- ")
 				contentRaw := strings.Repeat(" ", listSec.indent+2) + content
 				contentPrefixed := "  " + contentRaw
 
@@ -430,7 +424,8 @@ func buildVisibleLines(content string, sections []yamlSection, collapsed map[str
 
 		// Non-split lines: use existing logic with sectionByStart OR listItemByStart.
 		prefixed := "  " + line
-		if isListStart && isMultiLineSection(listSec) {
+		switch {
+		case isListStart && isMultiLineSection(listSec):
 			// Non-split listItem (like "- name: nginx" with children).
 			indicator := '▾'
 			if collapsed[listSec.key] {
@@ -442,7 +437,7 @@ func buildVisibleLines(content string, sections []yamlSection, collapsed map[str
 				runes[markerPos] = indicator
 			}
 			visible = append(visible, string(runes))
-		} else if isSecStart && isMultiLineSection(secSec) {
+		case isSecStart && isMultiLineSection(secSec):
 			// Regular section (not a list item).
 			indicator := '▾'
 			if collapsed[secSec.key] {
@@ -454,7 +449,7 @@ func buildVisibleLines(content string, sections []yamlSection, collapsed map[str
 				runes[markerPos] = indicator
 			}
 			visible = append(visible, string(runes))
-		} else {
+		default:
 			visible = append(visible, prefixed)
 		}
 		mapping = append(mapping, i)

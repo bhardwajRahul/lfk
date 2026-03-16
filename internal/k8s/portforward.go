@@ -150,7 +150,7 @@ func (m *PortForwardManager) Start(kubectlPath, kubeconfigPaths, resourceKind, r
 	// Capture stderr in background.
 	var stderrBuf bytes.Buffer
 	go func() {
-		io.Copy(&stderrBuf, stderrPipe)
+		_, _ = io.Copy(&stderrBuf, stderrPipe)
 	}()
 
 	// Monitor stdout for readiness confirmation and process lifecycle.

@@ -206,7 +206,7 @@ func buildHelpLines(filter string) []string {
 	sections := helpSections()
 	lowerFilter := strings.ToLower(filter)
 
-	var lines []string
+	lines := make([]string, 0, 64)
 	keyW := 14
 	for si, section := range sections {
 		var sectionLines []string
@@ -316,15 +316,16 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string, sear
 
 	// Build help/status line.
 	var helpLine string
-	if searching {
+	switch {
+	case searching:
 		helpLine = DimStyle.Render("search: ") + searchInput.View()
-	} else if filter != "" {
+	case filter != "":
 		helpLine = DimStyle.Render("filter: ") +
 			HelpKeyStyle.Render(filter) +
 			DimStyle.Render("  ") +
 			HelpKeyStyle.Render("/") + DimStyle.Render(" edit  ") +
 			HelpKeyStyle.Render("Esc") + DimStyle.Render(" close")
-	} else {
+	default:
 		helpLine = HelpKeyStyle.Render("j/k") + DimStyle.Render(" scroll  ") +
 			HelpKeyStyle.Render("^d/^u") + DimStyle.Render(" half-page  ") +
 			HelpKeyStyle.Render("/") + DimStyle.Render(" search  ") +

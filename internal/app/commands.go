@@ -938,7 +938,7 @@ func (m Model) loadDashboard() tea.Cmd {
 			name                                 string
 			cpuUsed, cpuAlloc, memUsed, memAlloc int64
 		}
-		var nodes []nodeInfo
+		nodes := make([]nodeInfo, 0, len(nodeItems))
 		var totalCPUUsed, totalCPUAlloc, totalMemUsed, totalMemAlloc int64
 		for _, ni := range nodeItems {
 			info := nodeInfo{name: ni.Name}
@@ -1793,11 +1793,12 @@ func (m Model) loadPreview() tea.Cmd {
 		if m.nav.ResourceType.Kind == "__port_forwards__" {
 			return nil
 		}
-		if m.mapView && m.resourceTypeHasChildren() {
+		switch {
+		case m.mapView && m.resourceTypeHasChildren():
 			cmds = append(cmds, m.loadResourceTree())
-		} else if m.resourceTypeHasChildren() {
+		case m.resourceTypeHasChildren():
 			cmds = append(cmds, m.loadOwned(true))
-		} else if m.nav.ResourceType.Kind == "Pod" {
+		case m.nav.ResourceType.Kind == "Pod":
 			cmds = append(cmds, m.loadContainers(true))
 		}
 		if m.fullYAMLPreview {
@@ -2057,7 +2058,7 @@ func kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx st
 		return ""
 	}
 
-	var parts []string
+	parts := make([]string, 0, len(labels))
 	for k, v := range labels {
 		parts = append(parts, k+"="+v)
 	}
@@ -2546,47 +2547,6 @@ func (m Model) runDebugPodWithPVC() tea.Cmd {
 	})
 }
 
-func (m Model) execKubectlEvents() tea.Cmd {
-	kubectlPath, err := exec.LookPath("kubectl")
-	if err != nil {
-		return func() tea.Msg {
-			return actionResultMsg{err: fmt.Errorf("kubectl not found: %w", err)}
-		}
-	}
-
-	ns := m.actionNamespace()
-	name := m.actionCtx.name
-	rt := m.actionCtx.resourceType
-	args := []string{"get", "events", "--field-selector", "involvedObject.name=" + name, "--context", m.actionCtx.context}
-	if rt.Namespaced {
-		args = append(args, "-n", ns)
-	}
-
-	title := fmt.Sprintf("Events: %s/%s", rt.Resource, name)
-
-	return func() tea.Msg {
-		cmd := exec.Command(kubectlPath, args...)
-		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPaths())
-		logger.Info("Running kubectl command", "cmd", cmd.String())
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			logger.Error("kubectl get events failed", "cmd", cmd.String(), "error", err, "output", string(output))
-			return describeLoadedMsg{
-				title: title,
-				err:   fmt.Errorf("%s: %s", err, strings.TrimSpace(string(output))),
-			}
-		}
-		content := strings.TrimSpace(string(output))
-		if content == "" {
-			content = "No events found"
-		}
-		return describeLoadedMsg{
-			content: content,
-			title:   title,
-		}
-	}
-}
-
 func (m Model) deleteResource() tea.Cmd {
 	// Special handling for Helm releases.
 	if m.actionCtx.resourceType.APIGroup == "_helm" {
@@ -2813,9 +2773,9 @@ func (m Model) diffArgoApp() tea.Cmd {
 
 		// Build a diff output by running kubectl diff on each out-of-sync resource
 		var diffBuf strings.Builder
-		diffBuf.WriteString(fmt.Sprintf("Application: %s\n", name))
-		diffBuf.WriteString(fmt.Sprintf("Sync Status: %s\n", app.Status.Sync.Status))
-		diffBuf.WriteString(fmt.Sprintf("Managed Resources: %d\n\n", len(app.Status.Resources)))
+		fmt.Fprintf(&diffBuf, "Application: %s\n", name)
+		fmt.Fprintf(&diffBuf, "Sync Status: %s\n", app.Status.Sync.Status)
+		fmt.Fprintf(&diffBuf, "Managed Resources: %d\n\n", len(app.Status.Resources))
 
 		outOfSync := 0
 		for _, res := range app.Status.Resources {
@@ -2830,17 +2790,11 @@ func (m Model) diffArgoApp() tea.Cmd {
 				resource = res.Kind + "." + res.Group
 			}
 
-			diffBuf.WriteString(fmt.Sprintf("━━━ %s/%s", resource, res.Name))
+			fmt.Fprintf(&diffBuf, "━━━ %s/%s", resource, res.Name)
 			if res.Namespace != "" {
-				diffBuf.WriteString(fmt.Sprintf(" (ns: %s)", res.Namespace))
+				fmt.Fprintf(&diffBuf, " (ns: %s)", res.Namespace)
 			}
 			diffBuf.WriteString(" ━━━\n")
-
-			// Run kubectl diff for this specific resource
-			diffArgs := []string{"diff", "--context", ctx}
-			if res.Namespace != "" {
-				diffArgs = append(diffArgs, "-n", res.Namespace)
-			}
 
 			// Get the desired manifest from the application
 			// Use kubectl get to fetch live state, then we'll show the status
@@ -2854,18 +2808,18 @@ func (m Model) diffArgoApp() tea.Cmd {
 			resOut, resErr := getResCmd.CombinedOutput()
 			if resErr != nil {
 				logger.Error("kubectl get resource failed", "cmd", getResCmd.String(), "error", resErr, "output", string(resOut))
-				diffBuf.WriteString(fmt.Sprintf("  Status: OutOfSync (resource may not exist yet)\n"))
+				diffBuf.WriteString("  Status: OutOfSync (resource may not exist yet)\n")
 				if res.Health.Status != "" {
-					diffBuf.WriteString(fmt.Sprintf("  Health: %s\n", res.Health.Status))
+					fmt.Fprintf(&diffBuf, "  Health: %s\n", res.Health.Status)
 				}
 				diffBuf.WriteString("\n")
 				continue
 			}
 			_ = resOut
 
-			diffBuf.WriteString(fmt.Sprintf("  Status: OutOfSync\n"))
+			diffBuf.WriteString("  Status: OutOfSync\n")
 			if res.Health.Status != "" {
-				diffBuf.WriteString(fmt.Sprintf("  Health: %s\n", res.Health.Status))
+				fmt.Fprintf(&diffBuf, "  Health: %s\n", res.Health.Status)
 			}
 			diffBuf.WriteString("\n")
 		}
@@ -2884,8 +2838,8 @@ func (m Model) diffArgoApp() tea.Cmd {
 				if health == "" {
 					health = "-"
 				}
-				diffBuf.WriteString(fmt.Sprintf("  %-40s  Sync: %-10s  Health: %s\n",
-					resource+"/"+res.Name, res.Status, health))
+				fmt.Fprintf(&diffBuf, "  %-40s  Sync: %-10s  Health: %s\n",
+					resource+"/"+res.Name, res.Status, health)
 			}
 		}
 
@@ -3568,23 +3522,6 @@ func (m Model) loadAlerts() tea.Cmd {
 	}
 }
 
-// loadMonitoringOverview loads all active Prometheus alerts for the current namespace.
-// It is triggered by the global "@" hotkey and shows alerts in the alerts overlay.
-func (m Model) loadMonitoringOverview() tea.Cmd {
-	client := m.client
-	kctx := m.nav.Context
-	ns := m.resolveNamespace()
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		alerts, err := client.GetAllActiveAlerts(ctx, kctx, ns)
-		if err != nil {
-			return alertsLoadedMsg{err: err}
-		}
-		return alertsLoadedMsg{alerts: alerts}
-	}
-}
-
 // netpolLoadedMsg carries the result of loading a network policy.
 type netpolLoadedMsg struct {
 	info *k8s.NetworkPolicyInfo
@@ -3685,13 +3622,13 @@ func (m Model) applyFromClipboard() tea.Cmd {
 		}
 	}
 	if _, err := tmpFile.Write(clipContent); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
 		return func() tea.Msg {
 			return actionResultMsg{err: fmt.Errorf("writing temp file: %w", err)}
 		}
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Open in editor for review/editing before applying.
 	editor := os.Getenv("EDITOR")
@@ -3709,7 +3646,7 @@ func (m Model) applyFromClipboard() tea.Cmd {
 	cmd := exec.Command(editor, tmpPath)
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
 		if err != nil {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 			return actionResultMsg{err: fmt.Errorf("editor: %w", err)}
 		}
 		return templateApplyMsg{tmpFile: tmpPath, context: ctx, ns: ns, origModTime: origModTime}
@@ -3744,13 +3681,13 @@ func (m Model) applyTemplate(tmpl model.ResourceTemplate) tea.Cmd {
 		}
 	}
 	if _, err := tmpFile.WriteString(yamlContent); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
 		return func() tea.Msg {
 			return actionResultMsg{err: fmt.Errorf("writing temp file: %w", err)}
 		}
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Determine editor.
 	editor := os.Getenv("EDITOR")
@@ -3769,7 +3706,7 @@ func (m Model) applyTemplate(tmpl model.ResourceTemplate) tea.Cmd {
 	cmd := exec.Command(editor, tmpPath)
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
 		if err != nil {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 			return actionResultMsg{err: fmt.Errorf("editor: %w", err)}
 		}
 		return templateApplyMsg{tmpFile: tmpPath, context: ctx, ns: ns, origModTime: origModTime}
@@ -3780,14 +3717,14 @@ func (m Model) applyTemplate(tmpl model.ResourceTemplate) tea.Cmd {
 func (m Model) applyTemplateFile(tmpFile, ctx, ns string) tea.Cmd {
 	kubectlPath, err := exec.LookPath("kubectl")
 	if err != nil {
-		os.Remove(tmpFile)
+		_ = os.Remove(tmpFile)
 		return func() tea.Msg {
 			return actionResultMsg{err: fmt.Errorf("kubectl not found: %w", err)}
 		}
 	}
 
 	return func() tea.Msg {
-		defer os.Remove(tmpFile)
+		defer func() { _ = os.Remove(tmpFile) }()
 
 		args := []string{"apply", "-f", tmpFile, "--context", ctx}
 		if ns != "" {
@@ -3960,7 +3897,7 @@ func (m Model) exportResourceToFile() tea.Cmd {
 // This ensures the TUI artifacts are removed when switching to interactive mode.
 func clearBeforeExec(cmd *exec.Cmd) *exec.Cmd {
 	// Build a shell command: clear screen with ANSI reset, then exec the original command.
-	var quoted []string
+	quoted := make([]string, 0, len(cmd.Args))
 	for _, arg := range cmd.Args {
 		quoted = append(quoted, shellQuote(arg))
 	}
@@ -4043,9 +3980,7 @@ func (m Model) executeCommandBarKubectl(input, kubeconfigEnv string) tea.Cmd {
 	}
 
 	// Strip leading "kubectl " if user typed it.
-	if strings.HasPrefix(input, "kubectl ") {
-		input = strings.TrimPrefix(input, "kubectl ")
-	}
+	input = strings.TrimPrefix(input, "kubectl ")
 
 	args := strings.Fields(input)
 	if len(args) == 0 {

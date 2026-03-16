@@ -118,7 +118,7 @@ func parseAndFilterAlerts(data []byte, resourceNs, resourceName, resourceKind st
 	}
 
 	kindLower := strings.ToLower(resourceKind)
-	var alerts []AlertInfo
+	alerts := make([]AlertInfo, 0, len(response.Data.Alerts))
 	for _, a := range response.Data.Alerts {
 		if !alertMatchesResource(a.Labels, resourceNs, resourceName, kindLower) {
 			continue
@@ -227,7 +227,7 @@ func parseAllAlerts(data []byte, namespace string) ([]AlertInfo, error) {
 		return nil, fmt.Errorf("prometheus returned status: %s", response.Status)
 	}
 
-	var alerts []AlertInfo
+	alerts := make([]AlertInfo, 0, len(response.Data.Alerts))
 	for _, a := range response.Data.Alerts {
 		// When a namespace filter is set, skip alerts from other namespaces.
 		if namespace != "" && a.Labels["namespace"] != "" && a.Labels["namespace"] != namespace {
@@ -272,7 +272,7 @@ func parseAlertmanagerAlerts(data []byte, namespace string) ([]AlertInfo, error)
 		return nil, fmt.Errorf("unmarshal alertmanager response: %w", err)
 	}
 
-	var alerts []AlertInfo
+	alerts := make([]AlertInfo, 0, len(amAlerts))
 	for _, a := range amAlerts {
 		// Skip suppressed (silenced/inhibited) alerts.
 		if a.Status.State == "suppressed" {
@@ -315,7 +315,7 @@ func parseAndFilterAlertmanagerAlerts(data []byte, resourceNs, resourceName, res
 	}
 
 	kindLower := strings.ToLower(resourceKind)
-	var alerts []AlertInfo
+	alerts := make([]AlertInfo, 0, len(amAlerts))
 	for _, a := range amAlerts {
 		if a.Status.State == "suppressed" {
 			continue

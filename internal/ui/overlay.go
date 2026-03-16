@@ -26,11 +26,12 @@ func RenderNamespaceOverlay(items []model.Item, filter string, cursor int, curre
 	b.WriteString("\n")
 
 	// Filter input.
-	if filterMode {
+	switch {
+	case filterMode:
 		b.WriteString(OverlayFilterStyle.Render("/ " + filter + "\u2588"))
-	} else if filter != "" {
+	case filter != "":
 		b.WriteString(OverlayFilterStyle.Render("/ " + filter))
-	} else {
+	default:
 		b.WriteString(OverlayDimStyle.Render("/ to filter"))
 	}
 	b.WriteString("\n\n")
@@ -75,13 +76,14 @@ func RenderNamespaceOverlay(items []model.Item, filter string, cursor int, curre
 	for i := start; i < end; i++ {
 		item := items[i]
 		prefix := "  "
-		if item.Status == "all" {
+		switch {
+		case item.Status == "all":
 			if allNs && len(selectedNamespaces) == 0 {
 				prefix = "\u2713 "
 			}
-		} else if selectedNamespaces != nil && selectedNamespaces[item.Name] {
+		case selectedNamespaces != nil && selectedNamespaces[item.Name]:
 			prefix = "\u2713 "
-		} else if item.Name == currentNs && !allNs && len(selectedNamespaces) == 0 {
+		case item.Name == currentNs && !allNs && len(selectedNamespaces) == 0:
 			prefix = "* "
 		}
 		line := prefix + item.Name
@@ -520,7 +522,7 @@ func RenderErrorLogOverlay(entries []ErrorLogEntry, scroll int, height int, show
 	b.WriteString("\n")
 
 	// Filter entries based on debug visibility.
-	var visible []ErrorLogEntry
+	visible := make([]ErrorLogEntry, 0, len(entries))
 	for _, e := range entries {
 		if e.Level == "DBG" && !showDebug {
 			continue
@@ -610,11 +612,12 @@ func RenderColorschemeOverlay(entries []SchemeEntry, filter string, cursor int, 
 	b.WriteString("\n")
 
 	// Filter input.
-	if filterMode {
+	switch {
+	case filterMode:
 		b.WriteString(OverlayFilterStyle.Render("/ " + filter + "█"))
-	} else if filter != "" {
+	case filter != "":
 		b.WriteString(OverlayFilterStyle.Render("/ " + filter))
-	} else {
+	default:
 		b.WriteString(OverlayDimStyle.Render("/ to filter"))
 	}
 	b.WriteString("\n\n")
@@ -796,7 +799,7 @@ func RenderBatchLabelOverlay(mode int, input string, remove bool) string {
 		b.WriteString(OverlayNormalStyle.Render("  Enter key=value:"))
 	}
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("  %s%s", OverlayInputStyle.Render(input), OverlayDimStyle.Render("█")))
+	fmt.Fprintf(&b, "  %s%s", OverlayInputStyle.Render(input), OverlayDimStyle.Render("█"))
 	b.WriteString("\n\n")
 	b.WriteString(OverlayDimStyle.Render("  Tab: toggle add/remove"))
 	b.WriteString("\n")
@@ -1167,7 +1170,7 @@ func RenderEventTimelineOverlay(events []EventTimelineEntry, resourceName string
 		b.WriteString("\n")
 
 		// Second line: indented message.
-		b.WriteString(fmt.Sprintf("           %s", msgStr))
+		fmt.Fprintf(&b, "           %s", msgStr)
 
 		if i < end-1 {
 			b.WriteString("\n")
@@ -1240,7 +1243,7 @@ func RenderAlertsOverlay(alerts []AlertEntry, scroll, width, height int) string 
 	}
 
 	// Build lines for all alerts, then apply scroll window.
-	var lines []string
+	lines := make([]string, 0, len(alerts)*4)
 	for i, alert := range alerts {
 		if i > 0 {
 			lines = append(lines, "")
@@ -1653,9 +1656,10 @@ func renderNetpolRuleDiagram(
 		}
 
 		// Build the target box content.
-		var targetLines []string
+		targetLabelLines := strings.Split(targetLabel, "\n")
+		targetLines := make([]string, 0, 1+len(targetLabelLines))
 		targetLines = append(targetLines, greenSt.Render("Target Pods"))
-		for _, line := range strings.Split(targetLabel, "\n") {
+		for _, line := range targetLabelLines {
 			targetLines = append(targetLines, labelSt.Render(truncLabel(line)))
 		}
 
@@ -1727,12 +1731,13 @@ func renderTwoBoxes(leftContent, rightContent []string, arrow string, borderStyl
 		if leftW+rightW > available {
 			// Split available space proportionally, each gets at least half of minimum (7).
 			half := available / 2
-			if leftW > half && rightW > half {
+			switch {
+			case leftW > half && rightW > half:
 				leftW = half
 				rightW = available - half
-			} else if leftW > half {
+			case leftW > half:
 				leftW = available - rightW
-			} else {
+			default:
 				rightW = available - leftW
 			}
 			if leftW < 7 {
@@ -1836,11 +1841,12 @@ func computeDiff(leftText, rightText string) []diffLine {
 	}
 	for i := 1; i <= n; i++ {
 		for j := 1; j <= m; j++ {
-			if leftLines[i-1] == rightLines[j-1] {
+			switch {
+			case leftLines[i-1] == rightLines[j-1]:
 				dp[i][j] = dp[i-1][j-1] + 1
-			} else if dp[i-1][j] >= dp[i][j-1] {
+			case dp[i-1][j] >= dp[i][j-1]:
 				dp[i][j] = dp[i-1][j]
-			} else {
+			default:
 				dp[i][j] = dp[i][j-1]
 			}
 		}
@@ -1850,14 +1856,15 @@ func computeDiff(leftText, rightText string) []diffLine {
 	var result []diffLine
 	i, j := n, m
 	for i > 0 || j > 0 {
-		if i > 0 && j > 0 && leftLines[i-1] == rightLines[j-1] {
+		switch {
+		case i > 0 && j > 0 && leftLines[i-1] == rightLines[j-1]:
 			result = append(result, diffLine{left: leftLines[i-1], right: rightLines[j-1], status: '='})
 			i--
 			j--
-		} else if j > 0 && (i == 0 || dp[i][j-1] >= dp[i-1][j]) {
+		case j > 0 && (i == 0 || dp[i][j-1] >= dp[i-1][j]):
 			result = append(result, diffLine{right: rightLines[j-1], status: '>'})
 			j--
-		} else {
+		default:
 			result = append(result, diffLine{left: leftLines[i-1], status: '<'})
 			i--
 		}
@@ -1950,7 +1957,7 @@ func RenderDiffView(left, right, leftName, rightName string, scroll, width, heig
 		}
 	}
 
-	var rows []string
+	rows := make([]string, 0, len(visible))
 	for _, dl := range visible {
 		var leftCol, rightCol, leftGutter, rightGutter string
 		switch dl.status {

@@ -632,7 +632,9 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 	})
 
 	// Process groups: pinned first, then unpinned.
-	orderedGroups := append(pinnedOrder, unpinnedOrder...)
+	orderedGroups := make([]string, 0, len(pinnedOrder)+len(unpinnedOrder))
+	orderedGroups = append(orderedGroups, pinnedOrder...)
+	orderedGroups = append(orderedGroups, unpinnedOrder...)
 
 	for _, group := range orderedGroups {
 		categoryName, isBuiltInGroup := builtInCategoryForGroup[group]

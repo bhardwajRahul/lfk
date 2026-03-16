@@ -16,7 +16,7 @@ import (
 // resetLogger resets the package-level logger state for testing.
 func resetLogger() {
 	if logFile != nil {
-		logFile.Close()
+		_ = logFile.Close()
 	}
 	logFile = nil
 	once = sync.Once{}

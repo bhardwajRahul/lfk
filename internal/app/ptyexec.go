@@ -25,7 +25,6 @@ type execPTYTickMsg struct {
 // The ptmx field identifies which tab's terminal exited.
 type execPTYExitMsg struct {
 	ptmx *os.File
-	err  error
 }
 
 // execPTYStartMsg carries the PTY state from the tea.Cmd back to the Update handler.
@@ -67,7 +66,7 @@ func (m Model) scheduleExecTick() tea.Cmd {
 // cleanupExecPTY closes the PTY and cleans up exec state.
 func (m *Model) cleanupExecPTY() {
 	if m.execPTY != nil {
-		m.execPTY.Close()
+		_ = m.execPTY.Close()
 		m.execPTY = nil
 	}
 	m.execTerm = nil

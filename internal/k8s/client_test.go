@@ -318,11 +318,7 @@ data:
 }
 
 func splitLines(s string) []string {
-	var lines []string
-	for _, l := range splitString(s) {
-		lines = append(lines, l)
-	}
-	return lines
+	return append([]string{}, splitString(s)...)
 }
 
 func splitString(s string) []string {

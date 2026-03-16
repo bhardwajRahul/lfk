@@ -252,7 +252,7 @@ func findAffectedPods(ctx context.Context, dynClient dynamic.Interface, namespac
 		return nil
 	}
 
-	var names []string
+	names := make([]string, 0, len(podList.Items))
 	for _, pod := range podList.Items {
 		names = append(names, pod.GetName())
 	}

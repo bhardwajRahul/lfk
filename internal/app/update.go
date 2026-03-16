@@ -86,7 +86,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return mdl, cmd
 		}
 
-		cmds := []tea.Cmd{m.loadPreview()}
+		cmds := make([]tea.Cmd, 0, 1+len(pfCmds))
+		cmds = append(cmds, m.loadPreview())
 		cmds = append(cmds, pfCmds...)
 		return m, tea.Batch(cmds...)
 
@@ -208,9 +209,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// For pod/node views, also trigger async metrics enrichment.
 		var cmds []tea.Cmd
 		cmds = append(cmds, m.loadPreview())
-		if kind == "Pod" {
+		switch kind {
+		case "Pod":
 			cmds = append(cmds, m.loadPodMetricsForList())
-		} else if kind == "Node" {
+		case "Node":
 			cmds = append(cmds, m.loadNodeMetricsForList())
 		}
 		return m, tea.Batch(cmds...)
@@ -1044,7 +1046,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Editor closed; only apply if the file was actually saved (modified).
 		if !msg.origModTime.IsZero() {
 			if fi, err := os.Stat(msg.tmpFile); err == nil && fi.ModTime().Equal(msg.origModTime) {
-				os.Remove(msg.tmpFile)
+				_ = os.Remove(msg.tmpFile)
 				m.setStatusMessage("Template not saved — apply skipped", false)
 				return m, scheduleStatusClear()
 			}
@@ -1868,7 +1870,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// Use first owner (most resources have exactly one).
 		owner := owners[0]
-		return m.navigateToOwner(owner.kind, owner.name, owner.apiVersion)
+		return m.navigateToOwner(owner.kind, owner.name)
 
 	case ",":
 		m.sortBy = (m.sortBy + 1) % 3
@@ -3056,7 +3058,8 @@ func (m Model) handleNamespaceNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		// Apply selection and close.
-		if m.nsSelectionModified && len(m.selectedNamespaces) > 0 {
+		switch {
+		case m.nsSelectionModified && len(m.selectedNamespaces) > 0:
 			// User explicitly toggled selections with Space in this session.
 			m.allNamespaces = false
 			if len(m.selectedNamespaces) == 1 {
@@ -3064,13 +3067,13 @@ func (m Model) handleNamespaceNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.namespace = ns
 				}
 			}
-		} else if m.overlayCursor >= 0 && m.overlayCursor < len(items) && items[m.overlayCursor].Status != "all" {
+		case m.overlayCursor >= 0 && m.overlayCursor < len(items) && items[m.overlayCursor].Status != "all":
 			// No Space toggling — apply the cursor position as single namespace.
 			ns := items[m.overlayCursor].Name
 			m.selectedNamespaces = map[string]bool{ns: true}
 			m.namespace = ns
 			m.allNamespaces = false
-		} else {
+		default:
 			// Cursor on "All Namespaces" or no specific item.
 			m.selectedNamespaces = nil
 			m.allNamespaces = true
@@ -3554,7 +3557,8 @@ func (m Model) handlePortForwardOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		return m, nil
 	case "enter":
 		var localPort, remotePort string
-		if m.pfPortCursor >= 0 && m.pfPortCursor < len(m.pfAvailablePorts) {
+		switch {
+		case m.pfPortCursor >= 0 && m.pfPortCursor < len(m.pfAvailablePorts):
 			p := m.pfAvailablePorts[m.pfPortCursor]
 			remotePort = p.Port
 			if m.portForwardInput.Value != "" {
@@ -3564,7 +3568,7 @@ func (m Model) handlePortForwardOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 				// Empty input: let kubectl pick a random high port.
 				localPort = "0"
 			}
-		} else if m.portForwardInput.Value != "" {
+		case m.portForwardInput.Value != "":
 			// Manual entry: parse as localPort:remotePort or just port.
 			parts := strings.SplitN(m.portForwardInput.Value, ":", 2)
 			localPort = parts[0]
@@ -3573,7 +3577,7 @@ func (m Model) handlePortForwardOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			} else {
 				remotePort = localPort
 			}
-		} else {
+		default:
 			m.setStatusMessage("Port mapping required (e.g., 8080:80)", true)
 			m.overlay = overlayNone
 			return m, scheduleStatusClear()
@@ -3765,7 +3769,7 @@ func (m Model) navigateParent() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) navigateToOwner(kind, name, apiVersion string) (tea.Model, tea.Cmd) {
+func (m Model) navigateToOwner(kind, name string) (tea.Model, tea.Cmd) {
 	crds := m.discoveredCRDs[m.nav.Context]
 	rt, ok := model.FindResourceTypeByKind(kind, crds)
 	if !ok {
@@ -4085,11 +4089,12 @@ func (m Model) openActionMenu() (tea.Model, tea.Cmd) {
 	m.actionCtx = m.buildActionCtx(sel, kind)
 
 	var actions []model.ActionMenuItem
-	if kind == "__port_forwards__" || kind == "__port_forward_entry__" {
+	switch {
+	case kind == "__port_forwards__" || kind == "__port_forward_entry__":
 		actions = model.ActionsForPortForward()
-	} else if m.nav.Level == model.LevelContainers {
+	case m.nav.Level == model.LevelContainers:
 		actions = model.ActionsForContainer()
-	} else {
+	default:
 		actions = model.ActionsForKind(kind)
 	}
 
@@ -4104,7 +4109,7 @@ func (m Model) openActionMenu() (tea.Model, tea.Cmd) {
 		}
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(actions))
 	for _, a := range actions {
 		items = append(items, model.Item{
 			Name:   a.Label,
@@ -4129,11 +4134,12 @@ func (m *Model) buildActionCtx(sel *model.Item, kind string) actionContext {
 	}
 
 	// Capture the namespace of the target resource.
-	if sel.Namespace != "" {
+	switch {
+	case sel.Namespace != "":
 		ctx.namespace = sel.Namespace
-	} else if m.allNamespaces && m.nav.Namespace != "" {
+	case m.allNamespaces && m.nav.Namespace != "":
 		ctx.namespace = m.nav.Namespace
-	} else {
+	default:
 		ctx.namespace = m.namespace
 	}
 
@@ -5018,7 +5024,7 @@ func (m *Model) searchAllItems(queries []string, startIdx int, forward bool) {
 	}
 
 	// Search through all items in the specified direction.
-	var matchIdx int = -1
+	var matchIdx = -1
 	if forward {
 		for i := fullStart; i < len(allItems); i++ {
 			if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
@@ -5127,10 +5133,11 @@ func (m Model) handleMouseClick(x, y int) (tea.Model, tea.Cmd) {
 		middleEnd = leftEnd + middleW + 4
 	}
 
-	if x < leftEnd {
+	switch {
+	case x < leftEnd:
 		// Left column click: navigate parent.
 		return m.navigateParent()
-	} else if x < middleEnd {
+	case x < middleEnd:
 		// Middle column click: select item.
 		// y offset depends on whether column has a header line.
 		// Title bar (1) + top border (1) = 2 base offset.
@@ -5181,7 +5188,7 @@ func (m Model) handleMouseClick(x, y int) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	} else {
+	default:
 		// Right column click: navigate child.
 		return m.navigateChild()
 	}
@@ -6081,13 +6088,8 @@ func (m Model) navigateToBookmark(bm model.Bookmark) (tea.Model, tea.Cmd) {
 	m.nav.ResourceType = rt
 	m.nav.ResourceName = bm.ResourceName
 
-	if bm.ResourceName != "" {
-		// Navigate to resources level with the specific resource selected.
-		m.nav.Level = model.LevelResources
-	} else {
-		// Navigate to resources level (listing all resources of this type).
-		m.nav.Level = model.LevelResources
-	}
+	// Navigate to resources level (optionally with a specific resource selected).
+	m.nav.Level = model.LevelResources
 
 	// Reset navigation state that doesn't apply.
 	m.nav.OwnedName = ""
@@ -7078,17 +7080,6 @@ func (m Model) filterSuggestions(candidates []string, prefix string) []string {
 		filtered = filtered[:maxResults]
 	}
 	return filtered
-}
-
-// cleanupFullscreenMode resets the current fullscreen mode to modeExplorer
-// and cleans up any resources (e.g., active log streams) tied to the mode.
-func (m *Model) cleanupFullscreenMode() {
-	// Don't cancel log streams — they are preserved per-tab.
-	// saveCurrentTab() will store logCancel/logCh so they can be resumed.
-	if m.mode == modeExec {
-		m.cleanupExecPTY()
-	}
-	m.mode = modeExplorer
 }
 
 // closeTabOrQuit closes the current tab if multiple tabs are open,

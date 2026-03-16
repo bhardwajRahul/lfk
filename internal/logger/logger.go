@@ -54,7 +54,7 @@ func Init(logPath string) error {
 func Close() {
 	once.Do(func() {
 		if logFile != nil {
-			logFile.Close()
+			_ = logFile.Close()
 		}
 	})
 }
@@ -132,13 +132,13 @@ func (sc *StderrCapture) Writer() *os.File {
 // Close shuts down the capture. Call after restoring the original os.Stderr.
 func (sc *StderrCapture) Close() {
 	if sc.w != nil {
-		sc.w.Close()
+		_ = sc.w.Close()
 	}
 	if sc.done != nil {
 		<-sc.done
 	}
 	if sc.r != nil {
-		sc.r.Close()
+		_ = sc.r.Close()
 	}
 }
 

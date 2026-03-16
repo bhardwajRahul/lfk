@@ -104,7 +104,7 @@ func (m *Model) restorePortForwards() []tea.Cmd {
 	kubeconfigPaths := m.client.KubeconfigPaths()
 	mgr := m.portForwardMgr
 
-	var cmds []tea.Cmd
+	cmds := make([]tea.Cmd, 0, len(m.pendingPortForwards.PortForwards))
 	for _, pf := range m.pendingPortForwards.PortForwards {
 		pf := pf // capture loop variable
 		cmds = append(cmds, func() tea.Msg {

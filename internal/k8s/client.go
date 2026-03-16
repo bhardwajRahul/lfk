@@ -143,7 +143,7 @@ func containsPath(paths []string, target string) bool {
 
 // GetContexts returns all available kube contexts.
 func (c *Client) GetContexts() ([]model.Item, error) {
-	var items []model.Item
+	items := make([]model.Item, 0, len(c.rawConfig.Contexts))
 	for name := range c.rawConfig.Contexts {
 		status := ""
 		if name == c.rawConfig.CurrentContext {
@@ -181,7 +181,7 @@ func (c *Client) GetNamespaces(ctx context.Context, contextName string) ([]model
 		return nil, fmt.Errorf("listing namespaces: %w", err)
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(nsList.Items))
 	for _, ns := range nsList.Items {
 		items = append(items, model.Item{Name: ns.Name, Status: string(ns.Status.Phase)})
 	}
@@ -224,7 +224,7 @@ func (c *Client) GetResources(ctx context.Context, contextName, namespace string
 		return nil, fmt.Errorf("listing %s: %w", rt.Resource, err)
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(list.Items))
 	for _, item := range list.Items {
 		ti := model.Item{
 			Name:   item.GetName(),
@@ -897,14 +897,15 @@ func populateResourceDetails(ti *model.Item, obj map[string]interface{}, kind st
 							resName, _ := res["name"].(string)
 							if target, ok := res["target"].(map[string]interface{}); ok {
 								targetType, _ := target["type"].(string)
-								if targetType == "Utilization" {
+								switch targetType {
+								case "Utilization":
 									if avg, ok := target["averageUtilization"].(float64); ok {
 										ti.Columns = append(ti.Columns, model.KeyValue{
 											Key:   fmt.Sprintf("Target %s", strings.ToUpper(resName[:1])+resName[1:]),
 											Value: fmt.Sprintf("%d%%", int64(avg)),
 										})
 									}
-								} else if targetType == "AverageValue" {
+								case "AverageValue":
 									if avg, ok := target["averageValue"].(string); ok {
 										ti.Columns = append(ti.Columns, model.KeyValue{
 											Key:   fmt.Sprintf("Target %s", strings.ToUpper(resName[:1])+resName[1:]),
@@ -1253,14 +1254,14 @@ func populateResourceDetails(ti *model.Item, obj map[string]interface{}, kind st
 		metadata, _ := obj["metadata"].(map[string]interface{})
 		annotations, _ := metadata["annotations"].(map[string]interface{})
 		if val, ok := annotations["ingressclass.kubernetes.io/is-default-class"].(string); ok && val == "true" {
-			ti.Name = ti.Name + " (default)"
+			ti.Name += " (default)"
 			ti.Status = "default"
 		}
 	case "StorageClass":
 		metadata, _ := obj["metadata"].(map[string]interface{})
 		annotations, _ := metadata["annotations"].(map[string]interface{})
 		if val, ok := annotations["storageclass.kubernetes.io/is-default-class"].(string); ok && val == "true" {
-			ti.Name = ti.Name + " (default)"
+			ti.Name += " (default)"
 			ti.Status = "default"
 		}
 		if provisioner, ok := obj["provisioner"].(string); ok && provisioner != "" {
@@ -1519,7 +1520,7 @@ func populateResourceDetails(ti *model.Item, obj map[string]interface{}, kind st
 
 	case "PriorityClass":
 		if val, ok := spec["globalDefault"].(bool); ok && val {
-			ti.Name = ti.Name + " (default)"
+			ti.Name += " (default)"
 			ti.Status = "default"
 		}
 
@@ -1668,22 +1669,19 @@ func parseEventTimestamp(obj map[string]interface{}, field string) time.Time {
 	if !ok || val == nil {
 		return time.Time{}
 	}
-	switch v := val.(type) {
-	case string:
-		if v == "" {
+	v, ok := val.(string)
+	if !ok || v == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		// Try RFC3339Nano for eventTime which may include nanoseconds.
+		t, err = time.Parse(time.RFC3339Nano, v)
+		if err != nil {
 			return time.Time{}
 		}
-		t, err := time.Parse(time.RFC3339, v)
-		if err != nil {
-			// Try RFC3339Nano for eventTime which may include nanoseconds.
-			t, err = time.Parse(time.RFC3339Nano, v)
-			if err != nil {
-				return time.Time{}
-			}
-		}
-		return t
 	}
-	return time.Time{}
+	return t
 }
 
 func formatAge(d time.Duration) string {
@@ -1725,15 +1723,15 @@ func (c *Client) GetOwnedResources(ctx context.Context, contextName, namespace s
 		return c.getJobsByOwner(ctx, dynClient, namespace, parentName)
 	case "Service":
 		// Service -> Pods via selector
-		return c.getPodsForService(ctx, dynClient, contextName, namespace, parentName)
+		return c.getPodsForService(ctx, contextName, namespace, parentName)
 	case "Kustomization":
-		return c.getFluxManagedResources(ctx, dynClient, contextName, namespace, parentName)
+		return c.getFluxManagedResources(ctx, dynClient, namespace, parentName)
 	case "Application":
 		return c.getArgoManagedResources(ctx, dynClient, contextName, namespace, parentName)
 	case "HelmRelease":
-		return c.getHelmManagedResources(ctx, dynClient, contextName, namespace, parentName)
+		return c.getHelmManagedResources(ctx, contextName, namespace, parentName)
 	case "Node":
-		return c.getPodsOnNode(ctx, dynClient, contextName, parentName)
+		return c.getPodsOnNode(ctx, dynClient, parentName)
 	default:
 		// For ConfigMaps, Secrets, Ingresses, PVCs - no children, show YAML preview
 		return nil, nil
@@ -1765,9 +1763,9 @@ func (c *Client) GetResourceTree(ctx context.Context, contextName, namespace, ki
 	case "CronJob":
 		err = c.buildCronJobTree(ctx, dynClient, namespace, name, root)
 	case "Service":
-		err = c.buildServiceTree(ctx, dynClient, contextName, namespace, name, root)
+		err = c.buildServiceTree(ctx, contextName, namespace, name, root)
 	case "Node":
-		err = c.buildNodeTree(ctx, dynClient, contextName, name, root)
+		err = c.buildNodeTree(ctx, dynClient, name, root)
 	case "Pod":
 		err = c.buildPodTree(ctx, contextName, namespace, name, root)
 	}
@@ -1889,8 +1887,8 @@ func (c *Client) buildCronJobTree(ctx context.Context, dynClient dynamic.Interfa
 	return nil
 }
 
-func (c *Client) buildServiceTree(ctx context.Context, dynClient dynamic.Interface, contextName, namespace, serviceName string, root *model.ResourceNode) error {
-	pods, err := c.getPodsForService(ctx, dynClient, contextName, namespace, serviceName)
+func (c *Client) buildServiceTree(ctx context.Context, contextName, namespace, serviceName string, root *model.ResourceNode) error {
+	pods, err := c.getPodsForService(ctx, contextName, namespace, serviceName)
 	if err != nil {
 		return err
 	}
@@ -1905,8 +1903,8 @@ func (c *Client) buildServiceTree(ctx context.Context, dynClient dynamic.Interfa
 	return nil
 }
 
-func (c *Client) buildNodeTree(ctx context.Context, dynClient dynamic.Interface, contextName, nodeName string, root *model.ResourceNode) error {
-	pods, err := c.getPodsOnNode(ctx, dynClient, contextName, nodeName)
+func (c *Client) buildNodeTree(ctx context.Context, dynClient dynamic.Interface, nodeName string, root *model.ResourceNode) error {
+	pods, err := c.getPodsOnNode(ctx, dynClient, nodeName)
 	if err != nil {
 		return err
 	}
@@ -1985,7 +1983,7 @@ func (c *Client) GetContainers(ctx context.Context, contextName, namespace, podN
 		return nil, fmt.Errorf("getting pod %s: %w", podName, err)
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers))
 
 	// Init containers first (in spec order).
 	for _, c := range pod.Spec.InitContainers {
@@ -2040,7 +2038,7 @@ func (c *Client) GetServicePorts(ctx context.Context, contextName, namespace, sv
 		return nil, fmt.Errorf("getting service %s: %w", svcName, err)
 	}
 
-	var ports []ContainerPort
+	ports := make([]ContainerPort, 0, len(svc.Spec.Ports))
 	for _, p := range svc.Spec.Ports {
 		ports = append(ports, ContainerPort{
 			Name:          p.Name,
@@ -2330,7 +2328,7 @@ func (c *Client) GetDeploymentRevisions(ctx context.Context, contextName, namesp
 		return nil, fmt.Errorf("listing replicasets: %w", err)
 	}
 
-	var revisions []DeploymentRevision
+	revisions := make([]DeploymentRevision, 0, len(rsList.Items))
 	for _, rs := range rsList.Items {
 		owned := false
 		for _, ref := range rs.OwnerReferences {
@@ -2354,7 +2352,7 @@ func (c *Client) GetDeploymentRevisions(ctx context.Context, contextName, namesp
 		revisions = append(revisions, DeploymentRevision{
 			Revision:  rev,
 			Name:      rs.Name,
-			Replicas:  int32(rs.Status.Replicas),
+			Replicas:  rs.Status.Replicas,
 			Images:    images,
 			CreatedAt: rs.CreationTimestamp.Time,
 		})
@@ -2459,7 +2457,7 @@ func (c *Client) getPodsByOwner(ctx context.Context, dynClient dynamic.Interface
 }
 
 // getPodsOnNode lists all pods running on a specific node across all namespaces.
-func (c *Client) getPodsOnNode(ctx context.Context, dynClient dynamic.Interface, contextName, nodeName string) ([]model.Item, error) {
+func (c *Client) getPodsOnNode(ctx context.Context, dynClient dynamic.Interface, nodeName string) ([]model.Item, error) {
 	podGVR := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	podList, err := dynClient.Resource(podGVR).Namespace("").List(ctx, metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + nodeName,
@@ -2468,7 +2466,7 @@ func (c *Client) getPodsOnNode(ctx context.Context, dynClient dynamic.Interface,
 		return nil, fmt.Errorf("listing pods on node %s: %w", nodeName, err)
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(podList.Items))
 	for _, pod := range podList.Items {
 		ti := model.Item{
 			Name:      pod.GetName(),
@@ -2515,7 +2513,7 @@ func (c *Client) getJobsByOwner(ctx context.Context, dynClient dynamic.Interface
 	return items, nil
 }
 
-func (c *Client) getPodsForService(ctx context.Context, dynClient dynamic.Interface, contextName, namespace, serviceName string) ([]model.Item, error) {
+func (c *Client) getPodsForService(ctx context.Context, contextName, namespace, serviceName string) ([]model.Item, error) {
 	cs, err := c.clientsetForContext(contextName)
 	if err != nil {
 		return nil, err
@@ -2531,7 +2529,7 @@ func (c *Client) getPodsForService(ctx context.Context, dynClient dynamic.Interf
 	}
 
 	// Build label selector string.
-	var selectorParts []string
+	selectorParts := make([]string, 0, len(svc.Spec.Selector))
 	for k, v := range svc.Spec.Selector {
 		selectorParts = append(selectorParts, k+"="+v)
 	}
@@ -2545,7 +2543,7 @@ func (c *Client) getPodsForService(ctx context.Context, dynClient dynamic.Interf
 		return nil, fmt.Errorf("listing pods for service: %w", err)
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(podList.Items))
 	for _, pod := range podList.Items {
 		items = append(items, model.Item{
 			Name:      pod.Name,
@@ -2617,7 +2615,7 @@ func (c *Client) GetPodSelector(ctx context.Context, contextName, namespace, kin
 		return "", nil
 	}
 
-	var parts []string
+	parts := make([]string, 0, len(labels))
 	for k, v := range labels {
 		parts = append(parts, k+"="+v)
 	}
@@ -2681,7 +2679,7 @@ func (c *Client) DiscoverCRDs(ctx context.Context, contextName string) ([]model.
 		return nil, fmt.Errorf("listing CRDs: %w", err)
 	}
 
-	var entries []model.ResourceTypeEntry
+	entries := make([]model.ResourceTypeEntry, 0, len(list.Items))
 	for _, item := range list.Items {
 		spec, ok := item.Object["spec"].(map[string]interface{})
 		if !ok {
@@ -2788,13 +2786,14 @@ func buildContainerItem(c corev1.Container, statuses []corev1.ContainerStatus, i
 		Extra: c.Image,
 	}
 
-	if isSidecar {
+	switch {
+	case isSidecar:
 		item.Category = "Sidecar Containers"
 		item.Status = "Waiting"
-	} else if isInit {
+	case isInit:
 		item.Category = "Init Containers"
 		item.Status = "Init"
-	} else {
+	default:
 		item.Category = "Containers"
 		item.Status = "Waiting"
 	}
@@ -2866,7 +2865,7 @@ func buildContainerItem(c corev1.Container, statuses []corev1.ContainerStatus, i
 
 	// Ports.
 	if len(c.Ports) > 0 {
-		var ports []string
+		ports := make([]string, 0, len(c.Ports))
 		for _, p := range c.Ports {
 			port := fmt.Sprintf("%d/%s", p.ContainerPort, p.Protocol)
 			if p.Name != "" {
@@ -3274,7 +3273,7 @@ func (c *Client) RefreshArgoApp(contextName, namespace, name string) error {
 
 // getFluxManagedResources retrieves resources managed by a Flux Kustomization
 // from its status.inventory.entries field.
-func (c *Client) getFluxManagedResources(ctx context.Context, dynClient dynamic.Interface, contextName, namespace, name string) ([]model.Item, error) {
+func (c *Client) getFluxManagedResources(ctx context.Context, dynClient dynamic.Interface, namespace, name string) ([]model.Item, error) {
 	kustomGVR := schema.GroupVersionResource{
 		Group:    "kustomize.toolkit.fluxcd.io",
 		Version:  "v1",
@@ -3301,7 +3300,7 @@ func (c *Client) getFluxManagedResources(ctx context.Context, dynClient dynamic.
 		return nil, nil
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(entries))
 	for _, entry := range entries {
 		e, ok := entry.(map[string]interface{})
 		if !ok {
@@ -3496,7 +3495,7 @@ func (c *Client) GetHelmReleases(ctx context.Context, contextName, namespace str
 		}
 	}
 
-	var items []model.Item
+	items := make([]model.Item, 0, len(releases))
 	for _, rel := range releases {
 		status := rel.status
 		// Capitalize first letter for display.
@@ -3567,7 +3566,7 @@ func (c *Client) GetHelmReleaseYAML(ctx context.Context, contextName, namespace,
 	return string(data), nil
 }
 
-func (c *Client) getHelmManagedResources(ctx context.Context, dynClient dynamic.Interface, contextName, namespace, releaseName string) ([]model.Item, error) {
+func (c *Client) getHelmManagedResources(ctx context.Context, contextName, namespace, releaseName string) ([]model.Item, error) {
 	cs, err := c.clientsetForContext(contextName)
 	if err != nil {
 		return nil, err
@@ -3792,7 +3791,7 @@ func (c *Client) GetPodsMetrics(ctx context.Context, contextName, namespace stri
 		wanted[n] = true
 	}
 
-	var metrics []model.PodMetrics
+	metrics := make([]model.PodMetrics, 0, len(list.Items))
 	for i := range list.Items {
 		name := list.Items[i].GetName()
 		if !wanted[name] {
@@ -3927,7 +3926,7 @@ func (c *Client) GetSecretData(ctx context.Context, contextName, namespace, name
 	}
 
 	data := make(map[string]string, len(secret.Data))
-	var keys []string
+	keys := make([]string, 0, len(secret.Data))
 	for k, v := range secret.Data {
 		keys = append(keys, k)
 		data[k] = string(v)
@@ -3977,7 +3976,7 @@ func (c *Client) GetConfigMapData(ctx context.Context, contextName, namespace, n
 	}
 
 	data := make(map[string]string, len(cm.Data))
-	var keys []string
+	keys := make([]string, 0, len(cm.Data))
 	for k, v := range cm.Data {
 		keys = append(keys, k)
 		data[k] = v
@@ -4179,14 +4178,15 @@ func reorderYAMLFields(yamlStr string) string {
 	var current *section
 
 	for _, line := range lines {
-		if len(line) > 0 && line[0] != ' ' && line[0] != '#' && strings.Contains(line, ":") {
+		switch {
+		case len(line) > 0 && line[0] != ' ' && line[0] != '#' && strings.Contains(line, ":"):
 			key := strings.SplitN(line, ":", 2)[0]
 			sections = append(sections, section{key: key})
 			current = &sections[len(sections)-1]
 			current.lines = append(current.lines, line)
-		} else if current != nil {
+		case current != nil:
 			current.lines = append(current.lines, line)
-		} else {
+		default:
 			// Preamble (comments, etc.)
 			sections = append(sections, section{key: "", lines: []string{line}})
 		}
@@ -4291,7 +4291,7 @@ func (c *Client) GetNamespaceQuotas(ctx context.Context, kubeCtx, namespace stri
 		return nil, fmt.Errorf("listing resourcequotas: %w", err)
 	}
 
-	var quotas []QuotaInfo
+	quotas := make([]QuotaInfo, 0, len(list.Items))
 	for _, item := range list.Items {
 		qi := QuotaInfo{
 			Name:      item.GetName(),
@@ -4339,7 +4339,7 @@ func (c *Client) GetNamespaceQuotas(ctx context.Context, kubeCtx, namespace stri
 // computeQuotaPercent computes the usage percentage for a quota resource.
 // For resources like cpu and memory, it parses Kubernetes quantity strings.
 // For simple numeric resources (pods, services, etc.), it parses as integers.
-func computeQuotaPercent(resName, hardStr, usedStr string) float64 {
+func computeQuotaPercent(_, hardStr, usedStr string) float64 {
 	// Try to parse as Kubernetes quantities (handles cpu, memory, storage, etc.)
 	hardQty, errH := resource.ParseQuantity(hardStr)
 	usedQty, errU := resource.ParseQuantity(usedStr)
@@ -4394,7 +4394,7 @@ func (c *Client) GetResourceEvents(ctx context.Context, kubeCtx, namespace, name
 	}
 
 	namePrefix := name + "-"
-	var events []EventInfo
+	events := make([]EventInfo, 0, len(list.Items))
 	for _, item := range list.Items {
 		involved, _, _ := unstructured.NestedMap(item.Object, "involvedObject")
 		if involved == nil {

@@ -157,7 +157,8 @@ func renderLabelEditorTable(keys []string, data map[string]string, selectedIdx i
 		displayV := Truncate(v, valColW)
 
 		var line string
-		if i == selectedIdx && editing {
+		switch {
+		case i == selectedIdx && editing:
 			if editColumn == 0 {
 				editDisplay := editKey + DimStyle.Render("\u2588")
 				editW := lipgloss.Width(editDisplay)
@@ -171,10 +172,10 @@ func renderLabelEditorTable(keys []string, data map[string]string, selectedIdx i
 				editDisplay := editValue + DimStyle.Render("\u2588")
 				line = HelpKeyStyle.Render("> ") + fmt.Sprintf("%-*s", keyColW, keyDisplay) + "  |  " + editDisplay
 			}
-		} else if i == selectedIdx {
+		case i == selectedIdx:
 			rawLine := fmt.Sprintf("> %-*s  |  %-*s", keyColW, Truncate(k, keyColW), valColW, displayV)
 			line = OverlaySelectedStyle.Render(rawLine)
-		} else {
+		default:
 			kPadded := fmt.Sprintf("%-*s", keyColW, Truncate(k, keyColW))
 			keyStr := HelpKeyStyle.Render(kPadded)
 			valStr := DimStyle.Render(displayV)

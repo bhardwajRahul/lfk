@@ -154,7 +154,8 @@ func renderConfigMapEditorTable(
 		displayV := configMapValueDisplay(v, valColW)
 
 		var line string
-		if i == selectedIdx && editing {
+		switch {
+		case i == selectedIdx && editing:
 			// Inline edit mode.
 			if editColumn == 0 {
 				// Editing key.
@@ -171,11 +172,11 @@ func renderConfigMapEditorTable(
 				editDisplay := editValue + DimStyle.Render("\u2588")
 				line = HelpKeyStyle.Render("> ") + fmt.Sprintf("%-*s", keyColW, keyDisplay) + "  |  " + editDisplay
 			}
-		} else if i == selectedIdx {
+		case i == selectedIdx:
 			// Selected row.
 			rawLine := fmt.Sprintf("> %-*s  |  %-*s", keyColW, Truncate(k, keyColW), valColW, displayV)
 			line = OverlaySelectedStyle.Render(rawLine)
-		} else {
+		default:
 			// Normal row.
 			kPadded := fmt.Sprintf("%-*s", keyColW, Truncate(k, keyColW))
 			keyStr := HelpKeyStyle.Render(kPadded)

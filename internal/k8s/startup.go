@@ -125,7 +125,8 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 
 		// Add per-init-container timing if available.
 		for _, cs := range pod.Status.InitContainerStatuses {
-			if cs.State.Terminated != nil {
+			switch {
+			case cs.State.Terminated != nil:
 				start := cs.State.Terminated.StartedAt.Time
 				finish := cs.State.Terminated.FinishedAt.Time
 				if !start.IsZero() && !finish.IsZero() {
@@ -135,13 +136,13 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 						Status:   "completed",
 					})
 				}
-			} else if cs.State.Running != nil {
+			case cs.State.Running != nil:
 				info.Phases = append(info.Phases, StartupPhase{
 					Name:     fmt.Sprintf("  init: %s", cs.Name),
 					Duration: now.Sub(cs.State.Running.StartedAt.Time),
 					Status:   "in-progress",
 				})
-			} else {
+			default:
 				info.Phases = append(info.Phases, StartupPhase{
 					Name:     fmt.Sprintf("  init: %s", cs.Name),
 					Duration: 0,
@@ -172,7 +173,8 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 
 	// Add per-container timing.
 	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.State.Running != nil {
+		switch {
+		case cs.State.Running != nil:
 			startedAt := cs.State.Running.StartedAt.Time
 			if !startedAt.IsZero() && !containersReadyTime.IsZero() {
 				info.Phases = append(info.Phases, StartupPhase{
@@ -187,7 +189,7 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 					Status:   "in-progress",
 				})
 			}
-		} else if cs.State.Terminated != nil && !cs.State.Terminated.StartedAt.IsZero() {
+		case cs.State.Terminated != nil && !cs.State.Terminated.StartedAt.IsZero():
 			start := cs.State.Terminated.StartedAt.Time
 			finish := cs.State.Terminated.FinishedAt.Time
 			if !finish.IsZero() {
@@ -197,7 +199,7 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 					Status:   "completed",
 				})
 			}
-		} else {
+		default:
 			info.Phases = append(info.Phases, StartupPhase{
 				Name:     fmt.Sprintf("  container: %s", cs.Name),
 				Duration: 0,
@@ -225,11 +227,12 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 	}
 
 	// Compute total time.
-	if !readyTime.IsZero() {
+	switch {
+	case !readyTime.IsZero():
 		info.TotalTime = readyTime.Sub(creationTime)
-	} else if !containersReadyTime.IsZero() {
+	case !containersReadyTime.IsZero():
 		info.TotalTime = containersReadyTime.Sub(creationTime)
-	} else {
+	default:
 		info.TotalTime = now.Sub(creationTime)
 	}
 

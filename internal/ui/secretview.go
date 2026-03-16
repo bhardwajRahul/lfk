@@ -158,7 +158,8 @@ func renderSecretEditorTable(
 		v := secret.Data[k]
 
 		var line string
-		if i == selectedIdx && editing {
+		switch {
+		case i == selectedIdx && editing:
 			// Inline edit mode.
 			if editColumn == 0 {
 				// Editing key.
@@ -176,12 +177,12 @@ func renderSecretEditorTable(
 				editDisplay := editValue + DimStyle.Render("\u2588")
 				line = HelpKeyStyle.Render("> ") + fmt.Sprintf("%-*s", keyColW, keyDisplay) + "  |  " + editDisplay
 			}
-		} else if i == selectedIdx {
+		case i == selectedIdx:
 			// Selected row.
 			valDisplay := secretValueDisplay(v, revealedKeys[k] || allRevealed, valColW)
 			rawLine := fmt.Sprintf("> %-*s  |  %-*s", keyColW, Truncate(k, keyColW), valColW, valDisplay)
 			line = OverlaySelectedStyle.Render(rawLine)
-		} else {
+		default:
 			// Normal row.
 			kPadded := fmt.Sprintf("%-*s", keyColW, Truncate(k, keyColW))
 			keyStr := HelpKeyStyle.Render(kPadded)

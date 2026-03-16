@@ -126,7 +126,6 @@ type TabState struct {
 	fullscreenDashboard bool
 	dashboardPreview    string
 	monitoringPreview   string
-	previewScroll       int
 
 	// Toggle to show only Warning events in Event list view.
 	warningEventsOnly bool
@@ -324,8 +323,7 @@ type Model struct {
 	// Log viewer: search state.
 	logSearchActive bool
 	logSearchInput  TextInput
-	logSearchQuery  string // applied search
-	logSearchMatch  int    // index of current match line, -1 if none
+	logSearchQuery string // applied search
 
 	// Describe viewer state.
 	describeContent string
@@ -812,7 +810,8 @@ func (m Model) viewExplorer() string {
 	middle := ui.ActiveColumnStyle.Width(middleW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(middleCol)
 
 	var columns string
-	if m.fullscreenDashboard {
+	switch {
+	case m.fullscreenDashboard:
 		// Fullscreen dashboard: render cluster/monitoring overview using full width.
 		var dashContent string
 		sel := m.selectedMiddleItem()
@@ -840,9 +839,9 @@ func (m Model) viewExplorer() string {
 		}
 		dashCol := padToHeight(dashContent, contentHeight)
 		columns = ui.ActiveColumnStyle.Width(m.width-2).Height(contentHeight).MaxHeight(contentHeight+2).Render(dashCol)
-	} else if m.fullscreenMiddle {
+	case m.fullscreenMiddle:
 		columns = middle
-	} else {
+	default:
 		leftCol := ui.RenderColumn(m.leftColumnHeader(), m.leftItems, m.parentIndex(), leftInner, contentHeight, false, m.loading, m.spinner.View(), "")
 		// Clear highlight query for preview/right column — search only applies to the focus pane.
 		savedHighlight := ui.ActiveHighlightQuery
@@ -885,9 +884,10 @@ func (m Model) renderTitleBar() string {
 	}
 
 	nsText := m.namespace
-	if m.allNamespaces {
+	switch {
+	case m.allNamespaces:
 		nsText = "all"
-	} else if len(m.selectedNamespaces) > 1 {
+	case len(m.selectedNamespaces) > 1:
 		names := make([]string, 0, len(m.selectedNamespaces))
 		for ns := range m.selectedNamespaces {
 			names = append(names, ns)
@@ -898,7 +898,7 @@ func (m Model) renderTitleBar() string {
 		} else {
 			nsText = strings.Join(names, ",")
 		}
-	} else if len(m.selectedNamespaces) == 1 {
+	case len(m.selectedNamespaces) == 1:
 		for ns := range m.selectedNamespaces {
 			nsText = ns
 		}
@@ -949,7 +949,7 @@ func (m Model) viewYAML() string {
 		{"e", "edit"},
 		{"q/esc", "back"},
 	}
-	var yamlHintParts []string
+	yamlHintParts := make([]string, 0, len(yamlHints))
 	for _, h := range yamlHints {
 		yamlHintParts = append(yamlHintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
 	}
@@ -1019,7 +1019,7 @@ func (m Model) viewYAML() string {
 	}
 
 	// Apply YAML highlighting to visible lines, with search highlights and cursor.
-	var highlightedLines []string
+	highlightedLines := make([]string, 0, len(viewport))
 	for i, line := range viewport {
 		visIdx := yamlScroll + i
 		origLine := -1
@@ -1098,7 +1098,7 @@ func (m Model) viewDescribe() string {
 		{"ctrl+f/b", "page"},
 		{"q/esc", "back"},
 	}
-	var hintParts []string
+	hintParts := make([]string, 0, len(hints))
 	for _, h := range hints {
 		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
 	}
@@ -1683,7 +1683,7 @@ func (m Model) statusBar() string {
 		{"?", "help"},
 		{"q", "quit"},
 	}
-	var hintParts []string
+	hintParts := make([]string, 0, len(hints))
 	for _, h := range hints {
 		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
 	}
@@ -2045,7 +2045,10 @@ func (m *Model) carryOverMetricsColumns(newItems []model.Item) {
 				kept = append(kept, kv)
 			}
 		}
-		newItems[i].Columns = append(cols, kept...)
+		merged := make([]model.KeyValue, 0, len(cols)+len(kept))
+		merged = append(merged, cols...)
+		merged = append(merged, kept...)
+		newItems[i].Columns = merged
 	}
 }
 
@@ -2280,17 +2283,6 @@ func (m *Model) filteredOverlayItems() []model.Item {
 		}
 	}
 	return filtered
-}
-
-// clampOverlayCursor ensures the overlay cursor is within bounds.
-func (m *Model) clampOverlayCursor() {
-	items := m.filteredOverlayItems()
-	if m.overlayCursor < 0 {
-		m.overlayCursor = 0
-	}
-	if len(items) > 0 && m.overlayCursor >= len(items) {
-		m.overlayCursor = len(items) - 1
-	}
 }
 
 // pushLeft saves the current leftItems and promotes middleItems to become the new leftItems.
@@ -2538,12 +2530,6 @@ func (m *Model) addLogEntry(level, msg string) {
 	if len(m.errorLog) > 500 {
 		m.errorLog = m.errorLog[len(m.errorLog)-500:]
 	}
-}
-
-// logDebug adds a debug entry to the in-app log and file logger.
-func (m *Model) logDebug(msg string) {
-	logger.Debug(msg)
-	m.addLogEntry("DBG", msg)
 }
 
 // portForwardItems returns the list of active port forwards as model.Items for display.
@@ -2873,26 +2859,6 @@ func copyItemCache(m map[string][]model.Item) map[string][]model.Item {
 
 // padToHeight ensures a string has exactly `height` newline-separated lines,
 // padding with empty lines or truncating as needed.
-// placeTopRight overlays indicator text on the first line's right side.
-func placeTopRight(content, indicator string, width int) string {
-	lines := strings.Split(content, "\n")
-	if len(lines) == 0 {
-		return content
-	}
-	first := lines[0]
-	firstW := lipgloss.Width(first)
-	indW := lipgloss.Width(indicator)
-	if firstW+indW+1 <= width {
-		// Enough room: pad and append.
-		gap := width - firstW - indW
-		lines[0] = first + strings.Repeat(" ", gap) + indicator
-	} else {
-		// Truncate first line to make room.
-		lines[0] = ui.Truncate(first, width-indW-1) + " " + indicator
-	}
-	return strings.Join(lines, "\n")
-}
-
 func padToHeight(content string, height int) string {
 	lines := strings.Split(content, "\n")
 	if len(lines) > height {
@@ -2921,7 +2887,7 @@ func (m Model) viewExecTerminal() string {
 	hints := []struct{ key, desc string }{
 		{"ctrl+]", "exit"},
 	}
-	var hintParts []string
+	hintParts := make([]string, 0, len(hints))
 	for _, h := range hints {
 		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+" "+ui.DimStyle.Render(h.desc))
 	}
