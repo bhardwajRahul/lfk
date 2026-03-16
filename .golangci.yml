@@ -15,17 +15,17 @@ linters:
     - prealloc
     - unconvert
     - unparam
-
-linters-settings:
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-    disabled-checks:
-      - hugeParam # TUI models are passed by value in BubbleTea
+  settings:
+    gocritic:
+      enabledTags:
+        - diagnostic
+        - performance
+      disabledChecks:
+        - hugeParam # TUI models are passed by value in BubbleTea
+  exclusions:
+    paths:
+      - vendor
 
 issues:
-  exclude-dirs:
-    - vendor
   max-issues-per-linter: 0
   max-same-issues: 0

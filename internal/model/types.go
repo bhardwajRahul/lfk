@@ -704,11 +704,12 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 	// Core categories retain their fixed position at the top.
 	var coreItems, pinnedItems, crdItemsList []Item
 	for _, it := range items {
-		if coreCategories[it.Category] || it.Category == "" {
+		switch {
+		case coreCategories[it.Category] || it.Category == "":
 			coreItems = append(coreItems, it)
-		} else if pinnedSet[it.Category] {
+		case pinnedSet[it.Category]:
 			pinnedItems = append(pinnedItems, it)
-		} else {
+		default:
 			crdItemsList = append(crdItemsList, it)
 		}
 	}
