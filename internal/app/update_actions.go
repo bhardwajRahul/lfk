@@ -466,19 +466,19 @@ func (m Model) executeAction(actionLabel string) (tea.Model, tea.Cmd) {
 		m.addLogEntry("DBG", fmt.Sprintf("Loading event timeline for %s/%s in %s", m.actionCtx.kind, name, ns))
 		return m, m.loadEventTimeline()
 	case "Sync":
-		m.addLogEntry("DBG", fmt.Sprintf("$ kubectl patch app %s --type merge -p '{\"operation\":{\"sync\":{\"syncStrategy\":{\"hook\":{}}}}}' -n %s --context %s", name, ns, ctx))
+		m.addLogEntry("DBG", fmt.Sprintf("Sync (hook strategy) %s/%s in %s", ns, name, ctx))
 		m.loading = true
 		return m, m.syncArgoApp(false)
 	case "Sync (Apply Only)":
-		m.addLogEntry("DBG", fmt.Sprintf("$ kubectl patch app %s --type merge -p '{\"operation\":{\"sync\":{\"syncStrategy\":{\"apply\":{}}}}}' -n %s --context %s", name, ns, ctx))
+		m.addLogEntry("DBG", fmt.Sprintf("Sync (apply strategy) %s/%s in %s", ns, name, ctx))
 		m.loading = true
 		return m, m.syncArgoApp(true)
 	case "Refresh":
-		m.addLogEntry("DBG", fmt.Sprintf("$ kubectl patch app %s --type merge -p '{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}' -n %s --context %s", name, ns, ctx))
+		m.addLogEntry("DBG", fmt.Sprintf("Hard refresh %s/%s in %s", ns, name, ctx))
 		m.loading = true
 		return m, m.refreshArgoApp()
 	case "Terminate Sync":
-		m.addLogEntry("DBG", fmt.Sprintf("Terminating sync operation for %s in %s (context: %s)", name, ns, ctx))
+		m.addLogEntry("DBG", fmt.Sprintf("Terminate sync for %s/%s in %s", ns, name, ctx))
 		m.loading = true
 		return m, m.terminateArgoSync()
 	case "Reconcile":
