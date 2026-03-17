@@ -224,7 +224,7 @@ Autocompletion is available for kubectl commands (subcommands, resource types, r
 The action menu (`x` key) shows context-specific actions based on the resource type:
 
 ### Pod Actions
-`l` Logs, `s` Exec, `A` Attach, `b` Debug, `B` Debug Pod, `p` Port Forward, `S` Startup Analysis, `v` Describe, `E` Edit, `D` Delete, `X` Force Delete, `V` Events
+`l` Logs, `s` Exec, `A` Attach, `B` Debug, `b` Debug Pod, `p` Port Forward, `S` Startup Analysis, `v` Describe, `E` Edit, `D` Delete, `X` Force Delete, `V` Events
 
 ### Deployment Actions
 `l` Logs, `s` Exec, `A` Attach, `S` Scale, `r` Restart, `R` Rollback, `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events

@@ -11,7 +11,7 @@ import (
 // openExplainBrowser determines the resource type from the current navigation
 // context and launches kubectl explain for it.
 func (m Model) openExplainBrowser() (tea.Model, tea.Cmd) {
-	var resource string
+	var resource, apiVersion string
 
 	switch m.nav.Level {
 	case model.LevelResourceTypes:
@@ -35,7 +35,7 @@ func (m Model) openExplainBrowser() (tea.Model, tea.Cmd) {
 		crds := m.discoveredCRDs[m.nav.Context]
 		rt, ok := model.FindResourceTypeIn(sel.Extra, crds)
 		if ok {
-			resource = buildExplainResourceFromType(rt)
+			resource, apiVersion = buildExplainResourceFromType(rt)
 		} else {
 			// Fallback: use the kind name lowercased.
 			if sel.Kind != "" {
@@ -50,7 +50,7 @@ func (m Model) openExplainBrowser() (tea.Model, tea.Cmd) {
 	case model.LevelResources, model.LevelOwned, model.LevelContainers:
 		// Use the current resource type from navigation state.
 		rt := m.nav.ResourceType
-		resource = buildExplainResourceFromType(rt)
+		resource, apiVersion = buildExplainResourceFromType(rt)
 		if resource == "" {
 			m.setStatusMessage("Cannot determine resource type", true)
 			return m, scheduleStatusClear()
@@ -63,23 +63,22 @@ func (m Model) openExplainBrowser() (tea.Model, tea.Cmd) {
 
 	m.loading = true
 	m.explainResource = resource
+	m.explainAPIVersion = apiVersion
 	m.setStatusMessage("Loading API structure...", false)
-	return m, m.execKubectlExplain(resource, "")
+	return m, m.execKubectlExplain(resource, apiVersion, "")
 }
 
-// buildExplainResourceFromType constructs the resource specifier from a ResourceTypeEntry
-// in the format that kubectl explain expects: resource[.version.group].
-func buildExplainResourceFromType(rt model.ResourceTypeEntry) string {
+// buildExplainResourceFromType returns the resource name and api-version flag value
+// for kubectl explain. The resource is just the plural name (e.g., "deployments").
+// The apiVersion is "group/version" (e.g., "apps/v1") for non-core resources, empty for core.
+func buildExplainResourceFromType(rt model.ResourceTypeEntry) (resource, apiVersion string) {
 	if rt.Resource == "" {
-		return ""
+		return "", ""
 	}
-	if rt.APIGroup != "" {
-		if rt.APIVersion != "" {
-			return rt.Resource + "." + rt.APIVersion + "." + rt.APIGroup
-		}
-		return rt.Resource + "." + rt.APIGroup
+	if rt.APIGroup != "" && rt.APIVersion != "" {
+		return rt.Resource, rt.APIGroup + "/" + rt.APIVersion
 	}
-	return rt.Resource
+	return rt.Resource, ""
 }
 
 // handleExplainKey handles keyboard input in the explain view mode.
@@ -105,6 +104,7 @@ func (m Model) handleExplainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.explainDesc = ""
 		m.explainPath = ""
 		m.explainResource = ""
+		m.explainAPIVersion = ""
 		m.explainTitle = ""
 		m.explainCursor = 0
 		m.explainScroll = 0
@@ -218,7 +218,7 @@ func (m Model) handleExplainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if ui.IsDrillableType(f.Type) {
 				m.loading = true
 				m.setStatusMessage("Loading field structure...", false)
-				return m, m.execKubectlExplain(m.explainResource, f.Path)
+				return m, m.execKubectlExplain(m.explainResource, m.explainAPIVersion, f.Path)
 			}
 			m.setStatusMessage("This field is a primitive type and cannot be drilled into", true)
 			return m, scheduleStatusClear()
@@ -248,7 +248,7 @@ func (m Model) handleExplainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.loading = true
 		m.setStatusMessage("Loading parent structure...", false)
-		return m, m.execKubectlExplain(m.explainResource, newPath)
+		return m, m.execKubectlExplain(m.explainResource, m.explainAPIVersion, newPath)
 	}
 
 	return m, nil

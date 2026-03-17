@@ -174,13 +174,14 @@ type TabState struct {
 	execMu    *sync.Mutex
 
 	// Explain view state (per-tab).
-	explainFields   []model.ExplainField
-	explainDesc     string // resource/field-level description
-	explainPath     string // current drill-down path (e.g., "spec.template")
-	explainResource string // full resource specifier (e.g., "deployments.v1.apps")
-	explainTitle    string
-	explainCursor   int
-	explainScroll   int
+	explainFields     []model.ExplainField
+	explainDesc       string // resource/field-level description
+	explainPath       string // current drill-down path (e.g., "spec.template")
+	explainResource   string // resource name (e.g., "deployments")
+	explainAPIVersion string // api version for kubectl explain (e.g., "apps/v1")
+	explainTitle      string
+	explainCursor     int
+	explainScroll     int
 }
 
 // Model is the top-level bubbletea model.
@@ -556,13 +557,14 @@ type Model struct {
 	pfLastCreatedID  int // ID of the most recently created port forward (for showing resolved port)
 
 	// Explain view state (API browser).
-	explainFields   []model.ExplainField
-	explainDesc     string // resource/field-level description
-	explainPath     string // current drill-down path (e.g., "spec.template")
-	explainResource string // full resource specifier (e.g., "deployments.v1.apps")
-	explainTitle    string
-	explainCursor   int
-	explainScroll   int
+	explainFields     []model.ExplainField
+	explainDesc       string // resource/field-level description
+	explainPath       string // current drill-down path (e.g., "spec.template")
+	explainResource   string // resource name (e.g., "deployments")
+	explainAPIVersion string // api version for kubectl explain (e.g., "apps/v1")
+	explainTitle      string
+	explainCursor     int
+	explainScroll     int
 }
 
 // ownedParentState captures the navigation state that must be restored
@@ -2805,6 +2807,7 @@ func (m *Model) saveCurrentTab() {
 	t.explainDesc = m.explainDesc
 	t.explainPath = m.explainPath
 	t.explainResource = m.explainResource
+	t.explainAPIVersion = m.explainAPIVersion
 	t.explainTitle = m.explainTitle
 	t.explainCursor = m.explainCursor
 	t.explainScroll = m.explainScroll
@@ -2883,6 +2886,7 @@ func (m *Model) loadTab(idx int) {
 	m.explainDesc = t.explainDesc
 	m.explainPath = t.explainPath
 	m.explainResource = t.explainResource
+	m.explainAPIVersion = t.explainAPIVersion
 	m.explainTitle = t.explainTitle
 	m.explainCursor = t.explainCursor
 	m.explainScroll = t.explainScroll

@@ -1035,7 +1035,8 @@ func (m Model) execKubectlNodeShell() tea.Cmd {
 
 // execKubectlExplain runs kubectl explain for a resource (optionally at a field path)
 // and returns the parsed output as an explainLoadedMsg.
-func (m Model) execKubectlExplain(resource, fieldPath string) tea.Cmd {
+// apiVersion is the "group/version" string for --api-version flag (empty for core resources).
+func (m Model) execKubectlExplain(resource, apiVersion, fieldPath string) tea.Cmd {
 	kubectlPath, err := exec.LookPath("kubectl")
 	if err != nil {
 		return func() tea.Msg {
@@ -1052,12 +1053,18 @@ func (m Model) execKubectlExplain(resource, fieldPath string) tea.Cmd {
 	}
 
 	title := resource
+	if apiVersion != "" {
+		title = resource + " (" + apiVersion + ")"
+	}
 	if fieldPath != "" {
-		title = resource + " > " + strings.ReplaceAll(fieldPath, ".", " > ")
+		title = title + " > " + strings.ReplaceAll(fieldPath, ".", " > ")
 	}
 
 	return func() tea.Msg {
 		args := []string{"explain", target, "--context", kctx}
+		if apiVersion != "" {
+			args = append(args, "--api-version", apiVersion)
+		}
 		cmd := exec.Command(kubectlPath, args...)
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
 		logger.Info("Running kubectl command", "cmd", cmd.String())
