@@ -31,6 +31,7 @@ Complete list of all keybindings in `lfk`. Keybindings marked with **(configurab
 | `.` | Quick filter presets |
 | `!` | Error log |
 | `Ctrl+S` | Toggle secret value visibility (decode base64) |
+| `I` | API explain browser (browse resource structure interactively) |
 | `m` | Toggle resource relationship map view |
 | `w` | Toggle watch mode (auto-refresh every 2s) |
 | `,` | Cycle sort mode (name / age / status) |
@@ -148,6 +149,18 @@ When items are selected, press `x` to open the bulk action menu (delete, force d
 | `123G` | Jump to line number |
 | `u` | Toggle unified/side-by-side view |
 | `q` / `Esc` | Back to explorer |
+
+## API Explorer
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Navigate fields |
+| `l` / `Enter` | Drill into field (Object/array types) |
+| `h` / `Backspace` | Go back one level |
+| `gg` / `G` | Jump to top / bottom |
+| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
+| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
+| `q` / `Esc` | Close API explorer |
 
 ## Network Policy Visualizer
 

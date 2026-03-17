@@ -58,6 +58,7 @@ func helpSections() []helpSection {
 				{"!", "Error log"},
 				{"0/1/2", "Jump to clusters/types/resources level"},
 				{"Ctrl+S", "Toggle secret value visibility"},
+				{"I", "API explain browser (resource structure)"},
 			},
 		},
 		{
@@ -139,6 +140,18 @@ func helpSections() []helpSection {
 				{"123G", "Jump to line number"},
 				{"u", "Toggle unified/side-by-side view"},
 				{"q/Esc", "Back to explorer"},
+			},
+		},
+		{
+			title: "API Explorer",
+			bindings: []helpEntry{
+				{"j/k", "Navigate fields"},
+				{"l/Enter", "Drill into field (Object/array types)"},
+				{"h/Backspace", "Go back one level"},
+				{"g/G", "Top/bottom"},
+				{"Ctrl+D/U", "Page down/up (half page)"},
+				{"Ctrl+F/B", "Page down/up (full page)"},
+				{"q/Esc", "Close API explorer"},
 			},
 		},
 		{

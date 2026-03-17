@@ -713,6 +713,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffUnified = false
 		return m, nil
 
+	case explainLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.setErrorFromErr("Explain failed: ", msg.err)
+			return m, scheduleStatusClear()
+		}
+		m.mode = modeExplain
+		m.explainFields = msg.fields
+		m.explainDesc = msg.description
+		m.explainPath = msg.path
+		m.explainTitle = msg.title
+		m.explainCursor = 0
+		m.explainScroll = 0
+		return m, nil
+
 	case metricsLoadedMsg:
 		if msg.gen != m.requestGen {
 			return m, nil // stale response
@@ -1276,6 +1291,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// In describe view mode.
 	if m.mode == modeDescribe {
 		return m.handleDescribeKey(msg)
+	}
+
+	// In explain view mode.
+	if m.mode == modeExplain {
+		return m.handleExplainKey(msg)
 	}
 
 	// In YAML view mode.
@@ -2005,6 +2025,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+
+	case "I":
+		// Open API explain browser (resource structure).
+		return m.openExplainBrowser()
 
 	case "i":
 		// Open label/annotation editor for any resource (not port forwards).

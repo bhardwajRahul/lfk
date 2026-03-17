@@ -47,6 +47,14 @@ type PrinterColumn struct {
 	JSONPath string // e.g. ".status.phase", ".spec.source.repoURL"
 }
 
+// ExplainField represents a single field from kubectl explain output.
+type ExplainField struct {
+	Name        string // field name (e.g., "spec", "apiVersion")
+	Type        string // field type (e.g., "<string>", "<Object>")
+	Description string // human-readable description
+	Path        string // dot-separated path (e.g., "spec.template.metadata")
+}
+
 // KeyValue represents an ordered key-value pair for resource summary display.
 type KeyValue struct {
 	Key   string

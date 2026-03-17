@@ -1007,6 +1007,52 @@ func (m Model) execKubectlNodeShell() tea.Cmd {
 	})
 }
 
+// execKubectlExplain runs kubectl explain for a resource (optionally at a field path)
+// and returns the parsed output as an explainLoadedMsg.
+func (m Model) execKubectlExplain(resource, fieldPath string) tea.Cmd {
+	kubectlPath, err := exec.LookPath("kubectl")
+	if err != nil {
+		return func() tea.Msg {
+			return explainLoadedMsg{err: fmt.Errorf("kubectl not found: %w", err)}
+		}
+	}
+
+	kctx := m.nav.Context
+	kubeconfigPaths := m.client.KubeconfigPaths()
+
+	target := resource
+	if fieldPath != "" {
+		target = resource + "." + fieldPath
+	}
+
+	title := resource
+	if fieldPath != "" {
+		title = resource + " > " + strings.ReplaceAll(fieldPath, ".", " > ")
+	}
+
+	return func() tea.Msg {
+		args := []string{"explain", target, "--context", kctx}
+		cmd := exec.Command(kubectlPath, args...)
+		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
+		logger.Info("Running kubectl command", "cmd", cmd.String())
+		output, cmdErr := cmd.CombinedOutput()
+		if cmdErr != nil {
+			logger.Error("kubectl explain failed", "cmd", cmd.String(), "error", cmdErr, "output", string(output))
+			return explainLoadedMsg{
+				err: fmt.Errorf("%w: %s", cmdErr, strings.TrimSpace(string(output))),
+			}
+		}
+
+		desc, fields := parseExplainOutput(string(output), fieldPath)
+		return explainLoadedMsg{
+			fields:      fields,
+			description: desc,
+			title:       title,
+			path:        fieldPath,
+		}
+	}
+}
+
 // execCustomAction runs a user-defined custom action command via sh -c.
 // The command is executed with the terminal handed over via tea.ExecProcess,
 // allowing interactive commands to work properly.

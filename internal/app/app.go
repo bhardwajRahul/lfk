@@ -34,6 +34,7 @@ const (
 	modeDescribe
 	modeDiff
 	modeExec
+	modeExplain
 )
 
 // overlayKind tracks which overlay is currently open.
@@ -171,6 +172,15 @@ type TabState struct {
 	execTitle string
 	execDone  *atomic.Bool
 	execMu    *sync.Mutex
+
+	// Explain view state (per-tab).
+	explainFields   []model.ExplainField
+	explainDesc     string // resource/field-level description
+	explainPath     string // current drill-down path (e.g., "spec.template")
+	explainResource string // full resource specifier (e.g., "deployments.v1.apps")
+	explainTitle    string
+	explainCursor   int
+	explainScroll   int
 }
 
 // Model is the top-level bubbletea model.
@@ -544,6 +554,15 @@ type Model struct {
 	pfAvailablePorts []ui.PortInfo
 	pfPortCursor     int // cursor in the available ports list (-1 = manual input)
 	pfLastCreatedID  int // ID of the most recently created port forward (for showing resolved port)
+
+	// Explain view state (API browser).
+	explainFields   []model.ExplainField
+	explainDesc     string // resource/field-level description
+	explainPath     string // current drill-down path (e.g., "spec.template")
+	explainResource string // full resource specifier (e.g., "deployments.v1.apps")
+	explainTitle    string
+	explainCursor   int
+	explainScroll   int
 }
 
 // ownedParentState captures the navigation state that must be restored
@@ -673,9 +692,9 @@ func (m Model) View() string {
 		return "Loading..."
 	}
 
-	// Render fullscreen modes (YAML, Logs, Describe, Diff, Exec) with title bar and tab bar.
+	// Render fullscreen modes (YAML, Logs, Describe, Diff, Exec, Explain) with title bar and tab bar.
 	// Each view renders its own hint bar, so the main status bar is not shown.
-	if m.mode == modeYAML || m.mode == modeLogs || m.mode == modeDescribe || m.mode == modeDiff || m.mode == modeExec {
+	if m.mode == modeYAML || m.mode == modeLogs || m.mode == modeDescribe || m.mode == modeDiff || m.mode == modeExec || m.mode == modeExplain {
 		title := m.renderTitleBar()
 		m.height -= 1 // title bar
 
@@ -697,6 +716,8 @@ func (m Model) View() string {
 			content = m.viewDiff()
 		case modeExec:
 			content = m.viewExecTerminal()
+		case modeExplain:
+			content = m.viewExplain()
 		}
 
 		var parts []string
@@ -1180,6 +1201,19 @@ func (m Model) viewDescribe() string {
 	body := borderStyle.Render(bodyContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, body, hint)
+}
+
+func (m Model) viewExplain() string {
+	return ui.RenderExplainView(
+		m.explainFields,
+		m.explainCursor,
+		m.explainScroll,
+		m.explainDesc,
+		m.explainTitle,
+		m.explainPath,
+		m.width,
+		m.height,
+	)
 }
 
 func (m Model) viewDiff() string {
@@ -2767,6 +2801,13 @@ func (m *Model) saveCurrentTab() {
 	t.execTitle = m.execTitle
 	t.execDone = m.execDone
 	t.execMu = m.execMu
+	t.explainFields = append([]model.ExplainField(nil), m.explainFields...)
+	t.explainDesc = m.explainDesc
+	t.explainPath = m.explainPath
+	t.explainResource = m.explainResource
+	t.explainTitle = m.explainTitle
+	t.explainCursor = m.explainCursor
+	t.explainScroll = m.explainScroll
 }
 
 // loadTab restores Model fields from the given tab index.
@@ -2838,6 +2879,13 @@ func (m *Model) loadTab(idx int) {
 	m.execTitle = t.execTitle
 	m.execDone = t.execDone
 	m.execMu = t.execMu
+	m.explainFields = append([]model.ExplainField(nil), t.explainFields...)
+	m.explainDesc = t.explainDesc
+	m.explainPath = t.explainPath
+	m.explainResource = t.explainResource
+	m.explainTitle = t.explainTitle
+	m.explainCursor = t.explainCursor
+	m.explainScroll = t.explainScroll
 
 	// Close overlays and reset transient state.
 	m.overlay = overlayNone

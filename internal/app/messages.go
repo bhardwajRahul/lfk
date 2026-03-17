@@ -328,3 +328,12 @@ type previewEventsLoadedMsg struct {
 	events []k8s.EventInfo
 	gen    uint64
 }
+
+// explainLoadedMsg carries the parsed output of kubectl explain.
+type explainLoadedMsg struct {
+	fields      []model.ExplainField
+	description string // resource/field-level description
+	title       string // e.g., "deployments.v1.apps"
+	path        string // current field path
+	err         error
+}
