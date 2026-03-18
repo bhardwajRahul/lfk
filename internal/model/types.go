@@ -47,12 +47,27 @@ type PrinterColumn struct {
 	JSONPath string // e.g. ".status.phase", ".spec.source.repoURL"
 }
 
+// CanIResource represents a single resource type with its RBAC permissions.
+type CanIResource struct {
+	APIGroup string
+	Resource string          // plural name (e.g., "deployments")
+	Kind     string          // kind name (e.g., "Deployment")
+	Verbs    map[string]bool // verb -> allowed
+}
+
+// CanIGroup represents an API group with its resources for the can-i browser.
+type CanIGroup struct {
+	Name      string         // API group name ("" for core)
+	Resources []CanIResource // resources in this group
+}
+
 // ExplainField represents a single field from kubectl explain output.
 type ExplainField struct {
 	Name        string // field name (e.g., "spec", "apiVersion")
 	Type        string // field type (e.g., "<string>", "<Object>")
 	Description string // human-readable description
 	Path        string // dot-separated path (e.g., "spec.template.metadata")
+	Required    bool   // true if field has -required- marker
 }
 
 // KeyValue represents an ordered key-value pair for resource summary display.
@@ -68,6 +83,7 @@ var PinnedGroups []string
 // coreCategories lists categories that are always shown regardless of CRD discovery.
 // These represent core Kubernetes resources and Helm (which doesn't depend on CRDs).
 var coreCategories = map[string]bool{
+	"Dashboards":     true,
 	"Workloads":      true,
 	"Config":         true,
 	"Networking":     true,
@@ -529,20 +545,19 @@ func FlattenedResourceTypes() []Item {
 // entries are hidden (safe default before discovery completes).
 func FlattenedResourceTypesFiltered(availableGroups map[string]bool) []Item {
 	var items []Item
-	// Add Overview dashboard item at the top.
+	// Add Cluster Dashboard and Monitoring as a dedicated "Dashboards" group.
 	items = append(items, Item{
-		Name:     "Overview",
+		Name:     "Cluster",
 		Kind:     "__overview__",
 		Extra:    "__overview__",
-		Category: "",
+		Category: "Dashboards",
 		Icon:     "◎",
 	})
-	// Add Monitoring dashboard item right after Overview.
 	items = append(items, Item{
 		Name:     "Monitoring",
 		Kind:     "__monitoring__",
 		Extra:    "__monitoring__",
-		Category: "",
+		Category: "Dashboards",
 		Icon:     "⊙",
 	})
 	for _, cat := range TopLevelResourceTypes() {
@@ -1193,3 +1208,21 @@ func ActionsForPortForward() []ActionMenuItem {
 		{Label: "Open in Browser", Description: "Open localhost port in browser", Key: "O"},
 	}
 }
+
+// MonitoringEndpoint defines a custom monitoring service endpoint.
+type MonitoringEndpoint struct {
+	Namespaces []string `json:"namespaces" yaml:"namespaces"` // monitoring namespaces to search
+	Services   []string `json:"services" yaml:"services"`     // service names to try
+	Port       string   `json:"port" yaml:"port"`             // port number (default: "9090" for prometheus, "9093" for alertmanager)
+}
+
+// MonitoringConfig defines per-cluster monitoring endpoints.
+type MonitoringConfig struct {
+	Prometheus   *MonitoringEndpoint `json:"prometheus" yaml:"prometheus"`
+	Alertmanager *MonitoringEndpoint `json:"alertmanager" yaml:"alertmanager"`
+	NodeMetrics  string              `json:"node_metrics" yaml:"node_metrics"` // "prometheus" or "metrics-api" (default: auto-detect)
+}
+
+// ConfigMonitoring maps cluster context names to monitoring config.
+// The special key "default" applies to clusters without explicit config.
+var ConfigMonitoring map[string]MonitoringConfig

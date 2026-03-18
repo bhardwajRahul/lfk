@@ -9,7 +9,8 @@ The configuration file is located at `~/.config/lfk/config.yaml`. All fields are
 | `colorscheme` | string | `"tokyonight"` | Built-in color scheme name. Custom `theme` overrides are applied on top. |
 | `icons` | string | `"unicode"` | Icon display mode: `"unicode"`, `"simple"` (ASCII), `"emoji"`, or `"none"`. |
 | `log_path` | string | `"~/.local/share/lfk/lfk.log"` | Path to the application log file. |
-| `dashboard` | bool | `true` | Show cluster overview dashboard when entering a context. Set to `false` to go directly to resource types. |
+| `dashboard` | bool | `true` | Show cluster dashboard when entering a context. Set to `false` to go directly to resource types. |
+| `monitoring` | map[string]object | `{}` | Per-cluster monitoring endpoint configuration. Keys are context names or `"default"`. See [Monitoring](#monitoring) section. |
 | `resource_columns` | map[string]list | `{}` | Per-resource-type column configuration. Keys are resource Kind names (case-insensitive). When not set for a kind, columns are auto-detected. |
 | `theme` | object | *(see Theme section)* | Custom color theme overrides. |
 | `keybindings` | object | *(see Keybindings section)* | Custom keybinding overrides for direct actions. |
@@ -18,6 +19,59 @@ The configuration file is located at `~/.config/lfk/config.yaml`. All fields are
 | `filter_presets` | map[string]list | `{}` | User-defined quick filter presets per resource type. |
 | `terminal` | string | `"pty"` | How exec/shell commands run: `"pty"` (embedded in TUI) or `"exec"` (takes over terminal). |
 | `pinned_groups` | list[string] | `[]` | CRD API groups to pin after built-in categories. Also manageable in-app with `p` key (stored per-context in `~/.local/state/lfk/pinned.yaml`). |
+
+## Monitoring
+
+Configure Prometheus and Alertmanager endpoints for the monitoring dashboard (`@` key) and alert views. By default, lfk auto-discovers monitoring services by trying common service names across common namespaces. Use this section to override the endpoints per cluster or set a default for all clusters.
+
+Keys are kubeconfig context names. The special key `"default"` applies to any cluster without an explicit entry.
+
+```yaml
+monitoring:
+  # Override for a specific cluster context:
+  my-prod-cluster:
+    prometheus:
+      namespaces: ["monitoring"]
+      services: ["thanos-query"]
+      port: "9090"
+    alertmanager:
+      namespaces: ["monitoring"]
+      services: ["alertmanager-main"]
+      port: "9093"
+    node_metrics: prometheus   # "prometheus" or "metrics-api" (default: auto-detect)
+  # Default for all other clusters:
+  default:
+    prometheus:
+      namespaces: ["monitoring", "observability"]
+      services: ["prometheus-server", "prometheus"]
+```
+
+### Monitoring Entry Fields
+
+Each monitoring entry accepts the following top-level fields:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `prometheus` | object | *(auto-discovery)* | Prometheus endpoint configuration. See endpoint fields below. |
+| `alertmanager` | object | *(auto-discovery)* | Alertmanager endpoint configuration. See endpoint fields below. |
+| `node_metrics` | string | *(auto-detect)* | Node metrics source: `"prometheus"` (use Prometheus queries), `"metrics-api"` (use metrics.k8s.io API). When empty, uses Prometheus if a prometheus endpoint is configured, otherwise falls back to metrics-api. |
+
+### Monitoring Endpoint Fields
+
+Each endpoint (`prometheus` and `alertmanager`) accepts:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `namespaces` | list[string] | *(auto-discovery)* | Namespaces to search for the service. Tried in order. |
+| `services` | list[string] | *(auto-discovery)* | Service names to try. Tried in order within each namespace. |
+| `port` | string | `"9090"` / `"9093"` | Service port (default: `9090` for Prometheus, `9093` for Alertmanager). |
+
+When not configured, the following defaults are used for auto-discovery:
+
+| Component | Default Namespaces | Default Services |
+|---|---|---|
+| Prometheus | `monitoring`, `prometheus`, `observability`, `kube-prometheus-stack` | `prometheus-kube-prometheus-prometheus`, `prometheus-server`, `prometheus`, `prometheus-operated` |
+| Alertmanager | `monitoring`, `prometheus`, `observability`, `kube-prometheus-stack` | `alertmanager-operated`, `alertmanager`, `prometheus-kube-prometheus-alertmanager`, `alertmanager-main` |
 
 ## Theme
 

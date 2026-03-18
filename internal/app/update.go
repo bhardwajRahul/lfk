@@ -631,6 +631,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = overlayRBAC
 		return m, nil
 
+	case canILoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.setStatusMessage(fmt.Sprintf("RBAC rules check failed: %v", msg.err), true)
+			return m, scheduleStatusClear()
+		}
+		m.processCanIRules(msg.rules)
+		m.overlay = overlayCanI
+		m.canIGroupCursor = 0
+		m.canIGroupScroll = 0
+		return m, nil
+
+	case canISAListMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.setStatusMessage(fmt.Sprintf("Failed to list service accounts: %v", msg.err), true)
+			return m, scheduleStatusClear()
+		}
+		m.canIServiceAccounts = msg.accounts
+		// Build overlay items: "Current User" + ServiceAccounts.
+		items := make([]model.Item, 0, len(msg.accounts)+1)
+		items = append(items, model.Item{Name: "Current User", Extra: ""})
+		for _, sa := range msg.accounts {
+			var name, ns string
+			if parts := strings.SplitN(sa, "/", 2); len(parts) == 2 {
+				ns = parts[0]
+				name = parts[1]
+			} else {
+				ns = m.namespace
+				name = sa
+			}
+			items = append(items, model.Item{
+				Name:  ns + "/" + name,
+				Extra: fmt.Sprintf("system:serviceaccount:%s:%s", ns, name),
+			})
+		}
+		m.overlayItems = items
+		m.overlayCursor = 0
+		m.canISubjectScroll = 0
+		m.overlay = overlayCanISubject
+		return m, nil
+
 	case podStartupMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -726,6 +768,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.explainTitle = msg.title
 		m.explainCursor = 0
 		m.explainScroll = 0
+		m.explainSearchActive = false
+		return m, nil
+
+	case explainRecursiveMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.setErrorFromErr("Recursive search failed: ", msg.err)
+			return m, scheduleStatusClear()
+		}
+		if len(msg.matches) == 0 {
+			m.setStatusMessage("No fields found", true)
+			return m, scheduleStatusClear()
+		}
+		m.explainRecursiveResults = msg.matches
+		m.explainRecursiveCursor = 0
+		m.explainRecursiveScroll = 0
+		m.explainRecursiveFilter.Clear()
+		m.explainRecursiveFilterActive = false
+		m.overlay = overlayExplainSearch
 		return m, nil
 
 	case metricsLoadedMsg:
@@ -1212,7 +1273,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Tab switching keys work in all fullscreen modes (YAML, Logs, Describe, Diff, Help)
 	// as long as the user is not in a text input sub-mode (search, etc.).
-	if m.mode != modeExplorer && m.mode != modeExec && !m.yamlSearchMode && !m.logSearchActive && !m.helpSearchActive {
+	if m.mode != modeExplorer && m.mode != modeExec && !m.yamlSearchMode && !m.logSearchActive && !m.helpSearchActive && !m.explainSearchActive {
 		switch msg.String() {
 		case "]":
 			if len(m.tabs) > 1 {
@@ -1259,8 +1320,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				newTab.logLines = nil
 				newTab.logCancel = nil
 				newTab.logCh = nil
-				m.tabs = append(m.tabs, newTab)
-				m.activeTab = len(m.tabs) - 1
+				insertAt := m.activeTab + 1
+				m.tabs = append(m.tabs[:insertAt], append([]TabState{newTab}, m.tabs[insertAt:]...)...)
+				m.activeTab = insertAt
 				m.loadTab(m.activeTab)
 				m.setStatusMessage(fmt.Sprintf("Tab %d created", m.activeTab+1), false)
 				return m, scheduleStatusClear()
@@ -1293,7 +1355,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDescribeKey(msg)
 	}
 
-	// In explain view mode.
+	// In explain view mode: handle search input before general keys.
+	if m.mode == modeExplain && m.explainSearchActive {
+		return m.handleExplainSearchKey(msg)
+	}
 	if m.mode == modeExplain {
 		return m.handleExplainKey(msg)
 	}
@@ -1419,12 +1484,45 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.syncExpandedGroup()
 		return m, m.loadPreview()
 
+	case "ctrl+@": // ctrl+space: region selection
+		if m.nav.Level < model.LevelResources {
+			return m, nil
+		}
+		items := m.visibleMiddleItems()
+		if len(items) == 0 {
+			return m, nil
+		}
+		cur := m.cursor()
+		if m.selectionAnchor < 0 {
+			// No anchor set — toggle current item and set anchor.
+			if sel := m.selectedMiddleItem(); sel != nil {
+				m.toggleSelection(*sel)
+				m.selectionAnchor = cur
+			}
+			return m, nil
+		}
+		// Select range from anchor to cursor (inclusive).
+		lo, hi := m.selectionAnchor, cur
+		if lo > hi {
+			lo, hi = hi, lo
+		}
+		for i := lo; i <= hi && i < len(items); i++ {
+			m.selectedItems[selectionKey(items[i])] = true
+		}
+		return m, nil
+
 	case " ":
 		// Toggle selection on current item and move cursor down.
 		if m.nav.Level >= model.LevelResources {
 			sel := m.selectedMiddleItem()
 			if sel != nil {
 				m.toggleSelection(*sel)
+				// Set anchor when selecting, reset when deselecting.
+				if m.isSelected(*sel) {
+					m.selectionAnchor = m.cursor()
+				} else {
+					m.selectionAnchor = -1
+				}
 			}
 			// Move cursor down.
 			visible := m.visibleMiddleItems()
@@ -1453,6 +1551,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.selectedItems[selectionKey(item)] = true
 				}
 			}
+			m.selectionAnchor = -1
 			return m, nil
 		}
 		return m, nil
@@ -1654,6 +1753,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "P":
+		// No preview toggle on dashboard views.
+		if sel := m.selectedMiddleItem(); sel != nil && m.nav.Level == model.LevelResourceTypes &&
+			(sel.Extra == "__overview__" || sel.Extra == "__monitoring__") {
+			return m, nil
+		}
 		// Toggle between split view (children + details) and full YAML preview.
 		m.fullYAMLPreview = !m.fullYAMLPreview
 		m.mapView = false
@@ -1667,7 +1771,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.loadPreview(), scheduleStatusClear())
 
 	case "F":
-		// If standing on Overview or Monitoring, toggle fullscreen dashboard instead.
+		// If standing on Cluster Dashboard or Monitoring, toggle fullscreen dashboard instead.
 		sel := m.selectedMiddleItem()
 		if sel != nil && (sel.Extra == "__overview__" || sel.Extra == "__monitoring__") && m.nav.Level == model.LevelResourceTypes {
 			m.fullscreenDashboard = !m.fullscreenDashboard
@@ -1971,8 +2075,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, scheduleStatusClear()
 		}
 		m.saveCurrentTab()
-		m.tabs = append(m.tabs, m.cloneCurrentTab())
-		m.activeTab = len(m.tabs) - 1
+		insertAt := m.activeTab + 1
+		newTab := m.cloneCurrentTab()
+		m.tabs = append(m.tabs[:insertAt], append([]TabState{newTab}, m.tabs[insertAt:]...)...)
+		m.activeTab = insertAt
 		m.setStatusMessage(fmt.Sprintf("Tab %d created", m.activeTab+1), false)
 		return m, scheduleStatusClear()
 
@@ -2029,6 +2135,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "I":
 		// Open API explain browser (resource structure).
 		return m.openExplainBrowser()
+
+	case "U":
+		// Open RBAC permissions browser (can-i).
+		return m.openCanIBrowser()
 
 	case "i":
 		// Open label/annotation editor for any resource (not port forwards).
@@ -2864,6 +2974,40 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.logLineInput = ""
 		m.logLineNumbers = !m.logLineNumbers
 		return m, nil
+	case "s":
+		m.logLineInput = ""
+		m.logTimestamps = !m.logTimestamps
+		// Restart the log stream with updated --timestamps flag.
+		if m.logCancel != nil {
+			m.logCancel()
+		}
+		m.logLines = nil
+		m.logScroll = 0
+		if m.logIsMulti && len(m.logMultiItems) > 0 {
+			var cmd tea.Cmd
+			m, cmd = m.restartMultiLogStream()
+			return m, cmd
+		}
+		return m, m.startLogStream()
+	case "c":
+		m.logLineInput = ""
+		m.logPrevious = !m.logPrevious
+		// --previous is incompatible with -f (follow).
+		if m.logPrevious {
+			m.logFollow = false
+		}
+		// Restart the log stream.
+		if m.logCancel != nil {
+			m.logCancel()
+		}
+		m.logLines = nil
+		m.logScroll = 0
+		if m.logIsMulti && len(m.logMultiItems) > 0 {
+			var cmd tea.Cmd
+			m, cmd = m.restartMultiLogStream()
+			return m, cmd
+		}
+		return m, m.startLogStream()
 	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		m.logLineInput += msg.String()
 		return m, nil

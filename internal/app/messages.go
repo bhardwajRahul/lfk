@@ -297,6 +297,18 @@ type eventTimelineMsg struct {
 	err    error
 }
 
+// canILoadedMsg carries the result of a SelfSubjectRulesReview.
+type canILoadedMsg struct {
+	rules []k8s.AccessRule
+	err   error
+}
+
+// canISAListMsg carries the list of ServiceAccounts for the can-i browser.
+type canISAListMsg struct {
+	accounts []string
+	err      error
+}
+
 // rbacCheckMsg carries the result of an RBAC permission check.
 type rbacCheckMsg struct {
 	results  []k8s.RBACCheck
@@ -336,4 +348,11 @@ type explainLoadedMsg struct {
 	title       string // e.g., "deployments.v1.apps"
 	path        string // current field path
 	err         error
+}
+
+// explainRecursiveMsg carries results from a recursive kubectl explain search.
+type explainRecursiveMsg struct {
+	matches []model.ExplainField // matching fields with full paths
+	query   string
+	err     error
 }

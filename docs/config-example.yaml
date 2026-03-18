@@ -25,6 +25,28 @@ log_path: /tmp/lfk.log
 # Set to false to go directly to the resource types list.
 dashboard: true
 
+# ─── Monitoring Endpoints ──────────────────────────────────────────────────────
+# Configure Prometheus and Alertmanager endpoints per cluster context.
+# Keys are kubeconfig context names; the special key "default" applies to
+# clusters without an explicit entry.
+# When not configured, lfk auto-discovers monitoring services by trying
+# common service names across common namespaces.
+monitoring:
+  # my-prod-cluster:
+  #   prometheus:
+  #     namespaces: ["monitoring"]
+  #     services: ["thanos-query"]
+  #     port: "9090"
+  #   alertmanager:
+  #     namespaces: ["monitoring"]
+  #     services: ["alertmanager-main"]
+  #     port: "9093"
+  #   node_metrics: prometheus  # "prometheus" or "metrics-api" (default: auto-detect)
+  # default:
+  #   prometheus:
+  #     namespaces: ["monitoring", "observability"]
+  #     services: ["prometheus-server", "prometheus"]
+
 # ─── Per-Resource-Type Columns ─────────────────────────────────────────────────
 # Configure visible columns for specific resource types (Kind names, case-insensitive).
 # When not set for a kind, columns are auto-detected from resource data.

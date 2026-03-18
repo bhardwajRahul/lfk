@@ -66,6 +66,9 @@ const (
 	overlayEventTimeline
 	overlayAlerts
 	overlayNetworkPolicy
+	overlayCanISubject
+	overlayCanI
+	overlayExplainSearch
 )
 
 // bookmarkOverlayMode tracks the interaction mode for the bookmark overlay.
@@ -126,6 +129,7 @@ type TabState struct {
 	watchMode           bool
 	requestGen          uint64
 	selectedItems       map[string]bool
+	selectionAnchor     int // anchor index for region selection (-1 = unset)
 	fullscreenMiddle    bool
 	fullscreenDashboard bool
 	dashboardPreview    string
@@ -145,6 +149,9 @@ type TabState struct {
 	logFollow      bool
 	logWrap        bool
 	logLineNumbers bool
+	logTimestamps  bool
+	logPrevious    bool
+	logIsMulti     bool
 	logTitle       string
 	logCancel      context.CancelFunc
 	logCh          chan string
@@ -174,14 +181,15 @@ type TabState struct {
 	execMu    *sync.Mutex
 
 	// Explain view state (per-tab).
-	explainFields     []model.ExplainField
-	explainDesc       string // resource/field-level description
-	explainPath       string // current drill-down path (e.g., "spec.template")
-	explainResource   string // resource name (e.g., "deployments")
-	explainAPIVersion string // api version for kubectl explain (e.g., "apps/v1")
-	explainTitle      string
-	explainCursor     int
-	explainScroll     int
+	explainFields      []model.ExplainField
+	explainDesc        string // resource/field-level description
+	explainPath        string // current drill-down path (e.g., "spec.template")
+	explainResource    string // resource name (e.g., "deployments")
+	explainAPIVersion  string // api version for kubectl explain (e.g., "apps/v1")
+	explainTitle       string
+	explainCursor      int
+	explainScroll      int
+	explainSearchQuery string // persisted search query for n/N navigation
 }
 
 // Model is the top-level bubbletea model.
@@ -285,7 +293,7 @@ type Model struct {
 	// Fullscreen middle column: hides left and right columns.
 	fullscreenMiddle bool
 
-	// Fullscreen dashboard: renders the cluster overview dashboard full screen.
+	// Fullscreen dashboard: renders the cluster dashboard full screen.
 	fullscreenDashboard bool
 
 	// Sort mode for resources.
@@ -329,6 +337,10 @@ type Model struct {
 	logFollow      bool               // auto-scroll to bottom
 	logWrap        bool               // wrap long lines
 	logLineNumbers bool               // show line numbers
+	logTimestamps  bool               // show timestamps (--timestamps)
+	logPrevious    bool               // show previous container logs (--previous)
+	logIsMulti     bool               // multi-log stream (for restart)
+	logMultiItems  []model.Item       // items for multi-log restart
 	logTitle       string             // title for the log overlay
 	logCancel      context.CancelFunc // cancel the kubectl log process
 	logCh          chan string        // channel for streaming log lines
@@ -368,7 +380,8 @@ type Model struct {
 	execMu    *sync.Mutex    // Protects execTerm access
 
 	// Multi-selection state: maps "namespace/name" keys to selected status.
-	selectedItems map[string]bool
+	selectedItems   map[string]bool
+	selectionAnchor int // anchor index for region selection (-1 = unset)
 
 	// Bulk action mode flag: true when the current action applies to multiple items.
 	bulkMode bool
@@ -427,10 +440,10 @@ type Model struct {
 	prevNodeMetrics     map[string]model.PodMetrics
 	prevNodeMetricsTime time.Time
 
-	// Dashboard preview: rendered cluster overview for the right column.
+	// Dashboard preview: rendered cluster dashboard for the right column.
 	dashboardPreview string
 
-	// Monitoring preview: rendered monitoring overview for the right column.
+	// Monitoring preview: rendered monitoring dashboard for the right column.
 	monitoringPreview string
 
 	// Collapsible tree view state for resource types.
@@ -557,14 +570,39 @@ type Model struct {
 	pfLastCreatedID  int // ID of the most recently created port forward (for showing resolved port)
 
 	// Explain view state (API browser).
-	explainFields     []model.ExplainField
-	explainDesc       string // resource/field-level description
-	explainPath       string // current drill-down path (e.g., "spec.template")
-	explainResource   string // resource name (e.g., "deployments")
-	explainAPIVersion string // api version for kubectl explain (e.g., "apps/v1")
-	explainTitle      string
-	explainCursor     int
-	explainScroll     int
+	explainFields                []model.ExplainField
+	explainDesc                  string // resource/field-level description
+	explainPath                  string // current drill-down path (e.g., "spec.template")
+	explainResource              string // resource name (e.g., "deployments")
+	explainAPIVersion            string // api version for kubectl explain (e.g., "apps/v1")
+	explainTitle                 string
+	explainCursor                int
+	explainScroll                int
+	explainSearchActive          bool                 // true when typing in search bar
+	explainSearchInput           TextInput            // current search input
+	explainSearchQuery           string               // persisted search query for n/N navigation
+	explainSearchPrevCursor      int                  // cursor position before search started
+	explainRecursiveResults      []model.ExplainField // results from recursive search
+	explainRecursiveCursor       int
+	explainRecursiveScroll       int
+	explainRecursiveFilter       TextInput // filter input for recursive search overlay
+	explainRecursiveFilterActive bool      // true when typing in filter
+
+	// Can-I browser state.
+	canIGroups              []model.CanIGroup
+	canIGroupCursor         int // selected group in left column
+	canIGroupScroll         int
+	canIResourceScroll      int       // scroll offset for the resource column
+	canISubject             string    // "" = current user, or "system:serviceaccount:ns:name"
+	canISubjectName         string    // display name for the subject ("Current User" or "sa/name")
+	canIServiceAccounts     []string  // cached SA list for the selector
+	canISearchActive        bool      // true when typing in search bar
+	canISearchInput         TextInput // current search input
+	canISearchQuery         string    // confirmed search query for filtering
+	canISubjectScroll       int       // scroll offset for the subject selector overlay
+	canISubjectFilterActive bool      // true when typing in subject filter bar
+	canISubjectFilterInput  TextInput // current subject filter input
+	canISubjectFilterQuery  string    // confirmed subject filter query
 }
 
 // ownedParentState captures the navigation state that must be restored
@@ -600,6 +638,7 @@ func NewModel(client *k8s.Client) Model {
 		cursorMemory:        make(map[string]int),
 		itemCache:           make(map[string][]model.Item),
 		selectedItems:       make(map[string]bool),
+		selectionAnchor:     -1,
 		yamlCollapsed:       make(map[string]bool),
 		discoveredCRDs:      make(map[string][]model.ResourceTypeEntry),
 		allGroupsExpanded:   true,
@@ -618,6 +657,7 @@ func NewModel(client *k8s.Client) Model {
 			cursorMemory:       make(map[string]int),
 			itemCache:          make(map[string][]model.Item),
 			selectedItems:      make(map[string]bool),
+			selectionAnchor:    -1,
 			selectedNamespaces: nil,
 		}},
 		activeTab:      0,
@@ -728,7 +768,14 @@ func (m Model) View() string {
 			parts = append(parts, tabBar)
 		}
 		parts = append(parts, content)
-		return lipgloss.JoinVertical(lipgloss.Left, parts...)
+		view := lipgloss.JoinVertical(lipgloss.Left, parts...)
+
+		// Render overlay on top if active (e.g. Can-I subject selector).
+		if m.overlay != overlayNone {
+			view = m.renderOverlay(view)
+		}
+
+		return view
 	}
 
 	view := m.viewExplorer()
@@ -847,18 +894,18 @@ func (m Model) viewExplorer() string {
 	var columns string
 	switch {
 	case m.fullscreenDashboard:
-		// Fullscreen dashboard: render cluster/monitoring overview using full width.
+		// Fullscreen dashboard: render cluster/monitoring dashboard using full width.
 		var dashContent string
 		sel := m.selectedMiddleItem()
 		if sel != nil && sel.Extra == "__monitoring__" {
 			dashContent = m.monitoringPreview
 			if dashContent == "" {
-				dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading monitoring overview...")
+				dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading monitoring dashboard...")
 			}
 		} else {
 			dashContent = m.dashboardPreview
 			if dashContent == "" {
-				dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading cluster overview...")
+				dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading cluster dashboard...")
 			}
 		}
 		// Apply preview scroll.
@@ -1151,7 +1198,7 @@ func (m Model) yamlTitle() string {
 func (m Model) viewLogs() string {
 	viewH := m.logViewHeight()
 	canSwitchPod := m.logParentKind != ""
-	return ui.RenderLogViewer(m.logLines, m.logScroll, m.width, viewH, m.logFollow, m.logWrap, m.logLineNumbers, m.logTitle, m.logSearchQuery, m.logSearchInput.Value, m.logSearchActive, canSwitchPod)
+	return ui.RenderLogViewer(m.logLines, m.logScroll, m.width, viewH, m.logFollow, m.logWrap, m.logLineNumbers, m.logTimestamps, m.logPrevious, m.logTitle, m.logSearchQuery, m.logSearchInput.Value, m.logSearchActive, canSwitchPod)
 }
 
 func (m Model) viewDescribe() string {
@@ -1206,6 +1253,36 @@ func (m Model) viewDescribe() string {
 }
 
 func (m Model) viewExplain() string {
+	searchQuery := m.explainSearchQuery
+	if m.explainSearchActive {
+		searchQuery = m.explainSearchInput.Value
+	}
+
+	// Build hint bar (default key hints).
+	hints := []struct{ key, desc string }{
+		{"j/k", "navigate"},
+		{"l/Enter", "drill in"},
+		{"h/Backspace", "back"},
+		{"/", "search"},
+		{"n/N", "next/prev match"},
+		{"q", "close"},
+		{"Esc", "back/close"},
+	}
+	hintParts := make([]string, 0, len(hints))
+	for _, h := range hints {
+		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
+	}
+	hint := ui.StatusBarBgStyle.Width(m.width).Render(strings.Join(hintParts, ui.DimStyle.Render(" | ")))
+
+	// If search is active, show search bar instead of hints.
+	if m.explainSearchActive {
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.explainSearchInput.CursorLeft()) + ui.DimStyle.Render("\u2588") + ui.NormalStyle.Render(m.explainSearchInput.CursorRight())
+		hint = ui.StatusBarBgStyle.Width(m.width).Render(searchBar)
+	} else if m.explainSearchQuery != "" {
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.explainSearchQuery)
+		hint = ui.StatusBarBgStyle.Width(m.width).Render(searchBar)
+	}
+
 	return ui.RenderExplainView(
 		m.explainFields,
 		m.explainCursor,
@@ -1213,6 +1290,8 @@ func (m Model) viewExplain() string {
 		m.explainDesc,
 		m.explainTitle,
 		m.explainPath,
+		searchQuery,
+		hint,
 		m.width,
 		m.height,
 	)
@@ -1424,18 +1503,18 @@ func (m Model) renderRightColumnContent(width, height int) string {
 
 	// Default mode: show details summary (no YAML).
 
-	// Resource types level with Overview or Monitoring selected: show dashboard in preview.
+	// Resource types level with Cluster Dashboard or Monitoring selected: show dashboard in preview.
 	if m.nav.Level == model.LevelResourceTypes {
 		sel := m.selectedMiddleItem()
 		if sel != nil && sel.Extra == "__overview__" {
 			if m.dashboardPreview == "" {
-				return ui.DimStyle.Render(m.spinner.View() + " Loading cluster overview...")
+				return ui.DimStyle.Render(m.spinner.View() + " Loading cluster dashboard...")
 			}
 			return m.dashboardPreview
 		}
 		if sel != nil && sel.Extra == "__monitoring__" {
 			if m.monitoringPreview == "" {
-				return ui.DimStyle.Render(m.spinner.View() + " Loading monitoring overview...")
+				return ui.DimStyle.Render(m.spinner.View() + " Loading monitoring dashboard...")
 			}
 			return m.monitoringPreview
 		}
@@ -1715,7 +1794,6 @@ func (m Model) statusBar() string {
 		prompt := ui.HelpKeyStyle.Render("search") + ui.DimStyle.Render(": ") + m.searchInput.CursorLeft() + ui.DimStyle.Render("\u2588") + m.searchInput.CursorRight()
 		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).Render(prompt)
 	}
-
 	// When a status message is active, show it exclusively (hide key hints).
 	if m.hasStatusMessage() {
 		msg := m.sanitizeMessage(m.statusMessage)
@@ -1754,20 +1832,35 @@ func (m Model) statusBar() string {
 	// Sort mode indicator.
 	parts = append(parts, ui.DimStyle.Render("sort:"+m.sortModeName()))
 
-	// Styled key hints.
-	hints := []struct{ key, desc string }{
-		{"h/l", "navigate"},
-		{"j/k", "move"},
-		{"enter", "view"},
-		{"\\", "namespace"},
-		{"A", "all-ns"},
-		{"x", "actions"},
-		{"a", "create"},
-		{",", "sort"},
-		{"f", "filter"},
-		{"b/B", "bookmarks"},
-		{"?", "help"},
-		{"q", "quit"},
+	// Styled key hints — show a reduced set for dashboard views.
+	var hints []struct{ key, desc string }
+	sel := m.selectedMiddleItem()
+	isDashboard := sel != nil && m.nav.Level == model.LevelResourceTypes &&
+		(sel.Extra == "__overview__" || sel.Extra == "__monitoring__")
+	if isDashboard {
+		hints = []struct{ key, desc string }{
+			{"j/k", "move"},
+			{"ctrl+d/u", "scroll"},
+			{"\\", "namespace"},
+			{"t", "new tab"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
+	} else {
+		hints = []struct{ key, desc string }{
+			{"h/l", "navigate"},
+			{"j/k", "move"},
+			{"enter", "view"},
+			{"\\", "namespace"},
+			{"A", "all-ns"},
+			{"x", "actions"},
+			{"a", "create"},
+			{",", "sort"},
+			{"f", "filter"},
+			{"b/B", "bookmarks"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
 	}
 	hintParts := make([]string, 0, len(hints))
 	for _, h := range hints {
@@ -1926,6 +2019,93 @@ func (m Model) renderOverlay(background string) string {
 		content = ui.RenderAlertsOverlay(entries, m.alertsScroll, m.width-10, m.height-6)
 		overlayW = min(80, m.width-10)
 		overlayH = min(25, m.height-6)
+	case overlayCanI:
+		// Build filtered group list based on search query.
+		visibleGroupIdxs := m.canIVisibleGroups()
+		groupNames := make([]string, len(visibleGroupIdxs))
+		for i, idx := range visibleGroupIdxs {
+			name := m.canIGroups[idx].Name
+			if name == "" {
+				name = "core"
+			}
+			groupNames[i] = fmt.Sprintf("%s (%d)", name, len(m.canIGroups[idx].Resources))
+		}
+		// Get resources for the group under the cursor.
+		var resources []model.CanIResource
+		if m.canIGroupCursor >= 0 && m.canIGroupCursor < len(visibleGroupIdxs) {
+			resources = m.canIGroups[visibleGroupIdxs[m.canIGroupCursor]].Resources
+		}
+		subjectName := m.canISubjectName
+		if subjectName == "" {
+			subjectName = "Current User"
+		}
+		overlayW = min(m.width-4, m.width*90/100)
+		overlayH = min(m.height-4, m.height*80/100)
+		innerW := overlayW - 4 // account for OverlayStyle Padding
+		innerH := overlayH - 2 // account for OverlayStyle Padding
+
+		// Build hint bar (default key hints or search bar).
+		hints := []struct{ key, desc string }{
+			{"j/k", "navigate"},
+			{"s", "switch subject"},
+			{"/", "search groups"},
+			{"g/G", "top/bottom"},
+			{"q/Esc", "close/back"},
+		}
+		hintParts := make([]string, 0, len(hints))
+		for _, h := range hints {
+			hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
+		}
+		hintBar := ui.StatusBarBgStyle.Width(innerW).Render(strings.Join(hintParts, ui.DimStyle.Render(" | ")))
+
+		if m.canISearchActive {
+			searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.canISearchInput.CursorLeft()) + ui.DimStyle.Render("\u2588") + ui.NormalStyle.Render(m.canISearchInput.CursorRight())
+			hintBar = ui.StatusBarBgStyle.Width(innerW).Render(searchBar)
+		} else if m.canISearchQuery != "" {
+			searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.canISearchQuery)
+			hintBar = ui.StatusBarBgStyle.Width(innerW).Render(searchBar)
+		}
+
+		canIContent := ui.RenderCanIView(
+			groupNames, resources,
+			m.canIGroupCursor, m.canIGroupScroll,
+			subjectName,
+			innerW, innerH,
+			hintBar,
+			m.canIResourceScroll,
+		)
+		overlay := ui.OverlayStyle.Width(overlayW).Render(canIContent)
+		bg := padToHeight(background, m.height)
+		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+	case overlayCanISubject:
+		overlayW = min(m.width-6, m.width*70/100)
+		overlayH = min(m.height-4, m.height*70/100)
+		maxVisible := max(overlayH-7, 1)
+
+		// Filter items by search query.
+		query := m.canISubjectFilterQuery
+		if m.canISubjectFilterActive {
+			query = m.canISubjectFilterInput.Value
+		}
+		filteredItems := m.overlayItems
+		if query != "" {
+			filtered := make([]model.Item, 0)
+			lq := strings.ToLower(query)
+			for _, item := range m.overlayItems {
+				if strings.Contains(strings.ToLower(item.Name), lq) {
+					filtered = append(filtered, item)
+				}
+			}
+			filteredItems = filtered
+		}
+
+		content = ui.RenderCanISubjectOverlay(filteredItems, m.overlayCursor, m.canISubjectScroll, maxVisible, query, m.canISubjectFilterActive)
+	case overlayExplainSearch:
+		overlayW = min(m.width-6, m.width*70/100)
+		overlayH = min(m.height-4, m.height*70/100)
+		maxVisible := max(overlayH-6, 1) // header + filter + footer
+		filtered := m.filteredExplainRecursiveResults()
+		content = ui.RenderExplainSearchOverlay(filtered, m.explainRecursiveCursor, m.explainRecursiveScroll, maxVisible, m.explainRecursiveFilter.Value, m.explainRecursiveFilterActive)
 	case overlayNetworkPolicy:
 		if m.netpolData != nil {
 			entry := ui.NetworkPolicyEntry{
@@ -2224,9 +2404,10 @@ func (m *Model) toggleSelection(item model.Item) {
 	}
 }
 
-// clearSelection removes all items from the multi-selection set.
+// clearSelection removes all items from the multi-selection set and resets the region anchor.
 func (m *Model) clearSelection() {
 	m.selectedItems = make(map[string]bool)
+	m.selectionAnchor = -1
 }
 
 // hasSelection returns true if any items are selected.
@@ -2292,8 +2473,8 @@ func (m *Model) visibleMiddleItems() []model.Item {
 		var collapsed []model.Item
 		seenCategories := make(map[string]bool)
 		for _, item := range items {
-			// Items with no category (e.g., Overview) are always shown.
-			if item.Category == "" {
+			// Items with no category or in the Dashboards group are always shown expanded.
+			if item.Category == "" || item.Category == "Dashboards" {
 				collapsed = append(collapsed, item)
 				continue
 			}
@@ -2358,6 +2539,21 @@ func (m *Model) syncExpandedGroup() {
 			m.clampCursor()
 		}
 	}
+}
+
+// filteredExplainRecursiveResults returns recursive search results filtered by the overlay filter input.
+func (m *Model) filteredExplainRecursiveResults() []model.ExplainField {
+	if m.explainRecursiveFilter.Value == "" {
+		return m.explainRecursiveResults
+	}
+	filter := strings.ToLower(m.explainRecursiveFilter.Value)
+	var filtered []model.ExplainField
+	for _, f := range m.explainRecursiveResults {
+		if strings.Contains(strings.ToLower(f.Name), filter) || strings.Contains(strings.ToLower(f.Path), filter) {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
 }
 
 // filteredOverlayItems returns overlay items matching the current filter.
@@ -2771,6 +2967,7 @@ func (m *Model) saveCurrentTab() {
 	t.watchMode = m.watchMode
 	t.requestGen = m.requestGen
 	t.selectedItems = copyMapStringBool(m.selectedItems)
+	t.selectionAnchor = m.selectionAnchor
 	t.fullscreenMiddle = m.fullscreenMiddle
 	t.fullscreenDashboard = m.fullscreenDashboard
 	t.dashboardPreview = m.dashboardPreview
@@ -2784,6 +2981,9 @@ func (m *Model) saveCurrentTab() {
 	t.logFollow = m.logFollow
 	t.logWrap = m.logWrap
 	t.logLineNumbers = m.logLineNumbers
+	t.logTimestamps = m.logTimestamps
+	t.logPrevious = m.logPrevious
+	t.logIsMulti = m.logIsMulti
 	t.logTitle = m.logTitle
 	t.logCancel = m.logCancel
 	t.logCh = m.logCh
@@ -2811,6 +3011,7 @@ func (m *Model) saveCurrentTab() {
 	t.explainTitle = m.explainTitle
 	t.explainCursor = m.explainCursor
 	t.explainScroll = m.explainScroll
+	t.explainSearchQuery = m.explainSearchQuery
 }
 
 // loadTab restores Model fields from the given tab index.
@@ -2848,6 +3049,7 @@ func (m *Model) loadTab(idx int) {
 	m.watchMode = t.watchMode
 	m.requestGen = t.requestGen
 	m.selectedItems = copyMapStringBool(t.selectedItems)
+	m.selectionAnchor = t.selectionAnchor
 	m.fullscreenMiddle = t.fullscreenMiddle
 	m.fullscreenDashboard = t.fullscreenDashboard
 	m.dashboardPreview = t.dashboardPreview
@@ -2863,6 +3065,9 @@ func (m *Model) loadTab(idx int) {
 	m.logFollow = t.logFollow
 	m.logWrap = t.logWrap
 	m.logLineNumbers = t.logLineNumbers
+	m.logTimestamps = t.logTimestamps
+	m.logPrevious = t.logPrevious
+	m.logIsMulti = t.logIsMulti
 	m.logTitle = t.logTitle
 	m.logCancel = t.logCancel
 	m.logCh = t.logCh
@@ -2890,6 +3095,7 @@ func (m *Model) loadTab(idx int) {
 	m.explainTitle = t.explainTitle
 	m.explainCursor = t.explainCursor
 	m.explainScroll = t.explainScroll
+	m.explainSearchQuery = t.explainSearchQuery
 
 	// Close overlays and reset transient state.
 	m.overlay = overlayNone
@@ -2921,6 +3127,7 @@ func (m *Model) cloneCurrentTab() TabState {
 		filterText:          m.filterText,
 		watchMode:           m.watchMode,
 		selectedItems:       copyMapStringBool(m.selectedItems),
+		selectionAnchor:     m.selectionAnchor,
 		fullscreenMiddle:    m.fullscreenMiddle,
 		fullscreenDashboard: m.fullscreenDashboard,
 		dashboardPreview:    m.dashboardPreview,

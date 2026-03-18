@@ -354,6 +354,10 @@ func (m Model) executeAction(actionLabel string) (tea.Model, tea.Cmd) {
 		m.logFollow = true
 		m.logWrap = false
 		m.logLineNumbers = true
+		m.logTimestamps = false
+		m.logPrevious = false
+		m.logIsMulti = false
+		m.logMultiItems = nil
 		if m.actionCtx.containerName != "" {
 			m.logTitle = fmt.Sprintf("Logs: %s/%s [%s]", m.actionNamespace(), m.actionCtx.name, m.actionCtx.containerName)
 		} else {

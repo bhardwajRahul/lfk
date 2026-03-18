@@ -10,7 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/janosmiko/lfk/internal/k8s"
+	"github.com/janosmiko/lfk/internal/logger"
 	"github.com/janosmiko/lfk/internal/model"
 	"github.com/janosmiko/lfk/internal/ui"
 )
@@ -27,9 +27,7 @@ func renderBar(used, total int64, width int) string {
 		pct = 100
 	}
 	filled := int(pct / 100 * float64(width))
-	if filled > width {
-		filled = width
-	}
+	filled = min(filled, width)
 	empty := width - filled
 
 	filledStr := strings.Repeat("\u2588", filled)
@@ -57,7 +55,7 @@ func renderStackedBar(segments []struct {
 	if total <= 0 {
 		return "[" + strings.Repeat("\u2591", width) + "]"
 	}
-	bar := ""
+	var barBuilder strings.Builder
 	used := 0
 	for i, seg := range segments {
 		chars := int(float64(seg.count) / float64(total) * float64(width))
@@ -71,13 +69,13 @@ func renderStackedBar(segments []struct {
 		if used+chars > width {
 			chars = width - used
 		}
-		bar += seg.style.Render(strings.Repeat("\u2588", chars))
+		barBuilder.WriteString(seg.style.Render(strings.Repeat("\u2588", chars)))
 		used += chars
 	}
 	if used < width {
-		bar += strings.Repeat("\u2591", width-used)
+		barBuilder.WriteString(strings.Repeat("\u2591", width-used))
 	}
-	return "[" + bar + "]"
+	return "[" + barBuilder.String() + "]"
 }
 
 func (m Model) loadDashboard() tea.Cmd {
@@ -207,7 +205,10 @@ func (m Model) loadDashboard() tea.Cmd {
 		}
 
 		// Node metrics: per-node and totals.
-		nodeMetrics, _ := client.GetAllNodeMetrics(reqCtx, kctx)
+		nodeMetrics, nodeMetricsErr := client.GetAllNodeMetrics(reqCtx, kctx)
+		if nodeMetricsErr != nil {
+			logger.Warn("Failed to fetch node metrics (metrics-server may not be installed)", "error", nodeMetricsErr)
+		}
 		type nodeInfo struct {
 			name                                 string
 			cpuUsed, cpuAlloc, memUsed, memAlloc int64
@@ -238,7 +239,7 @@ func (m Model) loadDashboard() tea.Cmd {
 		}
 
 		// Build dashboard content.
-		lines = append(lines, ui.DimStyle.Bold(true).Render("  CLUSTER OVERVIEW"))
+		lines = append(lines, ui.DimStyle.Bold(true).Render("  CLUSTER DASHBOARD"))
 		lines = append(lines, "")
 
 		// Nodes section.
@@ -305,6 +306,9 @@ func (m Model) loadDashboard() tea.Cmd {
 		// Cluster resources.
 		if totalCPUAlloc > 0 || totalMemAlloc > 0 {
 			lines = append(lines, ui.DimStyle.Bold(true).Render("  CLUSTER RESOURCES"))
+			if nodeMetricsErr != nil {
+				lines = append(lines, ui.StatusPending.Render("  (metrics-server unavailable)"))
+			}
 			lines = append(lines, "")
 			if totalCPUAlloc > 0 {
 				cpuBar := renderBar(totalCPUUsed, totalCPUAlloc, 30)
@@ -492,7 +496,7 @@ func (m Model) loadDashboard() tea.Cmd {
 func (m Model) loadMonitoringDashboard() tea.Cmd {
 	kctx := m.nav.Context
 	client := m.client
-	ns := m.resolveNamespace()
+	ns := m.effectiveNamespace()
 	return func() tea.Msg {
 		var lines []string
 		lines = append(lines, "")
@@ -586,141 +590,106 @@ func (m Model) loadMonitoringDashboard() tea.Cmd {
 
 		lines = append(lines, "")
 
-		// Sort alerts: critical firing first, then warning firing, then pending, then info.
+		// Sort alerts: state first (firing before pending), then severity, then name,
+		// then newest first, then namespace as final tiebreaker for deterministic ordering.
+		stateOrder := map[string]int{"firing": 0, "pending": 1}
+		severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2}
 		sort.SliceStable(alerts, func(i, j int) bool {
-			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2}
-			stateOrder := map[string]int{"firing": 0, "pending": 1}
-			si := stateOrder[alerts[i].State]*10 + severityOrder[alerts[i].Severity]
-			sj := stateOrder[alerts[j].State]*10 + severityOrder[alerts[j].Severity]
-			return si < sj
+			si := stateOrder[alerts[i].State]
+			sj := stateOrder[alerts[j].State]
+			if si != sj {
+				return si < sj
+			}
+			sevi := severityOrder[alerts[i].Severity]
+			sevj := severityOrder[alerts[j].Severity]
+			if sevi != sevj {
+				return sevi < sevj
+			}
+			// Alphabetical name for stable grouping of same-named alerts.
+			if alerts[i].Name != alerts[j].Name {
+				return alerts[i].Name < alerts[j].Name
+			}
+			// Newest first within the same state+severity+name.
+			if !alerts[i].Since.Equal(alerts[j].Since) {
+				return alerts[i].Since.After(alerts[j].Since)
+			}
+			// Namespace as final tiebreaker for fully deterministic ordering.
+			return alerts[i].Labels["namespace"] < alerts[j].Labels["namespace"]
 		})
 
-		// Critical alerts section.
-		if critical > 0 {
-			lines = append(lines, ui.StatusFailed.Bold(true).Render("  CRITICAL ALERTS"))
-			lines = append(lines, "")
-			for _, a := range alerts {
-				if a.Severity != "critical" {
-					continue
-				}
-				stateIcon := "\u25cf"
-				stateStyle := ui.StatusFailed
-				if a.State == "pending" {
-					stateStyle = ui.StatusPending
-				}
-
-				header := fmt.Sprintf("  %s %s",
-					stateStyle.Bold(true).Render(stateIcon),
-					ui.StatusFailed.Bold(true).Render(a.Name))
-
-				if a.State == "pending" {
-					header += " " + ui.StatusPending.Render("[pending]")
-				}
-
-				lines = append(lines, header)
-
-				if a.Summary != "" {
-					summary := a.Summary
-					if len(summary) > 80 {
-						summary = summary[:77] + "..."
-					}
-					lines = append(lines, "    "+ui.DimStyle.Render(summary))
-				} else if a.Description != "" {
-					desc := a.Description
-					if len(desc) > 80 {
-						desc = desc[:77] + "..."
-					}
-					lines = append(lines, "    "+ui.DimStyle.Render(desc))
-				}
-
-				if !a.Since.IsZero() {
-					lines = append(lines, "    "+ui.DimStyle.Render("since "+formatTimeAgo(a.Since)))
-				}
-
-				// Show relevant labels (namespace, pod, deployment, etc.)
-				if len(a.Labels) > 0 {
-					labelParts := monitoringAlertLabels(a)
-					if len(labelParts) > 0 {
-						lines = append(lines, "    "+strings.Join(labelParts, " "))
-					}
-				}
-
-				if a.GrafanaURL != "" {
-					lines = append(lines, "    "+ui.HelpKeyStyle.Render("dashboard: "+a.GrafanaURL))
-				}
-
-				lines = append(lines, "")
+		// Alert table: render all alerts in a single aligned table.
+		if totalAlerts > 0 {
+			// Metadata label keys to exclude when building the labels column.
+			excludeLabels := map[string]bool{
+				"severity":   true,
+				"namespace":  true,
+				"prometheus": true,
+				"__name__":   true,
+				"job":        true,
+				"instance":   true,
+				"endpoint":   true,
 			}
-		}
 
-		// Warning alerts section.
-		if warning > 0 {
-			lines = append(lines, ui.StatusPending.Bold(true).Render("  WARNING ALERTS"))
+			// Header row.
+			header := fmt.Sprintf("  %-10s %-12s %-14s %-12s",
+				"STATE", "SEVERITY", "SINCE", "NAMESPACE")
+			lines = append(lines, ui.DimStyle.Bold(true).Render(header))
 			lines = append(lines, "")
-			for _, a := range alerts {
-				if a.Severity != "warning" {
-					continue
-				}
-				stateIcon := "\u25cf"
-				stateStyle := ui.StatusPending
-				if a.State == "pending" {
-					stateStyle = ui.StatusPending
-				}
 
-				lines = append(lines, fmt.Sprintf("  %s %s",
-					stateStyle.Render(stateIcon),
-					ui.StatusPending.Render(a.Name)))
-
-				if a.Summary != "" {
-					summary := a.Summary
-					if len(summary) > 80 {
-						summary = summary[:77] + "..."
-					}
-					lines = append(lines, "    "+ui.DimStyle.Render(summary))
-				} else if a.Description != "" {
-					desc := a.Description
-					if len(desc) > 80 {
-						desc = desc[:77] + "..."
-					}
-					lines = append(lines, "    "+ui.DimStyle.Render(desc))
+			// Alert rows: main info on first line, labels on indented lines below.
+			for i, a := range alerts {
+				// State: colored text.
+				var stateStr string
+				switch a.State {
+				case "firing":
+					stateStr = ui.StatusFailed.Render(fmt.Sprintf("%-10s", a.State))
+				case "pending":
+					stateStr = ui.StatusPending.Render(fmt.Sprintf("%-10s", a.State))
+				default:
+					stateStr = ui.DimStyle.Render(fmt.Sprintf("%-10s", a.State))
 				}
 
+				// Severity: colored text.
+				var sevStr string
+				switch a.Severity {
+				case "critical":
+					sevStr = ui.StatusFailed.Bold(true).Render(fmt.Sprintf("%-12s", a.Severity))
+				case "warning":
+					sevStr = ui.StatusPending.Render(fmt.Sprintf("%-12s", a.Severity))
+				default:
+					sevStr = ui.DimStyle.Render(fmt.Sprintf("%-12s", a.Severity))
+				}
+
+				// Since column.
+				sinceStr := ""
 				if !a.Since.IsZero() {
-					lines = append(lines, "    "+ui.DimStyle.Render("since "+formatTimeAgo(a.Since)))
+					sinceStr = formatTimeAgo(a.Since)
 				}
+				sinceCol := ui.DimStyle.Render(fmt.Sprintf("%-14s", sinceStr))
 
-				if len(a.Labels) > 0 {
-					labelParts := monitoringAlertLabels(a)
-					if len(labelParts) > 0 {
-						lines = append(lines, "    "+strings.Join(labelParts, " "))
+				// Namespace from labels.
+				namespace := a.Labels["namespace"]
+				nsCol := ui.DimStyle.Render(fmt.Sprintf("%-12s", namespace))
+
+				lines = append(lines, fmt.Sprintf("  %s %s %s %s",
+					stateStr, sevStr, sinceCol, nsCol))
+
+				// Labels: each on its own indented line for readability.
+				var labelKeys []string
+				for k := range a.Labels {
+					if !excludeLabels[k] {
+						labelKeys = append(labelKeys, k)
 					}
 				}
-
-				lines = append(lines, "")
-			}
-		}
-
-		// Info alerts section.
-		if info > 0 {
-			lines = append(lines, ui.DimStyle.Bold(true).Render("  INFO ALERTS"))
-			lines = append(lines, "")
-			for _, a := range alerts {
-				if a.Severity == "critical" || a.Severity == "warning" {
-					continue
-				}
-				lines = append(lines, fmt.Sprintf("  %s %s",
-					ui.DimStyle.Render("\u25cf"),
-					ui.NormalStyle.Render(a.Name)))
-
-				if a.Summary != "" {
-					summary := a.Summary
-					if len(summary) > 80 {
-						summary = summary[:77] + "..."
-					}
-					lines = append(lines, "    "+ui.DimStyle.Render(summary))
+				sort.Strings(labelKeys)
+				for _, k := range labelKeys {
+					lines = append(lines, ui.DimStyle.Render(fmt.Sprintf("      %s=%s", k, a.Labels[k])))
 				}
 
-				lines = append(lines, "")
+				// Add separator between alerts.
+				if i < len(alerts)-1 {
+					lines = append(lines, "")
+				}
 			}
 		}
 
@@ -742,15 +711,4 @@ func formatTimeAgo(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dd ago", int(ago.Hours()/24))
 	}
-}
-
-// monitoringAlertLabels extracts relevant labels from an alert for display.
-func monitoringAlertLabels(a k8s.AlertInfo) []string {
-	var parts []string
-	for _, key := range []string{"namespace", "pod", "deployment", "statefulset", "daemonset", "node", "service", "job", "container"} {
-		if v, ok := a.Labels[key]; ok {
-			parts = append(parts, ui.DimStyle.Render(key+"=")+ui.NormalStyle.Render(v))
-		}
-	}
-	return parts
 }

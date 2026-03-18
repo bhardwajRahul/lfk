@@ -65,6 +65,12 @@ func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleEventTimelineOverlayKey(msg)
 	case overlayNetworkPolicy:
 		return m.handleNetworkPolicyOverlayKey(msg)
+	case overlayCanI:
+		return m.handleCanIKey(msg)
+	case overlayCanISubject:
+		return m.handleCanISubjectOverlayKey(msg)
+	case overlayExplainSearch:
+		return m.handleExplainSearchOverlayKey(msg)
 	}
 	return m, nil
 }
@@ -308,6 +314,10 @@ func (m Model) handleNamespaceNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.allNamespaces = false
 				}
 			}
+		}
+		// Advance cursor to the next item after toggling.
+		if m.overlayCursor < len(items)-1 {
+			m.overlayCursor++
 		}
 		return m, nil
 

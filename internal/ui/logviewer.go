@@ -14,7 +14,7 @@ var LogSearchHighlightStyle = lipgloss.NewStyle().
 	Bold(true)
 
 // RenderLogViewer renders the full-screen log viewer.
-func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, lineNumbers bool, title, searchQuery, searchInput string, searchActive, canSwitchPod bool) string {
+func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, lineNumbers, timestamps, previous bool, title, searchQuery, searchInput string, searchActive, canSwitchPod bool) string {
 	// Title bar with status indicators.
 	var indicators []string
 	if follow {
@@ -25,6 +25,12 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	}
 	if lineNumbers {
 		indicators = append(indicators, HelpKeyStyle.Render("[LINE#]"))
+	}
+	if timestamps {
+		indicators = append(indicators, HelpKeyStyle.Render("[TIMESTAMPS]"))
+	}
+	if previous {
+		indicators = append(indicators, HelpKeyStyle.Render("[PREVIOUS]"))
 	}
 	if searchQuery != "" {
 		indicators = append(indicators, HelpKeyStyle.Render("[/"+searchQuery+"]"))
@@ -53,6 +59,8 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 			HelpKeyStyle.Render("f") + DimStyle.Render(":follow"),
 			HelpKeyStyle.Render("w") + DimStyle.Render(":wrap"),
 			HelpKeyStyle.Render("l") + DimStyle.Render(":line#"),
+			HelpKeyStyle.Render("s") + DimStyle.Render(":timestamps"),
+			HelpKeyStyle.Render("c") + DimStyle.Render(":previous"),
 			HelpKeyStyle.Render("/") + DimStyle.Render(":search"),
 			HelpKeyStyle.Render("n/N") + DimStyle.Render(":next/prev"),
 			HelpKeyStyle.Render("123G") + DimStyle.Render(":goto"),

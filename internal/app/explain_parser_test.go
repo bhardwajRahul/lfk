@@ -98,8 +98,11 @@ FIELDS:
 	if fields[0].Name != "selector" {
 		t.Errorf("expected first field 'selector', got %q", fields[0].Name)
 	}
-	if fields[0].Type != "<Object> -required-" {
-		t.Errorf("expected type '<Object> -required-', got %q", fields[0].Type)
+	if fields[0].Type != "<Object>" {
+		t.Errorf("expected type '<Object>', got %q", fields[0].Type)
+	}
+	if !fields[0].Required {
+		t.Error("expected selector to be required")
 	}
 	if fields[0].Path != "spec.selector" {
 		t.Errorf("expected path 'spec.selector', got %q", fields[0].Path)
@@ -108,6 +111,17 @@ FIELDS:
 	// Description should include multi-line text.
 	if !strings.Contains(fields[0].Description, "Label selector") {
 		t.Errorf("expected description to contain 'Label selector', got %q", fields[0].Description)
+	}
+
+	// Second field should also be required.
+	if fields[1].Name != "template" {
+		t.Errorf("expected second field 'template', got %q", fields[1].Name)
+	}
+	if fields[1].Type != "<PodTemplateSpec>" {
+		t.Errorf("expected type '<PodTemplateSpec>', got %q", fields[1].Type)
+	}
+	if !fields[1].Required {
+		t.Error("expected template to be required")
 	}
 }
 

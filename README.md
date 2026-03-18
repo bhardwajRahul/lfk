@@ -15,7 +15,7 @@
 
 - **Three-column Miller columns** interface (parent / current / preview)
 - **Owner-based navigation**: Clusters -> Resource Types -> Resources -> Owned Resources -> Containers
-- **Resource groups**: Workloads, Networking, Config, Storage, ArgoCD, Helm, Access Control, Cluster, Custom Resources
+- **Resource groups**: Dashboards, Workloads, Networking, Config, Storage, ArgoCD, Helm, Access Control, Cluster, Custom Resources
 - **Pinned CRD groups**: Pin frequently used CRD API groups so they appear after built-in categories. Configurable via `pinned_groups` in config or interactively with `p` key (stored per-context)
 - **CRD categories**: Discovered CRDs are grouped by API group name (e.g., `argoproj.io`, `longhorn.io`, `networking.istio.io`)
 - **Expandable/collapsible resource groups** with `z`
@@ -28,7 +28,9 @@
 - **Multi-tab support**: Open multiple views side by side
 - **Multi-cluster/multi-context support** via merged kubeconfig loading
 - **Merged kubeconfig loading**: `~/.kube/config`, `~/.kube/config.d/*` (recursive), and `KUBECONFIG` env var
-- **Cluster overview dashboard** when entering a context (configurable)
+- **Cluster dashboard** when entering a context (configurable)
+- **Monitoring dashboard** with active Prometheus/Alertmanager alerts (`@` key), configurable endpoints per cluster
+- **API Explorer** for interactively browsing resource structure (`I` key) with recursive field browser
 - **Namespace selector** overlay with type-to-filter
 - **All-namespaces mode** (enabled by default)
 
@@ -201,6 +203,8 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `.` | Quick filter presets |
 | `!` | Error log |
 | `Ctrl+S` | Toggle secret value visibility |
+| `I` | API Explorer (browse resource structure interactively) |
+| `U` | RBAC permissions browser (can-i) |
 | `w` | Toggle watch mode (auto-refresh) |
 | `,` | Cycle sort mode (name / age / status) |
 | `W` | Save resource to file / toggle warnings-only (Events) |
@@ -317,6 +321,23 @@ log_path: /tmp/lfk.log
 
 # Show cluster dashboard when entering a context (default: true)
 dashboard: true
+
+# Monitoring endpoints per cluster context (auto-discovered by default)
+# Keys are context names; "default" applies to clusters without explicit config
+monitoring:
+  # my-prod-cluster:
+  #   prometheus:
+  #     namespaces: ["monitoring"]
+  #     services: ["thanos-query"]
+  #     port: "9090"
+  #   alertmanager:
+  #     namespaces: ["monitoring"]
+  #     services: ["alertmanager-main"]
+  #     port: "9093"
+  # default:
+  #   prometheus:
+  #     namespaces: ["monitoring", "observability"]
+  #     services: ["prometheus-server"]
 
 # Per-resource-type column configuration
 # Keys are resource Kind names (case-insensitive)

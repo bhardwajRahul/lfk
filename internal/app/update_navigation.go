@@ -209,6 +209,8 @@ func (m Model) navigateChild() (tea.Model, tea.Cmd) {
 		logger.Info("Context selected", "context", sel.Name)
 		m.saveCursor()
 		m.nav.Context = sel.Name
+		m.dashboardPreview = ""
+		m.monitoringPreview = ""
 		m.applyPinnedGroups()
 		m.nav.Level = model.LevelResourceTypes
 		m.pushLeft()
@@ -231,7 +233,7 @@ func (m Model) navigateChild() (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case model.LevelResourceTypes:
-		// Overview or Monitoring item: enter fullscreen dashboard view.
+		// Cluster Dashboard or Monitoring item: enter fullscreen dashboard view.
 		if sel.Extra == "__overview__" || sel.Extra == "__monitoring__" {
 			m.fullscreenDashboard = true
 			m.previewScroll = 0

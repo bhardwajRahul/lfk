@@ -276,6 +276,8 @@ func (m Model) navigateToBookmark(bm model.Bookmark) (tea.Model, tea.Cmd) {
 
 	// Switch context.
 	m.nav.Context = bm.Context
+	m.dashboardPreview = ""
+	m.monitoringPreview = ""
 	m.applyPinnedGroups()
 
 	// Set namespace.

@@ -31,7 +31,8 @@ Complete list of all keybindings in `lfk`. Keybindings marked with **(configurab
 | `.` | Quick filter presets |
 | `!` | Error log |
 | `Ctrl+S` | Toggle secret value visibility (decode base64) |
-| `I` | API explain browser (browse resource structure interactively) |
+| `I` | API Explorer (browse resource structure interactively) |
+| `U` | RBAC permissions browser (can-i) |
 | `m` | Toggle resource relationship map view |
 | `w` | Toggle watch mode (auto-refresh every 2s) |
 | `,` | Cycle sort mode (name / age / status) |
@@ -85,7 +86,8 @@ Resource-specific actions (exec, scale, restart, secret editor, etc.) are availa
 
 | Key | Action |
 |---|---|
-| `Space` | Toggle selection on current item |
+| `Space` | Toggle selection on current item (sets anchor) |
+| `Ctrl+Space` | Select range from anchor to cursor |
 | `Ctrl+A` | Select / deselect all visible items |
 | `Esc` | Clear selection |
 
@@ -131,6 +133,8 @@ When items are selected, press `x` to open the bulk action menu (delete, force d
 | `f` | Toggle follow mode (auto-scroll to new logs) |
 | `w` | Toggle line wrapping |
 | `l` | Toggle line numbers |
+| `s` | Toggle timestamps |
+| `c` | Toggle previous container logs |
 | `/` | Search in logs |
 | `n` / `N` / `p` | Next / previous search match |
 | `123G` | Jump to specific line number |
@@ -157,10 +161,38 @@ When items are selected, press `x` to open the bulk action menu (delete, force d
 | `j` / `k` | Navigate fields |
 | `l` / `Enter` | Drill into field (Object/array types) |
 | `h` / `Backspace` | Go back one level |
+| `/` | Search fields |
+| `n` / `N` | Next / previous search match (recursive: auto-drills into children / searches parent) |
+| `r` | Recursive field browser (browse all nested fields with filter) |
 | `gg` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
-| `q` / `Esc` | Close API explorer |
+| `q` | Close API explorer |
+| `Esc` | Go back one level / close at root |
+
+## Can-I Browser
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Navigate groups |
+| `J` / `K` | Scroll resource list down / up |
+| `/` | Search/filter groups by name |
+| `s` | Switch user/ServiceAccount |
+| `gg` / `G` | Jump to top / bottom |
+| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
+| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
+| `q` / `Esc` | Clear search / close |
+
+## Can-I Subject Selector
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Navigate subjects |
+| `/` | Filter subjects by name |
+| `gg` / `G` | Jump to top / bottom |
+| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
+| `Enter` | Select subject |
+| `Esc` | Clear filter / close |
 
 ## Network Policy Visualizer
 

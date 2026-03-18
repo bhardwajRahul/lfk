@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/janosmiko/lfk/internal/model"
 )
 
 // AlertInfo holds a single Prometheus/Alertmanager alert relevant to a resource.
@@ -44,20 +46,13 @@ func (c *Client) GetActiveAlerts(ctx context.Context, kubeCtx, namespace, resour
 		return nil, fmt.Errorf("failed to get clientset: %w", err)
 	}
 
-	monitoringNamespaces := []string{"monitoring", "prometheus", "observability", "kube-prometheus-stack"}
+	promNs, promSvc, promPort, amNs, amSvc, amPort := resolveMonitoringEndpoints(kubeCtx)
 
 	// Try Prometheus first.
-	promServices := []string{
-		"prometheus-kube-prometheus-prometheus",
-		"prometheus-server",
-		"prometheus",
-		"prometheus-operated",
-	}
-
 	var lastErr error
-	for _, ns := range monitoringNamespaces {
-		for _, svc := range promServices {
-			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, "9090", "/api/v1/alerts", nil)
+	for _, ns := range promNs {
+		for _, svc := range promSvc {
+			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, promPort, "/api/v1/alerts", nil)
 			data, err := result.DoRaw(ctx)
 			if err != nil {
 				lastErr = err
@@ -74,16 +69,9 @@ func (c *Client) GetActiveAlerts(ctx context.Context, kubeCtx, namespace, resour
 	}
 
 	// Try Alertmanager as fallback.
-	amServices := []string{
-		"alertmanager-operated",
-		"alertmanager",
-		"prometheus-kube-prometheus-alertmanager",
-		"alertmanager-main",
-	}
-
-	for _, ns := range monitoringNamespaces {
-		for _, svc := range amServices {
-			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, "9093", "/api/v2/alerts", nil)
+	for _, ns := range amNs {
+		for _, svc := range amSvc {
+			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, amPort, "/api/v2/alerts", nil)
 			data, err := result.DoRaw(ctx)
 			if err != nil {
 				lastErr = err
@@ -102,7 +90,7 @@ func (c *Client) GetActiveAlerts(ctx context.Context, kubeCtx, namespace, resour
 	if lastErr != nil {
 		return nil, fmt.Errorf("no reachable Prometheus/Alertmanager service found (last error: %w)", lastErr)
 	}
-	return nil, fmt.Errorf("no Prometheus/Alertmanager service found in well-known namespaces (monitoring, prometheus, observability, kube-prometheus-stack)")
+	return nil, fmt.Errorf("no Prometheus/Alertmanager service found in configured/default monitoring namespaces")
 }
 
 // parseAndFilterAlerts unmarshals the Prometheus alerts API response and filters
@@ -154,20 +142,13 @@ func (c *Client) GetAllActiveAlerts(ctx context.Context, kubeCtx, namespace stri
 		return nil, fmt.Errorf("failed to get clientset: %w", err)
 	}
 
-	monitoringNamespaces := []string{"monitoring", "prometheus", "observability", "kube-prometheus-stack"}
+	promNs, promSvc, promPort, amNs, amSvc, amPort := resolveMonitoringEndpoints(kubeCtx)
 
 	// Try Prometheus first.
-	promServices := []string{
-		"prometheus-kube-prometheus-prometheus",
-		"prometheus-server",
-		"prometheus",
-		"prometheus-operated",
-	}
-
 	var lastErr error
-	for _, ns := range monitoringNamespaces {
-		for _, svc := range promServices {
-			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, "9090", "/api/v1/alerts", nil)
+	for _, ns := range promNs {
+		for _, svc := range promSvc {
+			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, promPort, "/api/v1/alerts", nil)
 			data, err := result.DoRaw(ctx)
 			if err != nil {
 				lastErr = err
@@ -184,16 +165,9 @@ func (c *Client) GetAllActiveAlerts(ctx context.Context, kubeCtx, namespace stri
 	}
 
 	// Try Alertmanager as fallback.
-	amServices := []string{
-		"alertmanager-operated",
-		"alertmanager",
-		"prometheus-kube-prometheus-alertmanager",
-		"alertmanager-main",
-	}
-
-	for _, ns := range monitoringNamespaces {
-		for _, svc := range amServices {
-			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, "9093", "/api/v2/alerts", nil)
+	for _, ns := range amNs {
+		for _, svc := range amSvc {
+			result := clientset.CoreV1().Services(ns).ProxyGet("http", svc, amPort, "/api/v2/alerts", nil)
 			data, err := result.DoRaw(ctx)
 			if err != nil {
 				lastErr = err
@@ -212,7 +186,7 @@ func (c *Client) GetAllActiveAlerts(ctx context.Context, kubeCtx, namespace stri
 	if lastErr != nil {
 		return nil, fmt.Errorf("no reachable Prometheus/Alertmanager service found (last error: %w)", lastErr)
 	}
-	return nil, fmt.Errorf("no Prometheus/Alertmanager service found in well-known namespaces (monitoring, prometheus, observability, kube-prometheus-stack)")
+	return nil, fmt.Errorf("no Prometheus/Alertmanager service found in configured/default monitoring namespaces")
 }
 
 // parseAllAlerts unmarshals the Prometheus alerts API response and returns all alerts,
@@ -346,6 +320,58 @@ func parseAndFilterAlertmanagerAlerts(data []byte, resourceNs, resourceName, res
 	}
 
 	return alerts, nil
+}
+
+// resolveMonitoringEndpoints returns the prometheus and alertmanager service names,
+// namespaces, and ports to try for the given cluster context. Uses config overrides
+// if available, otherwise falls back to hardcoded defaults.
+func resolveMonitoringEndpoints(contextName string) (promNs, promSvc []string, promPort string, amNs, amSvc []string, amPort string) {
+	// Default values.
+	promNs = []string{"monitoring", "prometheus", "observability", "kube-prometheus-stack"}
+	promSvc = []string{"kube-prometheus-stack-prometheus", "prometheus-kube-prometheus-prometheus", "prometheus-server", "prometheus", "prometheus-operated"}
+	promPort = "9090"
+	amNs = []string{"monitoring", "prometheus", "observability", "kube-prometheus-stack"}
+	amSvc = []string{"alertmanager-operated", "alertmanager", "prometheus-kube-prometheus-alertmanager", "alertmanager-main"}
+	amPort = "9093"
+
+	// Check for config overrides.
+	cfg := model.ConfigMonitoring
+	if cfg == nil {
+		return
+	}
+
+	// Try context-specific config first, then "default".
+	mc, ok := cfg[contextName]
+	if !ok {
+		mc, ok = cfg["default"]
+	}
+	if !ok {
+		return
+	}
+
+	if mc.Prometheus != nil {
+		if len(mc.Prometheus.Namespaces) > 0 {
+			promNs = mc.Prometheus.Namespaces
+		}
+		if len(mc.Prometheus.Services) > 0 {
+			promSvc = mc.Prometheus.Services
+		}
+		if mc.Prometheus.Port != "" {
+			promPort = mc.Prometheus.Port
+		}
+	}
+	if mc.Alertmanager != nil {
+		if len(mc.Alertmanager.Namespaces) > 0 {
+			amNs = mc.Alertmanager.Namespaces
+		}
+		if len(mc.Alertmanager.Services) > 0 {
+			amSvc = mc.Alertmanager.Services
+		}
+		if mc.Alertmanager.Port != "" {
+			amPort = mc.Alertmanager.Port
+		}
+	}
+	return
 }
 
 // alertMatchesResource checks whether an alert's labels refer to the given resource.

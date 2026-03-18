@@ -905,6 +905,31 @@ func (m Model) checkRBAC() tea.Cmd {
 	}
 }
 
+func (m Model) loadCanIRules() tea.Cmd {
+	client := m.client
+	ctx := m.nav.Context
+	ns := m.namespace
+	if m.allNamespaces || ns == "" {
+		ns = "default"
+	}
+	subject := m.canISubject
+	return func() tea.Msg {
+		rules, err := client.GetSelfRulesAs(context.Background(), ctx, ns, subject)
+		return canILoadedMsg{rules: rules, err: err}
+	}
+}
+
+func (m Model) loadCanISAList() tea.Cmd {
+	client := m.client
+	ctx := m.nav.Context
+	// Always list SAs across all namespaces so the user can check
+	// permissions for any service account regardless of the current view.
+	return func() tea.Msg {
+		accounts, err := client.ListServiceAccounts(context.Background(), ctx, "")
+		return canISAListMsg{accounts: accounts, err: err}
+	}
+}
+
 func (m Model) loadPodStartup() tea.Cmd {
 	client := m.client
 	ctx := m.actionCtx.context

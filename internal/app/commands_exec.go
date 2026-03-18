@@ -37,6 +37,8 @@ func (m *Model) startLogStream() tea.Cmd {
 	kctx := m.actionCtx.context
 	containerName := m.actionCtx.containerName
 	kubeconfigPaths := m.client.KubeconfigPaths()
+	logTimestamps := m.logTimestamps
+	logPrevious := m.logPrevious
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.logCancel = cancel
@@ -50,6 +52,10 @@ func (m *Model) startLogStream() tea.Cmd {
 		defer close(ch)
 
 		var args []string
+		followFlag := "-f"
+		if logPrevious {
+			followFlag = "--previous"
+		}
 		switch kind {
 		case "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Service":
 			// Try to get the pod selector via kubectl so we can follow ALL pods.
@@ -57,21 +63,28 @@ func (m *Model) startLogStream() tea.Cmd {
 			selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx)
 			if selector != "" {
 				args = []string{
-					"logs", "-l", selector, "--all-containers=true", "--prefix", "-f",
+					"logs", "-l", selector, "--all-containers=true", "--prefix", followFlag,
 					"--max-log-requests=20", "-n", ns, "--context", kctx,
 				}
 			} else {
 				// Fallback: use resource reference (follows only one pod).
 				resourceRef := strings.ToLower(kind) + "/" + name
-				args = []string{"logs", resourceRef, "--all-containers=true", "--prefix", "-f", "-n", ns, "--context", kctx}
+				args = []string{
+					"logs", resourceRef, "--all-containers=true", "--prefix", followFlag,
+					"--max-log-requests=20", "-n", ns, "--context", kctx,
+				}
 			}
 		default:
-			args = []string{"logs", "-f", name, "-n", ns, "--context", kctx}
+			args = []string{"logs", followFlag, name, "-n", ns, "--context", kctx}
 			if containerName != "" {
 				args = append(args, "-c", containerName)
 			} else if kind == "Pod" {
-				args = append(args, "--all-containers=true", "--prefix")
+				args = append(args, "--all-containers=true", "--prefix", "--max-log-requests=20")
 			}
+		}
+
+		if logTimestamps {
+			args = append(args, "--timestamps")
 		}
 
 		logger.Info("Starting kubectl logs", "args", strings.Join(args, " "))
@@ -87,6 +100,10 @@ func (m *Model) startLogStream() tea.Cmd {
 
 		if err := cmd.Start(); err != nil {
 			logger.Error("Failed to start kubectl logs", "error", err)
+			select {
+			case ch <- fmt.Sprintf("[error] Failed to start kubectl logs: %v", err):
+			case <-ctx.Done():
+			}
 			return
 		}
 
@@ -206,6 +223,10 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 	m.logFollow = true
 	m.logWrap = false
 	m.logLineNumbers = true
+	m.logTimestamps = false
+	m.logPrevious = false
+	m.logIsMulti = true
+	m.logMultiItems = items
 	m.logTitle = fmt.Sprintf("Logs: %d resources", len(items))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -228,13 +249,27 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 			kind = m.nav.ResourceType.Kind
 		}
 
+		followFlag := "-f"
+		if m.logPrevious {
+			followFlag = "--previous"
+		}
 		var args []string
 		switch kind {
 		case "Pod":
-			args = []string{"logs", item.Name, "--all-containers=true", "--prefix", "-f", "-n", itemNs, "--context", kctx}
+			args = []string{
+				"logs", item.Name, "--all-containers=true", "--prefix", followFlag,
+				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+			}
 		default:
 			resourceRef := strings.ToLower(kind) + "/" + item.Name
-			args = []string{"logs", resourceRef, "--all-containers=true", "--prefix", "-f", "-n", itemNs, "--context", kctx}
+			args = []string{
+				"logs", resourceRef, "--all-containers=true", "--prefix", followFlag,
+				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+			}
+		}
+
+		if m.logTimestamps {
+			args = append(args, "--timestamps")
 		}
 
 		logger.Info("Starting multi-log kubectl", "item", item.Name, "args", strings.Join(args, " "))
@@ -271,6 +306,94 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 	}
 
 	// Close the channel once all goroutines finish.
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	return m, m.waitForLogLine()
+}
+
+// restartMultiLogStream restarts a multi-log stream using stored items,
+// preserving current viewer settings (used when toggling timestamps).
+func (m Model) restartMultiLogStream() (Model, tea.Cmd) {
+	kubectlPath, err := exec.LookPath("kubectl")
+	if err != nil {
+		return m, func() tea.Msg { return actionResultMsg{err: fmt.Errorf("kubectl not found: %w", err)} }
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.logCancel = cancel
+	ch := make(chan string, 256)
+	m.logCh = ch
+
+	kctx := m.nav.Context
+	ns := m.resolveNamespace()
+	items := m.logMultiItems
+
+	var wg sync.WaitGroup
+	for _, item := range items {
+		itemNs := ns
+		if item.Namespace != "" {
+			itemNs = item.Namespace
+		}
+
+		kind := item.Kind
+		if kind == "" {
+			kind = m.nav.ResourceType.Kind
+		}
+
+		followFlag := "-f"
+		if m.logPrevious {
+			followFlag = "--previous"
+		}
+		var args []string
+		switch kind {
+		case "Pod":
+			args = []string{
+				"logs", item.Name, "--all-containers=true", "--prefix", followFlag,
+				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+			}
+		default:
+			resourceRef := strings.ToLower(kind) + "/" + item.Name
+			args = []string{
+				"logs", resourceRef, "--all-containers=true", "--prefix", followFlag,
+				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+			}
+		}
+
+		if m.logTimestamps {
+			args = append(args, "--timestamps")
+		}
+
+		cmd := exec.CommandContext(ctx, kubectlPath, args...)
+		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPaths())
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			continue
+		}
+		cmd.Stderr = cmd.Stdout
+
+		if err := cmd.Start(); err != nil {
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer cmd.Wait() //nolint:errcheck
+			scanner := bufio.NewScanner(stdout)
+			scanner.Buffer(make([]byte, 0, 256*1024), 1024*1024)
+			for scanner.Scan() {
+				select {
+				case ch <- scanner.Text():
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
 	go func() {
 		wg.Wait()
 		close(ch)
@@ -1083,6 +1206,38 @@ func (m Model) execKubectlExplain(resource, apiVersion, fieldPath string) tea.Cm
 			title:       title,
 			path:        fieldPath,
 		}
+	}
+}
+
+// execKubectlExplainRecursive runs kubectl explain --recursive and searches for matching fields.
+func (m Model) execKubectlExplainRecursive(resource, apiVersion, query string) tea.Cmd {
+	kubectlPath, err := exec.LookPath("kubectl")
+	if err != nil {
+		return func() tea.Msg {
+			return explainRecursiveMsg{err: fmt.Errorf("kubectl not found: %w", err)}
+		}
+	}
+
+	kctx := m.nav.Context
+	kubeconfigPaths := m.client.KubeconfigPaths()
+
+	return func() tea.Msg {
+		args := []string{"explain", resource, "--recursive", "--context", kctx}
+		if apiVersion != "" {
+			args = append(args, "--api-version", apiVersion)
+		}
+		cmd := exec.Command(kubectlPath, args...)
+		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
+		logger.Info("Running kubectl command", "cmd", cmd.String())
+		output, cmdErr := cmd.CombinedOutput()
+		if cmdErr != nil {
+			return explainRecursiveMsg{
+				err: fmt.Errorf("%w: %s", cmdErr, strings.TrimSpace(string(output))),
+			}
+		}
+
+		matches := parseRecursiveExplainForSearch(string(output), query)
+		return explainRecursiveMsg{matches: matches, query: query}
 	}
 }
 

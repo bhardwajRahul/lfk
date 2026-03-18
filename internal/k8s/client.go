@@ -44,6 +44,14 @@ type RBACCheck struct {
 	Allowed bool
 }
 
+// AccessRule represents a single access rule from SelfSubjectRulesReview.
+type AccessRule struct {
+	Verbs         []string
+	APIGroups     []string
+	Resources     []string
+	ResourceNames []string // empty means all names
+}
+
 // QuotaInfo holds resource quota data for a single ResourceQuota object.
 type QuotaInfo struct {
 	Name      string
@@ -2911,6 +2919,80 @@ func (c *Client) CheckRBAC(ctx context.Context, contextName, namespace, group, r
 	}
 
 	return results, nil
+}
+
+// GetSelfRules returns all access rules for the current user in the given namespace
+// using SelfSubjectRulesReview.
+func (c *Client) GetSelfRules(ctx context.Context, contextName, namespace string) ([]AccessRule, error) {
+	return c.GetSelfRulesAs(ctx, contextName, namespace, "")
+}
+
+// GetSelfRulesAs returns all access rules for the specified user/ServiceAccount in the given namespace.
+// The asUser parameter should be in the format "system:serviceaccount:<namespace>:<name>" for ServiceAccounts.
+// If asUser is empty, it checks the current user's permissions.
+func (c *Client) GetSelfRulesAs(ctx context.Context, contextName, namespace, asUser string) ([]AccessRule, error) {
+	cfg, err := c.restConfigForContext(contextName)
+	if err != nil {
+		return nil, err
+	}
+
+	if asUser != "" {
+		cfg.Impersonate = rest.ImpersonationConfig{
+			UserName: asUser,
+		}
+	}
+
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating clientset: %w", err)
+	}
+
+	review := &authorizationv1.SelfSubjectRulesReview{
+		Spec: authorizationv1.SelfSubjectRulesReviewSpec{
+			Namespace: namespace,
+		},
+	}
+
+	result, err := clientset.AuthorizationV1().SelfSubjectRulesReviews().Create(ctx, review, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("SelfSubjectRulesReview failed: %w", err)
+	}
+
+	rules := make([]AccessRule, 0, len(result.Status.ResourceRules))
+	for _, r := range result.Status.ResourceRules {
+		rules = append(rules, AccessRule{
+			Verbs:         r.Verbs,
+			APIGroups:     r.APIGroups,
+			Resources:     r.Resources,
+			ResourceNames: r.ResourceNames,
+		})
+	}
+
+	return rules, nil
+}
+
+// ListServiceAccounts returns the names of all ServiceAccounts in the given namespace.
+func (c *Client) ListServiceAccounts(ctx context.Context, contextName, namespace string) ([]string, error) {
+	clientset, err := c.clientsetForContext(contextName)
+	if err != nil {
+		return nil, err
+	}
+
+	saList, err := clientset.CoreV1().ServiceAccounts(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing service accounts: %w", err)
+	}
+
+	names := make([]string, 0, len(saList.Items))
+	for _, sa := range saList.Items {
+		if namespace == "" {
+			names = append(names, sa.Namespace+"/"+sa.Name)
+		} else {
+			names = append(names, sa.Name)
+		}
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // GetNamespaceQuotas lists ResourceQuota objects in the given namespace

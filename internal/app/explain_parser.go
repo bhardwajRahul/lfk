@@ -96,7 +96,7 @@ func parseExplainOutput(output, basePath string) (description string, fields []m
 			// The key distinction: field names start with a valid Go identifier character
 			// and are followed by whitespace + a type in angle brackets.
 			if indent <= 3 && isFieldLine(trimmed) {
-				name, typ := parseFieldLine(trimmed)
+				name, typ, required := parseFieldLine(trimmed)
 				if name != "" {
 					flushField()
 					fieldPath := name
@@ -104,9 +104,10 @@ func parseExplainOutput(output, basePath string) (description string, fields []m
 						fieldPath = basePath + "." + name
 					}
 					currentField = &model.ExplainField{
-						Name: name,
-						Type: typ,
-						Path: fieldPath,
+						Name:     name,
+						Type:     typ,
+						Path:     fieldPath,
+						Required: required,
 					}
 					continue
 				}
@@ -201,20 +202,132 @@ func isFieldLine(trimmed string) bool {
 	return false
 }
 
-// parseFieldLine extracts the field name and type from a field line.
-// Field lines look like: "fieldName   <type>" or "fieldName	<type>"
-func parseFieldLine(trimmed string) (name, typ string) {
+// parseRecursiveExplainForSearch parses the output of `kubectl explain --recursive`
+// and returns all fields whose names contain the search query (case-insensitive).
+// The recursive output format is indented fields like:
+//
+//	FIELDS:
+//	  apiVersion	<string>
+//	  kind	<string>
+//	  metadata	<ObjectMeta>
+//	    annotations	<map[string]string>
+//	    name	<string>
+//	  spec	<DeploymentSpec>
+//	    replicas	<integer>
+//	    template	<PodTemplateSpec>
+//	      spec	<PodSpec>
+//	        containers	<[]Container>
+//	          name	<string>
+//	          ports	<[]ContainerPort>
+//	            containerPort	<integer>
+func parseRecursiveExplainForSearch(output, query string) []model.ExplainField {
+	lines := strings.Split(output, "\n")
+	lowerQuery := strings.ToLower(query)
+
+	var results []model.ExplainField
+
+	// Track indentation levels to build paths.
+	// Each indentation level maps to a field name.
+	type level struct {
+		indent int
+		name   string
+	}
+	var stack []level
+
+	inFields := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if trimmed == "FIELDS:" {
+			inFields = true
+			continue
+		}
+		if !inFields {
+			continue
+		}
+
+		// Count leading spaces (indentation).
+		indent := 0
+		for _, ch := range line {
+			switch ch {
+			case ' ':
+				indent++
+			case '\t':
+				indent += 4
+			default:
+				goto doneIndent
+			}
+		}
+	doneIndent:
+
+		// Parse field name and type: "  fieldName\t<type>" or "  fieldName  <type>"
+		parts := strings.SplitN(trimmed, "\t", 2)
+		if len(parts) == 0 {
+			continue
+		}
+		fieldName := strings.TrimSpace(parts[0])
+		fieldType := ""
+		if len(parts) > 1 {
+			fieldType = strings.TrimSpace(parts[1])
+		}
+
+		// Skip non-field lines (descriptions, etc).
+		if fieldName == "" || fieldName == "DESCRIPTION:" || strings.HasPrefix(fieldName, "GROUP:") ||
+			strings.HasPrefix(fieldName, "KIND:") || strings.HasPrefix(fieldName, "VERSION:") ||
+			strings.HasPrefix(fieldName, "RESOURCE:") || strings.HasPrefix(fieldName, "FIELD:") {
+			continue
+		}
+
+		// Pop stack to find parent at this indentation level.
+		for len(stack) > 0 && stack[len(stack)-1].indent >= indent {
+			stack = stack[:len(stack)-1]
+		}
+
+		// Build full path.
+		pathParts := make([]string, 0, len(stack)+1)
+		for _, s := range stack {
+			pathParts = append(pathParts, s.name)
+		}
+		pathParts = append(pathParts, fieldName)
+		fullPath := strings.Join(pathParts, ".")
+
+		// Push current field to stack.
+		stack = append(stack, level{indent: indent, name: fieldName})
+
+		// When query is empty, return all fields (for namespace-selector-style browsing).
+		if lowerQuery == "" || strings.Contains(strings.ToLower(fieldName), lowerQuery) {
+			results = append(results, model.ExplainField{
+				Name:        fieldName,
+				Type:        fieldType,
+				Path:        fullPath,
+				Description: fullPath,
+			})
+		}
+	}
+
+	return results
+}
+
+// parseFieldLine extracts the field name, type, and required status from a field line.
+// Field lines look like: "fieldName   <type>" or "fieldName	<type> -required-"
+func parseFieldLine(trimmed string) (name, typ string, required bool) {
 	parts := strings.Fields(trimmed)
 	if len(parts) == 0 {
-		return "", ""
+		return "", "", false
 	}
 
 	name = parts[0]
 
-	// Collect type and required markers from remaining parts.
+	// Collect type parts, extracting -required- marker separately.
 	var typeParts []string
 	for _, p := range parts[1:] {
-		if strings.HasPrefix(p, "<") || strings.HasPrefix(p, "-required-") {
+		if p == "-required-" {
+			required = true
+			continue
+		}
+		if strings.HasPrefix(p, "<") {
 			typeParts = append(typeParts, p)
 		}
 	}
@@ -223,5 +336,5 @@ func parseFieldLine(trimmed string) (name, typ string) {
 		typ = strings.Join(typeParts, " ")
 	}
 
-	return name, typ
+	return name, typ, required
 }

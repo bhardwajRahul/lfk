@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"sigs.k8s.io/yaml"
+
+	"github.com/janosmiko/lfk/internal/model"
 )
 
 // Theme defines the color palette for the application.
@@ -154,6 +156,9 @@ type configFile struct {
 	// PinnedGroups lists CRD API groups that should appear prominently
 	// right after built-in categories. Example: ["karpenter.sh", "monitoring.coreos.com"]
 	PinnedGroups []string `json:"pinned_groups" yaml:"pinned_groups"`
+	// Monitoring maps cluster context names to custom monitoring endpoint config.
+	// The special key "default" applies to clusters without explicit config.
+	Monitoring map[string]model.MonitoringConfig `json:"monitoring" yaml:"monitoring"`
 }
 
 // DefaultAbbreviations returns the default search abbreviation map.
@@ -340,6 +345,11 @@ func LoadAndApplyTheme() {
 	// Apply pinned groups from config.
 	if len(cfg.PinnedGroups) > 0 {
 		ConfigPinnedGroups = cfg.PinnedGroups
+	}
+
+	// Apply monitoring endpoint overrides.
+	if cfg.Monitoring != nil {
+		model.ConfigMonitoring = cfg.Monitoring
 	}
 
 	ApplyTheme(theme)

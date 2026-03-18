@@ -69,8 +69,8 @@ func TestFlattenedResourceTypes(t *testing.T) {
 	items := FlattenedResourceTypes()
 	assert.NotEmpty(t, items)
 
-	// First item should be Overview.
-	assert.Equal(t, "Overview", items[0].Name)
+	// First item should be Cluster Dashboard.
+	assert.Equal(t, "Cluster", items[0].Name)
 	assert.Equal(t, "__overview__", items[0].Kind)
 
 	// Should not contain ArgoCD (hasArgo=false by default).
@@ -318,7 +318,7 @@ func TestMergeWithCRDs(t *testing.T) {
 	t.Run("no CRDs hides CRD-dependent entries", func(t *testing.T) {
 		items := MergeWithCRDs(nil)
 		assert.NotEmpty(t, items)
-		assert.Equal(t, "Overview", items[0].Name)
+		assert.Equal(t, "Cluster", items[0].Name)
 		for _, item := range items {
 			assert.NotEqual(t, "VerticalPodAutoscaler", item.Kind,
 				"VPA should be hidden when no CRDs are discovered")

@@ -177,7 +177,7 @@ var emojiIcons = map[string]string{
 	"⊙": "⚙️", // RuntimeClasses
 	"⏱": "⏱️", // Leases
 	"⚙": "🔧",  // Webhook Configurations
-	"◎": "🏠",  // Overview
+	"◎": "🏠",  // Cluster Dashboard
 	"⇋": "🔗",  // Port Forwards
 }
 
