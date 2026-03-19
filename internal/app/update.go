@@ -2627,8 +2627,14 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			switch m.yamlVisualType {
 			case 'v': // Character mode: partial first/last lines.
 				var parts []string
-				colStart := m.yamlVisualCol
-				colEnd := m.yamlVisualCurCol
+				anchorCol := m.yamlVisualCol
+				cursorCol := m.yamlVisualCurCol
+				// Determine direction: assign columns to selStart/selEnd lines.
+				startCol, endCol := anchorCol, cursorCol
+				if m.yamlVisualStart > m.yamlCursor {
+					// Upward selection: cursor is at selStart, anchor at selEnd.
+					startCol, endCol = cursorCol, anchorCol
+				}
 				for i := selStart; i <= selEnd; i++ {
 					if i >= len(mapping) || mapping[i] < 0 || mapping[i] >= len(origLines) {
 						continue
@@ -2637,8 +2643,8 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					runes := []rune(line)
 					if selStart == selEnd {
 						// Single line: extract column range.
-						cs := min(colStart, colEnd)
-						ce := max(colStart, colEnd) + 1
+						cs := min(anchorCol, cursorCol)
+						ce := max(anchorCol, cursorCol) + 1
 						if cs > len(runes) {
 							cs = len(runes)
 						}
@@ -2647,13 +2653,13 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 						}
 						parts = append(parts, string(runes[cs:ce]))
 					} else if i == selStart {
-						cs := colStart
+						cs := startCol
 						if cs > len(runes) {
 							cs = len(runes)
 						}
 						parts = append(parts, string(runes[cs:]))
 					} else if i == selEnd {
-						ce := colEnd + 1
+						ce := endCol + 1
 						if ce > len(runes) {
 							ce = len(runes)
 						}
@@ -3699,15 +3705,21 @@ func (m Model) handleLogVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch m.logVisualType {
 		case 'v': // Character mode: partial first/last lines.
 			var parts []string
-			colStart := m.logVisualCol
-			colEnd := m.logVisualCurCol
+			anchorCol := m.logVisualCol
+			cursorCol := m.logVisualCurCol
+			// Determine direction: assign columns to selStart/selEnd lines.
+			startCol, endCol := anchorCol, cursorCol
+			if m.logVisualStart > m.logCursor {
+				// Upward selection: cursor is at selStart, anchor at selEnd.
+				startCol, endCol = cursorCol, anchorCol
+			}
 			for i := selStart; i <= selEnd; i++ {
 				line := m.logLines[i]
 				runes := []rune(line)
 				if selStart == selEnd {
 					// Single line: extract column range.
-					cs := min(colStart, colEnd)
-					ce := max(colStart, colEnd) + 1
+					cs := min(anchorCol, cursorCol)
+					ce := max(anchorCol, cursorCol) + 1
 					if cs > len(runes) {
 						cs = len(runes)
 					}
@@ -3716,13 +3728,13 @@ func (m Model) handleLogVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					}
 					parts = append(parts, string(runes[cs:ce]))
 				} else if i == selStart {
-					cs := colStart
+					cs := startCol
 					if cs > len(runes) {
 						cs = len(runes)
 					}
 					parts = append(parts, string(runes[cs:]))
 				} else if i == selEnd {
-					ce := colEnd + 1
+					ce := endCol + 1
 					if ce > len(runes) {
 						ce = len(runes)
 					}

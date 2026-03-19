@@ -1224,7 +1224,7 @@ func (m Model) viewYAML() string {
 		// Visual selection highlight: override with selected style.
 		isSelected := m.yamlVisualMode && visIdx >= selStart && visIdx <= selEnd
 		if isSelected {
-			highlighted = ui.RenderVisualSelection(line, m.yamlVisualType, visIdx, selStart, selEnd, m.yamlVisualCol, m.yamlCursorCol(), visualColStart, visualColEnd)
+			highlighted = ui.RenderVisualSelection(line, m.yamlVisualType, visIdx, selStart, selEnd, m.yamlVisualStart, m.yamlVisualCol, m.yamlCursorCol(), visualColStart, visualColEnd)
 		}
 		// Line number gutter
 		lineNumStr := strings.Repeat(" ", gutterWidth+1)

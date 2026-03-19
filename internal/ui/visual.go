@@ -9,10 +9,9 @@ var CursorBlockStyle = lipgloss.NewStyle().Reverse(true)
 // If the column is at or beyond the line length, the cursor is shown as a highlighted space
 // appended to the line. The styledLine parameter is the already-styled version of the line
 // (with syntax highlighting etc.), and plainLine is the raw text used for column counting.
-// When the cursor is at column 0 the original styled line is returned unchanged (the gutter
-// indicator already marks the line).
+// When the cursor is at a negative column the original styled line is returned unchanged.
 func RenderCursorAtCol(styledLine, plainLine string, col int) string {
-	if col <= 0 {
+	if col < 0 {
 		return styledLine
 	}
 	runes := []rune(plainLine)
@@ -36,15 +35,16 @@ func RenderCursorAtCol(styledLine, plainLine string, col int) string {
 //   - visualType: 'V' for line, 'v' for char, 'B' for block
 //   - lineIdx: the index of this line in the document
 //   - selStart, selEnd: the range of selected line indices (min/max of anchor and cursor)
+//   - anchorLine: the original anchor line (before min/max), needed for direction detection
 //   - anchorCol, cursorCol: the column positions of the anchor and cursor
 //   - colStart, colEnd: min/max of anchorCol and cursorCol (precomputed)
-func RenderVisualSelection(line string, visualType rune, lineIdx, selStart, selEnd, anchorCol, cursorCol, colStart, colEnd int) string {
+func RenderVisualSelection(line string, visualType rune, lineIdx, selStart, selEnd, anchorLine, anchorCol, cursorCol, colStart, colEnd int) string {
 	runes := []rune(line)
 	lineLen := len(runes)
 
 	switch visualType {
 	case 'v': // Character visual mode
-		return renderCharSelection(runes, lineLen, lineIdx, selStart, selEnd, anchorCol, cursorCol)
+		return renderCharSelection(runes, lineLen, lineIdx, selStart, selEnd, anchorLine, anchorCol, cursorCol)
 	case 'B': // Block (column) visual mode
 		return renderBlockSelection(runes, lineLen, colStart, colEnd)
 	default: // 'V' or zero value: Line visual mode
@@ -53,14 +53,11 @@ func RenderVisualSelection(line string, visualType rune, lineIdx, selStart, selE
 }
 
 // renderCharSelection highlights a character-level selection range.
-// On the first selected line, highlight from anchorCol onward.
-// On the last selected line, highlight up to cursorCol.
-// Middle lines are fully highlighted.
+// anchorLine is the original (non-min/maxed) anchor line for direction detection.
+// On the anchor line, highlight from anchorCol to end of line (downward) or start of line (upward).
+// On the cursor line, the opposite. Middle lines are fully highlighted.
 // When anchor and cursor are on the same line, highlight between the two columns.
-func renderCharSelection(runes []rune, lineLen, lineIdx, selStart, selEnd, anchorCol, cursorCol int) string {
-	// Determine which line is the anchor and which is the cursor.
-	// selStart = min(anchorLine, cursorLine), selEnd = max(anchorLine, cursorLine)
-	// We need to figure out the direction of selection.
+func renderCharSelection(runes []rune, lineLen, lineIdx, selStart, selEnd, anchorLine, anchorCol, cursorCol int) string {
 	if selStart == selEnd {
 		// Single line: highlight between the two column positions.
 		cStart := min(anchorCol, cursorCol)
@@ -68,36 +65,24 @@ func renderCharSelection(runes []rune, lineLen, lineIdx, selStart, selEnd, ancho
 		return highlightColumnRange(runes, lineLen, cStart, cEnd)
 	}
 
-	// The anchor is the line where the visual selection was started.
-	// selStart/selEnd are just min/max of anchor line and cursor line.
-	// We need to determine actual direction:
-	// If anchorCol is associated with selStart line, anchor is at top.
-	// The caller passes the raw anchorCol and cursorCol.
-	// For multi-line char selection:
-	//   - First line (selStart): highlight from the starting column to end of line
-	//   - Last line (selEnd): highlight from start of line to the ending column
-	//   - Middle lines: fully highlighted
-	// The "starting column" is anchorCol if anchor is on selStart, else cursorCol.
-	// The "ending column" is cursorCol if cursor is on selEnd, else anchorCol.
-	// Since we don't know which is which from just the min/max, we use a heuristic:
-	// anchorCol applies to the anchor line and cursorCol to the cursor line.
-	// But we only have selStart/selEnd. The convention is:
-	//   anchorCol -> the line where selection was started
-	//   cursorCol -> the line where cursor currently is
-	// Since selStart = min(anchorLine, cursorLine), if anchor < cursor then
-	//   selStart is the anchor line, selEnd is the cursor line.
-	// We don't have anchorLine/cursorLine directly, but the caller knows.
-	// For simplicity, we'll treat anchorCol as belonging to selStart and
-	// cursorCol as belonging to selEnd. This matches the common case where
-	// the user moves the cursor downward from the anchor.
+	// Determine direction: anchor is at selStart (downward) or selEnd (upward).
+	// startCol/endCol are the columns for selStart/selEnd lines respectively.
+	var startCol, endCol int
+	if anchorLine <= selStart {
+		// Downward: anchor is at top, cursor at bottom.
+		startCol = anchorCol
+		endCol = cursorCol
+	} else {
+		// Upward: cursor is at top, anchor at bottom.
+		startCol = cursorCol
+		endCol = anchorCol
+	}
 
 	if lineIdx == selStart {
-		// First line: highlight from anchorCol to end of line.
-		return highlightColumnRange(runes, lineLen, anchorCol, lineLen)
+		return highlightColumnRange(runes, lineLen, startCol, lineLen)
 	}
 	if lineIdx == selEnd {
-		// Last line: highlight from start to cursorCol (inclusive).
-		return highlightColumnRange(runes, lineLen, 0, cursorCol+1)
+		return highlightColumnRange(runes, lineLen, 0, endCol+1)
 	}
 	// Middle line: fully highlighted.
 	return SelectedStyle.Render(string(runes))

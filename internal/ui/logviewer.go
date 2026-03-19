@@ -161,9 +161,9 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	// Build visible lines, handling wrapping.
 	var rendered []string
 	if wrap {
-		rendered = renderWrappedLines(displayLines, scroll, contentHeight, contentWidth, lineNumbers, lineNumWidth, cursor, selStart, selEnd, visualType, visualCol, visualCurCol)
+		rendered = renderWrappedLines(displayLines, scroll, contentHeight, contentWidth, lineNumbers, lineNumWidth, cursor, selStart, selEnd, visualStart, visualType, visualCol, visualCurCol)
 	} else {
-		rendered = renderPlainLines(displayLines, scroll, contentHeight, contentWidth, lineNumbers, lineNumWidth, cursor, selStart, selEnd, visualType, visualCol, visualCurCol)
+		rendered = renderPlainLines(displayLines, scroll, contentHeight, contentWidth, lineNumbers, lineNumWidth, cursor, selStart, selEnd, visualStart, visualType, visualCol, visualCurCol)
 	}
 
 	// Highlight search matches in rendered lines.
@@ -218,7 +218,7 @@ func highlightSearchMatches(lines []string, query string) []string {
 }
 
 // renderPlainLines renders lines without wrapping.
-func renderPlainLines(lines []string, scroll, height, width int, lineNumbers bool, lineNumWidth int, cursor int, selStart, selEnd int, visualType rune, visualCol, visualCurCol int) []string {
+func renderPlainLines(lines []string, scroll, height, width int, lineNumbers bool, lineNumWidth int, cursor int, selStart, selEnd, visualStart int, visualType rune, visualCol, visualCurCol int) []string {
 	var result []string
 
 	end := scroll + height
@@ -249,7 +249,7 @@ func renderPlainLines(lines []string, scroll, height, width int, lineNumbers boo
 			if len([]rune(plainLine)) > selEffWidth {
 				plainLine = string([]rune(plainLine)[:selEffWidth])
 			}
-			line = RenderVisualSelection(plainLine, visualType, i, selStart, selEnd, visualCol, visualCurCol, min(visualCol, visualCurCol), max(visualCol, visualCurCol))
+			line = RenderVisualSelection(plainLine, visualType, i, selStart, selEnd, visualStart, visualCol, visualCurCol, min(visualCol, visualCurCol), max(visualCol, visualCurCol))
 			if lineNumbers {
 				numStr := fmt.Sprintf("%*d ", lineNumWidth-1, i+1)
 				line = DimStyle.Render(numStr) + line
@@ -290,7 +290,7 @@ func renderPlainLines(lines []string, scroll, height, width int, lineNumbers boo
 }
 
 // renderWrappedLines renders lines with wrapping, accounting for scroll position.
-func renderWrappedLines(lines []string, scroll, height, width int, lineNumbers bool, lineNumWidth int, cursor int, selStart, selEnd int, visualType rune, visualCol, visualCurCol int) []string {
+func renderWrappedLines(lines []string, scroll, height, width int, lineNumbers bool, lineNumWidth int, cursor int, selStart, selEnd, visualStart int, visualType rune, visualCol, visualCurCol int) []string {
 	// Reserve 1 column for cursor gutter.
 	gutterWidth := 1
 	availWidth := width - gutterWidth
@@ -318,7 +318,7 @@ func renderWrappedLines(lines []string, scroll, height, width int, lineNumbers b
 			if isSelected {
 				// Highlight raw content first, then prepend line numbers
 				// to avoid column offset mismatch.
-				wl = RenderVisualSelection(wl, visualType, i, selStart, selEnd, visualCol, visualCurCol, min(visualCol, visualCurCol), max(visualCol, visualCurCol))
+				wl = RenderVisualSelection(wl, visualType, i, selStart, selEnd, visualStart, visualCol, visualCurCol, min(visualCol, visualCurCol), max(visualCol, visualCurCol))
 				if lineNumbers {
 					if j == 0 {
 						numStr := fmt.Sprintf("%*d ", lineNumWidth-1, i+1)
