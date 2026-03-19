@@ -641,6 +641,7 @@ func (m *Model) exitCanIView() {
 	m.canISubjectFilterActive = false
 	m.canISubjectFilterQuery = ""
 	m.canIAllowedOnly = false
+	m.canINamespace = ""
 }
 
 // handleCanISearchKey handles keyboard input when search is active in the can-i browser.

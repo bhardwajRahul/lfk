@@ -218,6 +218,8 @@ All other keys are forwarded to the PTY process. The PTY session continues runni
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `q` / `Esc` | Clear search / close |
 
+The title bar shows the namespace scope (`ns:...`) used for the permission check, so you can see whether permissions are cluster-wide or namespaced. When checking a service account, its own namespace is used automatically.
+
 ## Can-I Subject Selector
 
 | Key | Action |

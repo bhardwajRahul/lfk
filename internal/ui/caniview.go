@@ -24,9 +24,10 @@ var canIVerbs = []struct {
 
 // RenderCanIView renders the can-i browser with a two-column layout.
 // The left column (API groups) is interactive; the right column (resources) is display-only.
-func RenderCanIView(groups []string, resources []model.CanIResource, groupCursor, groupScroll int, subjectName string, width, height int, hintBar string, resourceScroll int) string {
+func RenderCanIView(groups []string, resources []model.CanIResource, groupCursor, groupScroll int, subjectName, namespace string, width, height int, hintBar string, resourceScroll int) string {
 	// Title bar.
-	titleText := TitleStyle.Render("RBAC Permissions (" + subjectName + ")")
+	scopeLabel := "ns:" + namespace
+	titleText := TitleStyle.Render("RBAC Permissions ("+subjectName+")") + "  " + DimStyle.Render(scopeLabel)
 
 	hint := hintBar
 

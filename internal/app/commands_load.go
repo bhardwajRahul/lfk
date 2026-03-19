@@ -923,7 +923,7 @@ func (m Model) loadCanIRules() tea.Cmd {
 	}
 	return func() tea.Msg {
 		rules, err := client.GetSelfRulesAs(context.Background(), ctx, ns, subject)
-		return canILoadedMsg{rules: rules, err: err}
+		return canILoadedMsg{rules: rules, namespace: ns, err: err}
 	}
 }
 

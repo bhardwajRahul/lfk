@@ -178,6 +178,7 @@ func helpSections() []helpSection {
 				{"/", "Search/filter groups by name"},
 				{"a", "Toggle all/allowed-only permissions"},
 				{"s", "Switch user/ServiceAccount"},
+				{"", "Title shows namespace scope (ns:...) for permission context"},
 				{"g/G", "Top/bottom"},
 				{"Ctrl+D/U", "Page down/up (half page)"},
 				{"Ctrl+F/B", "Page down/up (full page)"},

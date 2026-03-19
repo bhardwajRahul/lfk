@@ -734,6 +734,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, scheduleStatusClear()
 		}
 		m.processCanIRules(msg.rules)
+		m.canINamespace = msg.namespace
 		m.overlay = overlayCanI
 		m.canIGroupCursor = 0
 		m.canIGroupScroll = 0

@@ -302,8 +302,9 @@ type eventTimelineMsg struct {
 
 // canILoadedMsg carries the result of a SelfSubjectRulesReview.
 type canILoadedMsg struct {
-	rules []k8s.AccessRule
-	err   error
+	rules     []k8s.AccessRule
+	namespace string // namespace used for the rules review
+	err       error
 }
 
 // canISAListMsg carries the list of ServiceAccounts for the can-i browser.
