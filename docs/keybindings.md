@@ -211,6 +211,7 @@ All other keys are forwarded to the PTY process. The PTY session continues runni
 | `j` / `k` | Navigate groups |
 | `J` / `K` | Scroll resource list down / up |
 | `/` | Search/filter groups by name |
+| `a` | Toggle all/allowed-only permissions |
 | `s` | Switch user/ServiceAccount |
 | `gg` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |

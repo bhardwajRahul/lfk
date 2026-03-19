@@ -323,6 +323,12 @@ func (m Model) handleCanIKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.canISearchInput.Clear()
 		return m, nil
 
+	case "a":
+		// Toggle showing all permissions vs allowed only.
+		m.canIAllowedOnly = !m.canIAllowedOnly
+		m.canIResourceScroll = 0
+		return m, nil
+
 	case "s":
 		// Open subject selector.
 		m.loading = true
@@ -591,6 +597,34 @@ func (m *Model) canIVisibleLines() int {
 	return contentHeight - 1 // subtract 1 for the header line
 }
 
+// filterAllowedResources returns only resources that have at least one allowed verb.
+func filterAllowedResources(resources []model.CanIResource) []model.CanIResource {
+	filtered := make([]model.CanIResource, 0, len(resources))
+	for _, r := range resources {
+		for _, allowed := range r.Verbs {
+			if allowed {
+				filtered = append(filtered, r)
+				break
+			}
+		}
+	}
+	return filtered
+}
+
+// countAllowedResources returns the number of resources with at least one allowed verb.
+func countAllowedResources(resources []model.CanIResource) int {
+	count := 0
+	for _, r := range resources {
+		for _, allowed := range r.Verbs {
+			if allowed {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
 // exitCanIView resets all can-i state and closes the overlay.
 func (m *Model) exitCanIView() {
 	m.overlay = overlayNone
@@ -606,6 +640,7 @@ func (m *Model) exitCanIView() {
 	m.canISubjectScroll = 0
 	m.canISubjectFilterActive = false
 	m.canISubjectFilterQuery = ""
+	m.canIAllowedOnly = false
 }
 
 // handleCanISearchKey handles keyboard input when search is active in the can-i browser.

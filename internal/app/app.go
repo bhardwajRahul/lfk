@@ -659,6 +659,7 @@ type Model struct {
 	canISubjectFilterActive bool      // true when typing in subject filter bar
 	canISubjectFilterInput  TextInput // current subject filter input
 	canISubjectFilterQuery  string    // confirmed subject filter query
+	canIAllowedOnly         bool      // true = show only allowed permissions
 }
 
 // ownedParentState captures the navigation state that must be restored
@@ -2313,12 +2314,19 @@ func (m Model) renderOverlay(background string) string {
 			if name == "" {
 				name = "core"
 			}
-			groupNames[i] = fmt.Sprintf("%s (%d)", name, len(m.canIGroups[idx].Resources))
+			count := len(m.canIGroups[idx].Resources)
+			if m.canIAllowedOnly {
+				count = countAllowedResources(m.canIGroups[idx].Resources)
+			}
+			groupNames[i] = fmt.Sprintf("%s (%d)", name, count)
 		}
 		// Get resources for the group under the cursor.
 		var resources []model.CanIResource
 		if m.canIGroupCursor >= 0 && m.canIGroupCursor < len(visibleGroupIdxs) {
 			resources = m.canIGroups[visibleGroupIdxs[m.canIGroupCursor]].Resources
+			if m.canIAllowedOnly {
+				resources = filterAllowedResources(resources)
+			}
 		}
 		subjectName := m.canISubjectName
 		if subjectName == "" {
@@ -2330,11 +2338,15 @@ func (m Model) renderOverlay(background string) string {
 		innerH := overlayH - 2 // account for OverlayStyle Padding
 
 		// Build hint bar (default key hints or search bar).
+		filterLabel := "all"
+		if m.canIAllowedOnly {
+			filterLabel = "allowed only"
+		}
 		hints := []struct{ key, desc string }{
 			{"j/k", "navigate"},
+			{"a", filterLabel},
 			{"s", "switch subject"},
 			{"/", "search groups"},
-			{"g/G", "top/bottom"},
 			{"q/Esc", "close/back"},
 		}
 		hintParts := make([]string, 0, len(hints))
