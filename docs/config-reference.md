@@ -20,6 +20,8 @@ The configuration file is located at `~/.config/lfk/config.yaml`. All fields are
 | `terminal` | string | `"pty"` | How exec/shell commands run: `"pty"` (embedded in TUI) or `"exec"` (takes over terminal). |
 | `pinned_groups` | list[string] | `[]` | CRD API groups to pin after built-in categories. Also manageable in-app with `p` key (stored per-context in `~/.local/state/lfk/pinned.yaml`). |
 | `tips` | bool | `true` | Show a random tip in the status bar on startup. Set to `false` to disable. |
+| `log_tail_lines` | int | `1000` | Number of log lines to load initially via `--tail`. Scrolling to the top loads older history. |
+| `confirm_on_exit` | bool | `true` | Show quit confirmation when pressing `ctrl+c` on the last tab. Set to `false` to exit immediately. |
 
 ## Monitoring
 

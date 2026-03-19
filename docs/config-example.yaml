@@ -20,6 +20,12 @@ icons: unicode
 # Application log file location. Default: ~/.local/share/lfk/lfk.log
 log_path: /tmp/lfk.log
 
+# ─── Log Tail Lines ──────────────────────────────────────────────────────────
+# Number of log lines to load initially via --tail.
+# Scrolling to the top of the log viewer automatically fetches older history.
+# Default: 1000
+# log_tail_lines: 1000
+
 # ─── Dashboard ─────────────────────────────────────────────────────────────────
 # Show cluster overview dashboard when entering a context.
 # Set to false to go directly to the resource types list.
@@ -219,6 +225,11 @@ filter_presets:
 # Show a random tip in the status bar on startup.
 # Set to false to disable.
 tips: true
+
+# ─── Confirm on Exit ─────────────────────────────────────────────────────────
+# Show quit confirmation when pressing ctrl+c on the last tab.
+# Set to false to exit immediately on ctrl+c.
+confirm_on_exit: true
 
 # ─── Terminal Mode ────────────────────────────────────────────────────────────
 # How exec and shell commands are executed.

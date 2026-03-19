@@ -27,13 +27,15 @@ Complete list of all keybindings in `lfk`. Keybindings marked with **(configurab
 |---|---|
 | `?` | Toggle help screen |
 | `P` | Toggle between details summary and YAML preview |
+| | Details pane shows labels, finalizers, annotation count, and resource metadata |
+| | Details view shows deletion timestamp (with warning highlight) for resources being deleted |
 | `F` | Toggle fullscreen (middle column or dashboard) |
 | `.` | Quick filter presets |
 | `!` | Error log |
 | `Ctrl+S` | Toggle secret value visibility (decode base64) |
 | `I` | API Explorer (browse resource structure interactively) |
 | `U` | RBAC permissions browser (can-i) |
-| `m` | Toggle resource relationship map view |
+| `M` | Toggle resource relationship map view |
 | `w` | Toggle watch mode (auto-refresh every 2s) |
 | `,` | Cycle sort mode (name / age / status) |
 | `W` | Save resource to file / toggle warnings-only filter (Events view) |
@@ -97,26 +99,32 @@ When items are selected, press `x` to open the bulk action menu (delete, force d
 
 | Key | Context | Action |
 |---|---|---|
-| `B` | Explorer | Bookmark current location |
-| `b` | Explorer | Open bookmarks list |
+| `m<key>` | Explorer | Set mark at current location (`a-z`, `0-9`) |
+| `'` | Explorer | Open bookmarks list |
+| `a-z` / `0-9` | Bookmark overlay | Jump directly to named mark |
 | `j` / `k` | Bookmark overlay | Navigate bookmarks |
 | `/` | Bookmark overlay | Filter bookmarks by name |
 | `Enter` | Bookmark overlay | Jump to selected bookmark |
-| `d` | Bookmark overlay | Delete selected bookmark |
-| `D` | Bookmark overlay | Delete all bookmarks |
+| `D` | Bookmark overlay | Delete selected bookmark |
+| `Ctrl+X` | Bookmark overlay | Delete all bookmarks |
 
 ## YAML View
 
 | Key | Action |
 |---|---|
 | `j` / `k` | Scroll up/down |
+| `h` / `l` | Move cursor column left/right |
+| `0` / `$` | Move cursor to line start/end |
 | `gg` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `/` | Search in YAML |
 | `n` / `N` | Next / previous search match |
-| `V` | Visual select lines |
-| `y` | Copy selected lines (in visual mode) |
+| `v` | Character visual selection (from cursor column) |
+| `V` | Visual line selection |
+| `Ctrl+V` | Block (column) visual selection (from cursor column) |
+| `h` / `l` | Move selection column left/right (in visual mode) |
+| `y` | Copy selected text (in visual mode) |
 | `Tab` / `z` | Toggle fold on section under cursor |
 | `Z` | Toggle all folds (collapse/expand all) |
 | `e` | Edit resource in `$EDITOR` |
@@ -126,20 +134,44 @@ When items are selected, press `x` to open the bulk action menu (delete, force d
 
 | Key | Action |
 |---|---|
-| `j` / `k` | Scroll up/down |
+| `j` / `k` | Move cursor up/down |
+| `h` / `l` / `Left` / `Right` | Move cursor column left/right |
+| `$` | Move cursor to line end |
 | `gg` / `G` | Jump to top / bottom |
-| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
-| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
+| `Ctrl+D` / `Ctrl+U` | Half page down / up |
+| `Ctrl+F` / `Ctrl+B` | Full page down / up |
 | `f` | Toggle follow mode (auto-scroll to new logs) |
 | `w` | Toggle line wrapping |
-| `l` | Toggle line numbers |
+| `#` | Toggle line numbers |
 | `s` | Toggle timestamps |
 | `c` | Toggle previous container logs |
 | `/` | Search in logs |
 | `n` / `N` / `p` | Next / previous search match |
 | `123G` | Jump to specific line number |
-| `P` | Switch pod (group resources only) |
+| `W` | Save loaded logs to file |
+| `Ctrl+S` | Save all logs to file (full kubectl logs) |
+| `v` | Character visual selection (from cursor column) |
+| `V` | Visual line selection |
+| `Ctrl+V` | Block (column) visual selection (from cursor column) |
+| `h` / `l` | Move selection column left/right (in visual mode) |
+| `y` | Copy selected text (in visual mode) |
+| `\` | Switch pod / filter containers (space: select, enter: apply, / to filter) |
 | `q` / `Esc` | Close log viewer |
+
+> **Tail-first loading**: Logs load the last 1000 lines initially with follow mode enabled. Scrolling to the top automatically loads older log history. Configure with `log_tail_lines` in config.
+
+## Exec Mode (embedded terminal)
+
+`Ctrl+]` is a prefix key (like tmux's `Ctrl+b`). Press it once to activate, then press a follow-up key:
+
+| Key | Action |
+|---|---|
+| `Ctrl+]` `Ctrl+]` | Exit terminal and return to explorer |
+| `Ctrl+]` `]` | Next tab (PTY keeps running in background) |
+| `Ctrl+]` `[` | Previous tab (PTY keeps running in background) |
+| `Ctrl+]` `t` | New tab (clone current context) |
+
+All other keys are forwarded to the PTY process. The PTY session continues running when you switch tabs, so you can return to it later.
 
 ## Diff View
 
@@ -149,7 +181,7 @@ When items are selected, press `x` to open the bulk action menu (delete, force d
 | `gg` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
-| `l` | Toggle line numbers |
+| `#` | Toggle line numbers |
 | `123G` | Jump to line number |
 | `u` | Toggle unified/side-by-side view |
 | `q` / `Esc` | Back to explorer |
@@ -247,7 +279,7 @@ Autocompletion is available for kubectl commands (subcommands, resource types, r
 | Key | Action |
 |---|---|
 | `T` | Switch color scheme |
-| `q` | Quit application |
+| `q` | Quit application (with confirmation) |
 | `Esc` | Go back one level / close overlay / quit |
 | `Ctrl+C` | Close current tab (quit if last tab) |
 

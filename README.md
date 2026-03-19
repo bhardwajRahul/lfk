@@ -38,7 +38,7 @@
 
 - **Context-aware action menus**: logs, exec, attach, debug, scale, restart, delete, describe, edit, events, port-forward
 - **Custom user-defined actions**: Define custom shell commands per resource type in config
-- **Multi-select with bulk actions**: Select multiple resources with Space, perform bulk delete, scale, restart
+- **Multi-select with bulk actions**: Select multiple resources with Space, range-select with Ctrl+Space, perform bulk delete, scale, restart
 - **Resource sorting** by name, age, or status
 - **Filter and search**: Filter with `f`, search with `/`
 - **Abbreviated search**: Type `pvc`, `hpa`, `deploy` etc. to jump to resource types
@@ -51,9 +51,10 @@
 - **YAML preview** in the right column with syntax highlighting
 - **Full-screen YAML viewer** with scrollable output, search, section folding (`Tab`/`z`), and in-place editing
 - **Resource details** summary in split preview (toggle with `Shift+P`)
-- **Inline log viewer** with streaming, search, line numbers, word wrap, follow mode, and line jump
+- **Inline log viewer** with streaming, search, line numbers, word wrap, follow mode, timestamps toggle, previous container logs, container filter, tail-first loading, and line jump
 - **Inline describe view** with scrollable output
 - **Secret viewing/editing** with decode toggle (`Ctrl+S`) and dedicated editor (`e`)
+- **Embedded terminal** (PTY mode) for exec and shell with tab switching — PTY keeps running in background when switching tabs
 
 ### Resource Management
 
@@ -80,6 +81,7 @@
 - **Configurable filter presets** per resource type (extend built-in quick filters with `.`)
 - **Configurable icon modes**: Unicode (default), simple ASCII, or no icons
 - **Configurable table columns** (global and per-resource-type)
+- **Startup tips**: Random tips on startup to help discover features (configurable via `tips: false`)
 - **Status-aware coloring**: Running=green, Pending=yellow, Failed=red
 - **Resource usage metrics**: CPU/MEM with color-coded bars in dashboard
 
@@ -198,7 +200,7 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `/` | Search and jump to match |
 | `n` / `N` | Next / previous search match |
 | `P` | Toggle between details and YAML preview |
-| `m` | Toggle resource relationship map |
+| `M` | Toggle resource relationship map |
 | `F` | Toggle fullscreen (middle column or dashboard) |
 | `.` | Quick filter presets |
 | `!` | Error log |
@@ -234,6 +236,7 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | Key | Action |
 |---|---|
 | `Space` | Toggle selection on current item |
+| `Ctrl+Space` | Select range from anchor to cursor |
 | `Ctrl+A` | Select / deselect all visible items |
 | `Esc` | Clear selection |
 | `x` | Bulk action menu (delete, force delete, scale, restart, diff) |
@@ -251,13 +254,13 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 
 | Key | Action |
 |---|---|
-| `B` | Bookmark current location |
-| `b` | Open bookmarks list |
+| `m<key>` | Set mark at current location (`a-z`, `0-9`) |
+| `'` | Open bookmarks list (`a-z`/`0-9` jumps to named mark in overlay) |
 | `j` / `k` | Navigate bookmarks (in overlay) |
 | `/` | Filter bookmarks by name (in overlay) |
 | `Enter` | Jump to selected bookmark (in overlay) |
-| `d` | Delete selected bookmark (in overlay) |
-| `D` | Delete all bookmarks (in overlay) |
+| `D` | Delete selected bookmark (in overlay) |
+| `Ctrl+X` | Delete all bookmarks (in overlay) |
 
 ### In YAML View
 
@@ -269,6 +272,10 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `/` | Search in YAML |
 | `n` / `N` | Next / previous search match |
+| `v` | Character visual selection (from cursor column) |
+| `V` | Visual line selection |
+| `Ctrl+V` | Block (column) visual selection |
+| `y` | Copy selected text (in visual mode) |
 | `Tab` / `z` | Toggle fold on section under cursor |
 | `Z` | Toggle all folds (collapse/expand all) |
 | `e` | Edit resource in `$EDITOR` |
@@ -284,12 +291,33 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `f` | Toggle follow mode (auto-scroll) |
 | `w` | Toggle line wrapping |
-| `l` | Toggle line numbers |
+| `#` | Toggle line numbers |
 | `/` | Search in logs |
 | `n` / `N` / `p` | Next / previous search match |
 | `123G` | Jump to line number |
-| `P` | Switch pod (group resources only) |
+| `s` | Toggle timestamps |
+| `c` | Toggle previous container logs |
+| `W` | Save loaded logs to file |
+| `Ctrl+S` | Save all logs to file |
+| `v` | Character visual selection (from cursor column) |
+| `V` | Visual line selection |
+| `Ctrl+V` | Block (column) visual selection |
+| `y` | Copy selected text (in visual mode) |
+| `\` | Switch pod / filter containers |
 | `q` / `Esc` | Close log viewer |
+
+### Exec Mode (embedded terminal)
+
+`Ctrl+]` is a prefix key (like tmux's `Ctrl+b`):
+
+| Key | Action |
+|---|---|
+| `Ctrl+]` `Ctrl+]` | Exit terminal and return to explorer |
+| `Ctrl+]` `]` | Next tab (PTY keeps running in background) |
+| `Ctrl+]` `[` | Previous tab (PTY keeps running in background) |
+| `Ctrl+]` `t` | New tab (clone current context) |
+
+All other keys are forwarded to the PTY process.
 
 ### General
 
@@ -428,8 +456,17 @@ custom_actions:
 #   - monitoring.coreos.com
 #   - argoproj.io
 
+# Show random tips on startup (default: true)
+# tips: false
+
 # Exec/shell terminal mode: "pty" (embedded in TUI, default) or "exec" (takes over terminal)
 # terminal: pty
+
+# Number of log lines to load initially (scroll up to load more)
+# log_tail_lines: 1000
+
+# Show quit confirmation on ctrl+c (default: true)
+# confirm_on_exit: true
 ```
 
 > For detailed documentation, see [`docs/config-reference.md`](docs/config-reference.md), [`docs/config-example.yaml`](docs/config-example.yaml), and [`docs/keybindings.md`](docs/keybindings.md).
