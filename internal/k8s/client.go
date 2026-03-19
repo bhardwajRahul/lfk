@@ -69,6 +69,14 @@ type QuotaResource struct {
 	Percent float64 // usage percentage (0-100)
 }
 
+// RBACSubject represents a unique subject (User, Group, or ServiceAccount) found
+// in ClusterRoleBindings or RoleBindings.
+type RBACSubject struct {
+	Kind      string // "User", "Group", or "ServiceAccount"
+	Name      string
+	Namespace string // only populated for ServiceAccount
+}
+
 // DeploymentRevision represents a deployment revision history entry.
 type DeploymentRevision struct {
 	Revision  int64
@@ -3014,8 +3022,18 @@ func (c *Client) GetSelfRulesAs(ctx context.Context, contextName, namespace, asU
 	}
 
 	if asUser != "" {
-		cfg.Impersonate = rest.ImpersonationConfig{
-			UserName: asUser,
+		if strings.HasPrefix(asUser, "group:") {
+			// Group impersonation: set a neutral user and the group.
+			groupName := strings.TrimPrefix(asUser, "group:")
+			cfg.Impersonate = rest.ImpersonationConfig{
+				UserName: "system:anonymous",
+				Groups:   []string{groupName},
+			}
+		} else {
+			// User or ServiceAccount impersonation.
+			cfg.Impersonate = rest.ImpersonationConfig{
+				UserName: asUser,
+			}
 		}
 	}
 
@@ -3178,6 +3196,76 @@ func (c *Client) ListServiceAccounts(ctx context.Context, contextName, namespace
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// ListRBACSubjects lists all unique subjects (User, Group, ServiceAccount) from
+// ClusterRoleBindings and RoleBindings across all namespaces. Results are
+// deduplicated and sorted by Kind (User, Group, ServiceAccount) then Name.
+func (c *Client) ListRBACSubjects(ctx context.Context, contextName string) ([]RBACSubject, error) {
+	clientset, err := c.clientsetForContext(contextName)
+	if err != nil {
+		return nil, err
+	}
+
+	type subjectKey struct {
+		Kind      string
+		Name      string
+		Namespace string
+	}
+	seen := make(map[subjectKey]struct{})
+
+	// Collect subjects from ClusterRoleBindings.
+	crbList, err := clientset.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		// Permission denied is non-fatal; continue with RoleBindings.
+		crbList = &rbacv1.ClusterRoleBindingList{}
+	}
+	for _, crb := range crbList.Items {
+		for _, subj := range crb.Subjects {
+			switch subj.Kind {
+			case "User", "Group", "ServiceAccount":
+				seen[subjectKey{Kind: subj.Kind, Name: subj.Name, Namespace: subj.Namespace}] = struct{}{}
+			}
+		}
+	}
+
+	// Collect subjects from RoleBindings across all namespaces.
+	rbList, err := clientset.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		// Permission denied is non-fatal.
+		rbList = &rbacv1.RoleBindingList{}
+	}
+	for _, rb := range rbList.Items {
+		for _, subj := range rb.Subjects {
+			switch subj.Kind {
+			case "User", "Group", "ServiceAccount":
+				ns := subj.Namespace
+				if subj.Kind == "ServiceAccount" && ns == "" {
+					ns = rb.Namespace
+				}
+				seen[subjectKey{Kind: subj.Kind, Name: subj.Name, Namespace: ns}] = struct{}{}
+			}
+		}
+	}
+
+	subjects := make([]RBACSubject, 0, len(seen))
+	for key := range seen {
+		subjects = append(subjects, RBACSubject(key))
+	}
+
+	// Sort: Users first, then Groups, then ServiceAccounts; within each kind by name.
+	kindOrder := map[string]int{"User": 0, "Group": 1, "ServiceAccount": 2}
+	sort.Slice(subjects, func(i, j int) bool {
+		if kindOrder[subjects[i].Kind] != kindOrder[subjects[j].Kind] {
+			return kindOrder[subjects[i].Kind] < kindOrder[subjects[j].Kind]
+		}
+		if subjects[i].Name != subjects[j].Name {
+			return subjects[i].Name < subjects[j].Name
+		}
+		return subjects[i].Namespace < subjects[j].Namespace
+	})
+
+	return subjects, nil
 }
 
 // GetNamespaceQuotas lists ResourceQuota objects in the given namespace

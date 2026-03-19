@@ -743,13 +743,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case canISAListMsg:
 		m.loading = false
 		if msg.err != nil {
-			m.setStatusMessage(fmt.Sprintf("Failed to list service accounts: %v", msg.err), true)
+			m.setStatusMessage(fmt.Sprintf("Failed to list subjects: %v", msg.err), true)
 			return m, scheduleStatusClear()
 		}
 		m.canIServiceAccounts = msg.accounts
-		// Build overlay items: "Current User" + ServiceAccounts.
-		items := make([]model.Item, 0, len(msg.accounts)+1)
+		// Build overlay items: "Current User", then Users, Groups, ServiceAccounts.
+		items := make([]model.Item, 0, len(msg.subjects)+len(msg.accounts)+1)
 		items = append(items, model.Item{Name: "Current User", Extra: ""})
+
+		// Add Users from RBAC bindings.
+		for _, subj := range msg.subjects {
+			if subj.Kind == "User" {
+				items = append(items, model.Item{
+					Name:  "[User] " + subj.Name,
+					Kind:  "User",
+					Extra: subj.Name,
+				})
+			}
+		}
+		// Add Groups from RBAC bindings.
+		for _, subj := range msg.subjects {
+			if subj.Kind == "Group" {
+				items = append(items, model.Item{
+					Name:  "[Group] " + subj.Name,
+					Kind:  "Group",
+					Extra: "group:" + subj.Name,
+				})
+			}
+		}
+		// Add ServiceAccounts.
 		for _, sa := range msg.accounts {
 			var name, ns string
 			if parts := strings.SplitN(sa, "/", 2); len(parts) == 2 {
@@ -760,7 +782,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				name = sa
 			}
 			items = append(items, model.Item{
-				Name:  ns + "/" + name,
+				Name:  "[SA] " + ns + "/" + name,
+				Kind:  "ServiceAccount",
 				Extra: fmt.Sprintf("system:serviceaccount:%s:%s", ns, name),
 			})
 		}

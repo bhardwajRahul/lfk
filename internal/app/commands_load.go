@@ -916,10 +916,20 @@ func (m Model) loadCanIRules() tea.Cmd {
 
 	// When checking a specific SA, discover all namespaces where it has
 	// RoleBindings and query permissions across all of them.
-	if subject != "" {
+	if subject != "" && strings.HasPrefix(subject, "system:serviceaccount:") {
 		return func() tea.Msg {
 			rules, namespaces, err := client.GetSelfRulesMultiNS(context.Background(), ctx, subject)
 			return canILoadedMsg{rules: rules, namespaces: namespaces, err: err}
+		}
+	}
+
+	// User or Group impersonation: query in the current namespace.
+	// GetSelfRulesAs handles the "group:" prefix internally.
+	if subject != "" {
+		viewNS := ns
+		return func() tea.Msg {
+			rules, err := client.GetSelfRulesAs(context.Background(), ctx, viewNS, subject)
+			return canILoadedMsg{rules: rules, namespaces: []string{viewNS}, err: err}
 		}
 	}
 
@@ -935,9 +945,14 @@ func (m Model) loadCanISAList() tea.Cmd {
 	ctx := m.nav.Context
 	// Always list SAs across all namespaces so the user can check
 	// permissions for any service account regardless of the current view.
+	// Also discover Users and Groups from RBAC bindings.
 	return func() tea.Msg {
 		accounts, err := client.ListServiceAccounts(context.Background(), ctx, "")
-		return canISAListMsg{accounts: accounts, err: err}
+		if err != nil {
+			return canISAListMsg{err: err}
+		}
+		subjects, _ := client.ListRBACSubjects(context.Background(), ctx)
+		return canISAListMsg{accounts: accounts, subjects: subjects}
 	}
 }
 

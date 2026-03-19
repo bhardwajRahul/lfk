@@ -332,7 +332,7 @@ func (m Model) handleCanIKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "s":
 		// Open subject selector.
 		m.loading = true
-		m.setStatusMessage("Loading service accounts...", false)
+		m.setStatusMessage("Loading RBAC subjects...", false)
 		return m, m.loadCanISAList()
 
 	case "q", "esc":

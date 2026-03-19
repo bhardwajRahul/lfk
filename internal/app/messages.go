@@ -307,9 +307,10 @@ type canILoadedMsg struct {
 	err        error
 }
 
-// canISAListMsg carries the list of ServiceAccounts for the can-i browser.
+// canISAListMsg carries the list of ServiceAccounts and RBAC subjects for the can-i browser.
 type canISAListMsg struct {
 	accounts []string
+	subjects []k8s.RBACSubject // users and groups from role bindings
 	err      error
 }
 
