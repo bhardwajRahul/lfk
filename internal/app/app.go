@@ -660,7 +660,7 @@ type Model struct {
 	canISubjectFilterInput  TextInput // current subject filter input
 	canISubjectFilterQuery  string    // confirmed subject filter query
 	canIAllowedOnly         bool      // true = show only allowed permissions
-	canINamespace           string    // namespace used for SelfSubjectRulesReview
+	canINamespaces          []string  // namespaces used for SelfSubjectRulesReview
 }
 
 // ownedParentState captures the navigation state that must be restored
@@ -2367,7 +2367,7 @@ func (m Model) renderOverlay(background string) string {
 		canIContent := ui.RenderCanIView(
 			groupNames, resources,
 			m.canIGroupCursor, m.canIGroupScroll,
-			subjectName, m.canINamespace,
+			subjectName, m.canINamespaces,
 			innerW, innerH,
 			hintBar,
 			m.canIResourceScroll,

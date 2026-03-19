@@ -913,17 +913,20 @@ func (m Model) loadCanIRules() tea.Cmd {
 		ns = "default"
 	}
 	subject := m.canISubject
-	// When checking a specific SA, use the SA's own namespace so that
-	// namespace-scoped RoleBinding permissions are discovered.
+
+	// When checking a specific SA, discover all namespaces where it has
+	// RoleBindings and query permissions across all of them.
 	if subject != "" {
-		parts := strings.Split(subject, ":")
-		if len(parts) == 4 && parts[0] == "system" && parts[1] == "serviceaccount" {
-			ns = parts[2]
+		return func() tea.Msg {
+			rules, namespaces, err := client.GetSelfRulesMultiNS(context.Background(), ctx, subject)
+			return canILoadedMsg{rules: rules, namespaces: namespaces, err: err}
 		}
 	}
+
+	// Current user: use the active namespace only.
 	return func() tea.Msg {
-		rules, err := client.GetSelfRulesAs(context.Background(), ctx, ns, subject)
-		return canILoadedMsg{rules: rules, namespace: ns, err: err}
+		rules, err := client.GetSelfRulesAs(context.Background(), ctx, ns, "")
+		return canILoadedMsg{rules: rules, namespaces: []string{ns}, err: err}
 	}
 }
 

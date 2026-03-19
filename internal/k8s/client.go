@@ -11,11 +11,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -3044,6 +3046,114 @@ func (c *Client) GetSelfRulesAs(ctx context.Context, contextName, namespace, asU
 	}
 
 	return rules, nil
+}
+
+// maxMultiNSNamespaces caps the number of namespaces queried in GetSelfRulesMultiNS
+// to avoid overwhelming the API server.
+const maxMultiNSNamespaces = 50
+
+// GetSelfRulesMultiNS discovers all namespaces where the given ServiceAccount has
+// RoleBindings and queries SelfSubjectRulesReview for each one (plus the SA's own
+// namespace). The results are merged into a union of AccessRules. The second return
+// value is the sorted list of namespaces that were queried.
+//
+// The asUser parameter must be in the format "system:serviceaccount:<namespace>:<name>".
+func (c *Client) GetSelfRulesMultiNS(ctx context.Context, contextName, asUser string) ([]AccessRule, []string, error) {
+	// Parse the SA identity from the impersonation string.
+	parts := strings.Split(asUser, ":")
+	if len(parts) != 4 || parts[0] != "system" || parts[1] != "serviceaccount" {
+		return nil, nil, fmt.Errorf("invalid service account format: %q (expected system:serviceaccount:<ns>:<name>)", asUser)
+	}
+	saNamespace := parts[2]
+	saName := parts[3]
+
+	clientset, err := c.clientsetForContext(contextName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Collect namespaces where this SA has RoleBindings.
+	nsSet := map[string]struct{}{
+		saNamespace: {}, // always include the SA's own namespace
+	}
+
+	// List all RoleBindings across all namespaces and filter for matching subjects.
+	rbList, err := clientset.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		// If we can't list RoleBindings (permission denied), fall back to just the SA namespace.
+		rbList = &rbacv1.RoleBindingList{}
+	}
+	for _, rb := range rbList.Items {
+		for _, subj := range rb.Subjects {
+			if subj.Kind == "ServiceAccount" && subj.Name == saName && subj.Namespace == saNamespace {
+				nsSet[rb.Namespace] = struct{}{}
+				break
+			}
+		}
+	}
+
+	// Also check ClusterRoleBindings — if the SA is bound at cluster scope, the
+	// SelfSubjectRulesReview in any namespace will already reflect those permissions,
+	// but we note this for completeness. No extra namespaces to add here.
+
+	// Build the sorted, capped namespace list.
+	namespaces := make([]string, 0, len(nsSet))
+	for ns := range nsSet {
+		namespaces = append(namespaces, ns)
+	}
+	sort.Strings(namespaces)
+	if len(namespaces) > maxMultiNSNamespaces {
+		namespaces = namespaces[:maxMultiNSNamespaces]
+	}
+
+	// Query SelfSubjectRulesReview for each namespace in parallel.
+	type nsResult struct {
+		rules []AccessRule
+		err   error
+	}
+	results := make([]nsResult, len(namespaces))
+	var wg sync.WaitGroup
+	wg.Add(len(namespaces))
+	for i, ns := range namespaces {
+		go func(idx int, namespace string) {
+			defer wg.Done()
+			rules, rErr := c.GetSelfRulesAs(ctx, contextName, namespace, asUser)
+			results[idx] = nsResult{rules: rules, err: rErr}
+		}(i, ns)
+	}
+	wg.Wait()
+
+	// Merge results: deduplicate using a string key for each rule.
+	seen := make(map[string]struct{})
+	var merged []AccessRule
+	for i, res := range results {
+		if res.err != nil {
+			// If a single namespace fails, log but continue with others.
+			// Return an error only if all namespaces failed.
+			if len(namespaces) == 1 {
+				return nil, nil, fmt.Errorf("rules review for namespace %q: %w", namespaces[i], res.err)
+			}
+			continue
+		}
+		for _, rule := range res.rules {
+			key := ruleKey(rule)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			merged = append(merged, rule)
+		}
+	}
+
+	return merged, namespaces, nil
+}
+
+// ruleKey produces a deterministic string key for deduplicating AccessRules.
+func ruleKey(r AccessRule) string {
+	return strings.Join(r.Verbs, ",") + "|" +
+		strings.Join(r.APIGroups, ",") + "|" +
+		strings.Join(r.Resources, ",") + "|" +
+		strings.Join(r.ResourceNames, ",")
 }
 
 // ListServiceAccounts returns the names of all ServiceAccounts in the given namespace.
