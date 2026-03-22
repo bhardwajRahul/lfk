@@ -68,6 +68,15 @@ func TestEvaluateSimpleJSONPath_ExtraBranches(t *testing.T) {
 			wantVal: nil,
 			wantOK:  false,
 		},
+		{
+			name: "non-map intermediate value returns false",
+			obj: map[string]interface{}{
+				"status": "a-string-not-a-map",
+			},
+			path:    ".status.phase",
+			wantVal: nil,
+			wantOK:  false,
+		},
 	}
 
 	for _, tt := range tests {
