@@ -11,31 +11,6 @@ import (
 	"github.com/janosmiko/lfk/internal/model"
 )
 
-// --- deleteWordBackward ---
-
-func TestDeleteWordBackward(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"empty string", "", ""},
-		{"single word", "hello", ""},
-		{"two words", "hello world", "hello "},
-		{"trailing spaces", "hello   ", ""},
-		{"three words", "one two three", "one two "},
-		{"single char", "a", ""},
-		{"spaces only", "   ", ""},
-		{"word then spaces", "abc   def   ", "abc   "},
-		{"unicode word", "hello wörld", "hello "},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, deleteWordBackward(tt.input))
-		})
-	}
-}
-
 // --- padToHeight ---
 
 func TestPadToHeight(t *testing.T) {
@@ -114,44 +89,6 @@ func TestIsContextCanceled(t *testing.T) {
 			assert.Equal(t, tt.expected, isContextCanceled(tt.err))
 		})
 	}
-}
-
-// --- addBookmark ---
-
-func TestAddBookmark(t *testing.T) {
-	bm1 := model.Bookmark{Name: "bm1", Context: "ctx1", Namespace: "ns1", ResourceType: "apps/v1/deployments", ResourceName: "dep1"}
-	bm2 := model.Bookmark{Name: "bm2", Context: "ctx2", Namespace: "ns2", ResourceType: "v1/pods", ResourceName: "pod1"}
-
-	t.Run("add to empty list", func(t *testing.T) {
-		result := addBookmark(nil, bm1)
-		assert.Len(t, result, 1)
-		assert.Equal(t, bm1, result[0])
-	})
-
-	t.Run("add new bookmark", func(t *testing.T) {
-		result := addBookmark([]model.Bookmark{bm1}, bm2)
-		assert.Len(t, result, 2)
-		assert.Equal(t, bm2, result[1])
-	})
-
-	t.Run("deduplicate existing bookmark", func(t *testing.T) {
-		result := addBookmark([]model.Bookmark{bm1}, bm1)
-		assert.Len(t, result, 1)
-	})
-
-	t.Run("different namespace is not duplicate", func(t *testing.T) {
-		bmDiffNs := bm1
-		bmDiffNs.Namespace = "other-ns"
-		result := addBookmark([]model.Bookmark{bm1}, bmDiffNs)
-		assert.Len(t, result, 2)
-	})
-
-	t.Run("different context is not duplicate", func(t *testing.T) {
-		bmDiffCtx := bm1
-		bmDiffCtx.Context = "other-ctx"
-		result := addBookmark([]model.Bookmark{bm1}, bmDiffCtx)
-		assert.Len(t, result, 2)
-	})
 }
 
 // --- removeBookmark ---

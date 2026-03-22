@@ -58,13 +58,3 @@ func TestRenderHelpScreen_FilterFiltersEntries(t *testing.T) {
 	// Filtered output should contain "Bookmark" section.
 	assert.Contains(t, filtered, "Bookmark")
 }
-
-func TestHelpContentLineCount(t *testing.T) {
-	// Without filter, should return a positive count.
-	count := HelpContentLineCount("")
-	assert.Greater(t, count, 0, "unfiltered help should have content lines")
-
-	// With a restrictive filter, should return fewer lines.
-	filteredCount := HelpContentLineCount("bookmark")
-	assert.Less(t, filteredCount, count, "filtered help should have fewer lines")
-}

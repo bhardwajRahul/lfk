@@ -336,12 +336,6 @@ func buildHelpLines(filter string) []string {
 	return lines
 }
 
-// HelpContentLineCount returns the total number of content lines for the help screen
-// with the given filter. Used by the app model to calculate max scroll.
-func HelpContentLineCount(filter string) int {
-	return len(buildHelpLines(filter))
-}
-
 // RenderHelpScreen renders a full help overlay with all keybindings.
 // It supports scrolling via the scroll parameter and filtering via the filter parameter.
 func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string, searching bool, searchInput *textinput.Model) string {

@@ -1,0 +1,527 @@
+package app
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/janosmiko/lfk/internal/model"
+	"github.com/janosmiko/lfk/internal/ui"
+)
+
+// leftColumnHeader returns the header label for the left (parent) column.
+func (m Model) leftColumnHeader() string {
+	switch m.nav.Level {
+	case model.LevelClusters:
+		return "" // no parent at top level
+	case model.LevelResourceTypes:
+		return "KUBECONFIG"
+	case model.LevelResources:
+		return "RESOURCE TYPE"
+	case model.LevelOwned:
+		return strings.ToUpper(m.nav.ResourceType.DisplayName)
+	case model.LevelContainers:
+		return strings.ToUpper(m.nav.ResourceType.DisplayName)
+	default:
+		return ""
+	}
+}
+
+// middleColumnHeader returns the header label for the middle column.
+func (m Model) middleColumnHeader() string {
+	switch m.nav.Level {
+	case model.LevelClusters:
+		return "KUBECONFIG"
+	case model.LevelResourceTypes:
+		return "RESOURCE TYPE"
+	case model.LevelResources:
+		return strings.ToUpper(m.nav.ResourceType.Kind)
+	case model.LevelOwned:
+		return strings.ToUpper(m.ownedItemKindLabel())
+	case model.LevelContainers:
+		return "CONTAINER"
+	default:
+		return ""
+	}
+}
+
+func (m Model) breadcrumb() string {
+	parts := []string{"lfk"}
+	if m.nav.Context != "" {
+		parts = append(parts, m.nav.Context)
+	}
+	if m.nav.ResourceType.DisplayName != "" {
+		parts = append(parts, m.nav.ResourceType.DisplayName)
+	}
+	if m.nav.ResourceName != "" {
+		parts = append(parts, m.nav.ResourceName)
+	}
+	if m.nav.OwnedName != "" {
+		parts = append(parts, m.nav.OwnedName)
+	}
+	return strings.Join(parts, " > ")
+}
+
+func (m Model) statusBar() string {
+	// StatusBarBgStyle has Padding(0, 1) which adds 2 chars of horizontal padding.
+	// Use MaxWidth on the content to prevent overflow.
+	innerWidth := m.width - 2
+	if innerWidth < 10 {
+		innerWidth = 10
+	}
+
+	// Show command bar when active.
+	if m.commandBarActive {
+		prompt := ui.HelpKeyStyle.Render(":") + m.commandBarInput.CursorLeft() + ui.DimStyle.Render("\u2588") + m.commandBarInput.CursorRight()
+		if len(m.commandBarSuggestions) > 0 {
+			prompt += "  "
+			for i, s := range m.commandBarSuggestions {
+				if i == m.commandBarSelectedSuggestion {
+					prompt += ui.OverlaySelectedStyle.Render(" "+s+" ") + " "
+				} else {
+					prompt += ui.DimStyle.Render(s) + " "
+				}
+			}
+		}
+		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).Render(prompt)
+	}
+
+	// Show filter/search input in status bar when active.
+	if m.filterActive {
+		prompt := ui.HelpKeyStyle.Render("filter") + ui.DimStyle.Render(": ") + m.filterInput.CursorLeft() + ui.DimStyle.Render("\u2588") + m.filterInput.CursorRight()
+		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).Render(prompt)
+	}
+	if m.searchActive {
+		prompt := ui.HelpKeyStyle.Render("search") + ui.DimStyle.Render(": ") + m.searchInput.CursorLeft() + ui.DimStyle.Render("\u2588") + m.searchInput.CursorRight()
+		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).Render(prompt)
+	}
+	// When a status message is active, show it exclusively (hide key hints).
+	if m.hasStatusMessage() {
+		msg := m.sanitizeMessage(m.statusMessage)
+		var styled string
+		if m.statusMessageErr {
+			styled = ui.StatusMessageErrStyle.Render(msg)
+		} else {
+			styled = ui.StatusMessageOkStyle.Render(msg)
+		}
+		styled = ui.Truncate(styled, innerWidth)
+		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(styled)
+	}
+
+	var parts []string
+
+	// Show selection count when items are selected.
+	if m.hasSelection() {
+		parts = append(parts, ui.SelectionCountStyle.Render(fmt.Sprintf(" %d selected ", len(m.selectedItems))))
+	}
+
+	// Show active filter preset indicator.
+	if m.activeFilterPreset != nil {
+		parts = append(parts, ui.HelpKeyStyle.Render("[filter: "+m.activeFilterPreset.Name+"]"))
+	}
+
+	visible := m.visibleMiddleItems()
+	total := len(m.middleItems)
+	cur := m.cursor() + 1
+
+	if m.filterText != "" {
+		parts = append(parts, ui.DimStyle.Render(fmt.Sprintf("[%d/%d filtered: %d/%d]", cur, len(visible), len(visible), total)))
+	} else {
+		parts = append(parts, ui.DimStyle.Render(fmt.Sprintf("[%d/%d]", cur, total)))
+	}
+
+	// Sort mode indicator.
+	parts = append(parts, ui.DimStyle.Render("sort:"+m.sortModeName()))
+
+	// Styled key hints -- show a reduced set for dashboard views.
+	var hints []struct{ key, desc string }
+	sel := m.selectedMiddleItem()
+	isDashboard := sel != nil && m.nav.Level == model.LevelResourceTypes &&
+		(sel.Extra == "__overview__" || sel.Extra == "__monitoring__")
+	if isDashboard {
+		hints = []struct{ key, desc string }{
+			{"j/k", "move"},
+			{"ctrl+d/u", "scroll"},
+			{"\\", "namespace"},
+			{"t", "new tab"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
+	} else {
+		hints = []struct{ key, desc string }{
+			{"h/l", "navigate"},
+			{"j/k", "move"},
+			{"enter", "view"},
+			{"\\", "namespace"},
+			{"A", "all-ns"},
+			{"x", "actions"},
+			{"a", "create"},
+			{",", "sort"},
+			{"f", "filter"},
+			{"m/'", "marks"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
+	}
+	hintParts := make([]string, 0, len(hints))
+	for _, h := range hints {
+		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
+	}
+	parts = append(parts, strings.Join(hintParts, ui.DimStyle.Render(" \u2502 ")))
+
+	content := strings.Join(parts, "  ")
+	return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(content)
+}
+
+// --- Overlay rendering ---
+
+func (m Model) renderOverlay(background string) string {
+	var content string
+	var overlayW, overlayH int
+
+	switch m.overlay {
+	case overlayNamespace:
+		content = ui.RenderNamespaceOverlay(m.filteredOverlayItems(), m.overlayFilter.Value, m.overlayCursor, m.namespace, m.allNamespaces, m.selectedNamespaces, m.nsFilterMode)
+		overlayW = min(60, m.width-10)
+		overlayH = min(20, m.height-6)
+	case overlayAction:
+		overlayW = min(70, m.width-10)
+		content = ui.RenderActionOverlay(m.overlayItems, m.overlayCursor, overlayW)
+		overlayH = min(15, m.height-6)
+	case overlayQuitConfirm:
+		content = ui.RenderQuitConfirmOverlay()
+		overlayW = min(40, m.width-10)
+		overlayH = min(7, m.height-6)
+	case overlayConfirm:
+		content = ui.RenderConfirmOverlay(m.confirmAction)
+		overlayW = min(50, m.width-10)
+		overlayH = min(8, m.height-6)
+	case overlayConfirmType:
+		content = ui.RenderConfirmTypeOverlay(m.confirmAction, m.confirmTypeInput.Value)
+		overlayW = min(55, m.width-10)
+		overlayH = min(10, m.height-6)
+	case overlayScaleInput:
+		content = ui.RenderScaleOverlay(m.scaleInput.Value)
+		overlayW = min(45, m.width-10)
+		overlayH = min(8, m.height-6)
+	case overlayPortForward:
+		content = ui.RenderPortForwardOverlay(m.portForwardInput.Value, m.pfAvailablePorts, m.pfPortCursor, m.actionCtx.name)
+		overlayW = min(55, m.width-10)
+		overlayH = min(5+len(m.pfAvailablePorts)+4, m.height-6)
+	case overlayContainerSelect:
+		content = ui.RenderContainerSelectOverlay(m.overlayItems, m.overlayCursor)
+		overlayW = min(50, m.width-10)
+		overlayH = min(15, m.height-6)
+	case overlayPodSelect, overlayLogPodSelect:
+		content = ui.RenderPodSelectOverlay(m.filteredLogPodItems(), m.overlayCursor, m.logPodFilterText, m.logPodFilterActive)
+		overlayW = min(60, m.width-10)
+		overlayH = min(20, m.height-6)
+	case overlayLogContainerSelect:
+		canSwitchPod := m.logParentKind != ""
+		content = ui.RenderLogContainerSelectOverlay(m.filteredLogContainerItems(), m.overlayCursor, m.logSelectedContainers, m.logContainerFilterText, m.logContainerFilterActive, canSwitchPod)
+		overlayW = min(60, m.width-10)
+		overlayH = min(len(m.filteredLogContainerItems())+9, m.height-6)
+	case overlayBookmarks:
+		overlayW = min(90, m.width-10)
+		overlayH = min(25, m.height-6)
+		content = ui.RenderBookmarkOverlay(m.bookmarks, m.bookmarkFilter.Value, m.overlayCursor, int(m.bookmarkSearchMode), overlayH)
+	case overlayTemplates:
+		content = ui.RenderTemplateOverlay(m.templateItems, m.templateCursor)
+		overlayW = min(60, m.width-10)
+		overlayH = min(25, m.height-6)
+	case overlayColorscheme:
+		content = ui.RenderColorschemeOverlay(m.schemeEntries, m.schemeFilter.Value, m.schemeCursor, m.schemeFilterMode)
+		overlayW = min(50, m.width-10)
+		overlayH = min(22, m.height-6)
+	case overlayFilterPreset:
+		var activePresetName string
+		if m.activeFilterPreset != nil {
+			activePresetName = m.activeFilterPreset.Name
+		}
+		entries := make([]ui.FilterPresetEntry, len(m.filterPresets))
+		for i, p := range m.filterPresets {
+			entries[i] = ui.FilterPresetEntry{Name: p.Name, Description: p.Description, Key: p.Key}
+		}
+		content = ui.RenderFilterPresetOverlay(entries, m.overlayCursor, activePresetName)
+		overlayW = min(55, m.width-10)
+		overlayH = min(15, m.height-6)
+	case overlayRBAC:
+		entries := make([]ui.RBACCheckEntry, len(m.rbacResults))
+		for i, r := range m.rbacResults {
+			entries[i] = ui.RBACCheckEntry{Verb: r.Verb, Allowed: r.Allowed}
+		}
+		content = ui.RenderRBACOverlay(entries, m.rbacKind)
+		overlayW = min(45, m.width-10)
+		overlayH = min(15, m.height-6)
+	case overlayBatchLabel:
+		content = ui.RenderBatchLabelOverlay(m.batchLabelMode, m.batchLabelInput.Value, m.batchLabelRemove)
+		overlayW = min(50, m.width-10)
+		overlayH = min(12, m.height-6)
+	case overlayPodStartup:
+		if m.podStartupData != nil {
+			entry := ui.PodStartupEntry{
+				PodName:   m.podStartupData.PodName,
+				Namespace: m.podStartupData.Namespace,
+				TotalTime: m.podStartupData.TotalTime,
+			}
+			for _, p := range m.podStartupData.Phases {
+				entry.Phases = append(entry.Phases, ui.StartupPhaseEntry{
+					Name:     p.Name,
+					Duration: p.Duration,
+					Status:   p.Status,
+				})
+			}
+			content = ui.RenderPodStartupOverlay(entry)
+		}
+		overlayW = min(70, m.width-10)
+		overlayH = min(25, m.height-6)
+	case overlayQuotaDashboard:
+		entries := make([]ui.QuotaEntry, len(m.quotaData))
+		for i, q := range m.quotaData {
+			resources := make([]ui.QuotaResourceEntry, len(q.Resources))
+			for j, r := range q.Resources {
+				resources[j] = ui.QuotaResourceEntry{
+					Name:    r.Name,
+					Hard:    r.Hard,
+					Used:    r.Used,
+					Percent: r.Percent,
+				}
+			}
+			entries[i] = ui.QuotaEntry{
+				Name:      q.Name,
+				Namespace: q.Namespace,
+				Resources: resources,
+			}
+		}
+		content = ui.RenderQuotaDashboardOverlay(entries, min(80, m.width-10), min(30, m.height-6))
+		overlayW = min(80, m.width-10)
+		overlayH = min(30, m.height-6)
+	case overlayEventTimeline:
+		entries := make([]ui.EventTimelineEntry, len(m.eventTimelineData))
+		for i, e := range m.eventTimelineData {
+			entries[i] = ui.EventTimelineEntry{
+				Timestamp:    e.Timestamp,
+				Type:         e.Type,
+				Reason:       e.Reason,
+				Message:      e.Message,
+				Source:       e.Source,
+				Count:        e.Count,
+				InvolvedName: e.InvolvedName,
+				InvolvedKind: e.InvolvedKind,
+			}
+		}
+		overlayW = min(100, m.width-6)
+		overlayH = min(30, m.height-4)
+		content = ui.RenderEventTimelineOverlay(entries, m.actionCtx.name, m.eventTimelineScroll, overlayW, overlayH)
+	case overlayAlerts:
+		entries := make([]ui.AlertEntry, len(m.alertsData))
+		for i, a := range m.alertsData {
+			entries[i] = ui.AlertEntry{
+				Name:        a.Name,
+				State:       a.State,
+				Severity:    a.Severity,
+				Summary:     a.Summary,
+				Description: a.Description,
+				Since:       a.Since,
+				GrafanaURL:  a.GrafanaURL,
+			}
+		}
+		content = ui.RenderAlertsOverlay(entries, m.alertsScroll, m.width-10, m.height-6)
+		overlayW = min(80, m.width-10)
+		overlayH = min(25, m.height-6)
+	case overlayCanI:
+		return m.renderCanIOverlay(background)
+	case overlayCanISubject:
+		// Render the Can-I browser as the background, then overlay the subject selector on top.
+		canIBg := m.renderCanIOverlay(background)
+		overlayW = min(80, m.width-10)
+		overlayH = min(20, m.height-6)
+		content = ui.RenderCanISubjectOverlay(m.filteredOverlayItems(), m.overlayFilter.Value, m.overlayCursor, m.canISubjectFilterMode)
+		overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
+		return ui.PlaceOverlay(m.width, m.height, overlay, canIBg)
+	case overlayExplainSearch:
+		overlayW = min(m.width-6, m.width*70/100)
+		overlayH = min(m.height-4, m.height*70/100)
+		maxVisible := max(overlayH-6, 1) // header + filter + footer
+		filtered := m.filteredExplainRecursiveResults()
+		content = ui.RenderExplainSearchOverlay(filtered, m.explainRecursiveCursor, m.explainRecursiveScroll, maxVisible, m.explainRecursiveFilter.Value, m.explainRecursiveFilterActive)
+	case overlayNetworkPolicy:
+		if m.netpolData != nil {
+			entry := ui.NetworkPolicyEntry{
+				Name:         m.netpolData.Name,
+				Namespace:    m.netpolData.Namespace,
+				PodSelector:  m.netpolData.PodSelector,
+				PolicyTypes:  m.netpolData.PolicyTypes,
+				AffectedPods: m.netpolData.AffectedPods,
+			}
+			for _, r := range m.netpolData.IngressRules {
+				re := ui.NetpolRuleEntry{}
+				for _, p := range r.Ports {
+					re.Ports = append(re.Ports, ui.NetpolPortEntry{Protocol: p.Protocol, Port: p.Port})
+				}
+				for _, p := range r.Peers {
+					re.Peers = append(re.Peers, ui.NetpolPeerEntry{
+						Type: p.Type, Selector: p.Selector,
+						CIDR: p.CIDR, Except: p.Except, Namespace: p.Namespace,
+					})
+				}
+				entry.IngressRules = append(entry.IngressRules, re)
+			}
+			for _, r := range m.netpolData.EgressRules {
+				re := ui.NetpolRuleEntry{}
+				for _, p := range r.Ports {
+					re.Ports = append(re.Ports, ui.NetpolPortEntry{Protocol: p.Protocol, Port: p.Port})
+				}
+				for _, p := range r.Peers {
+					re.Peers = append(re.Peers, ui.NetpolPeerEntry{
+						Type: p.Type, Selector: p.Selector,
+						CIDR: p.CIDR, Except: p.Except, Namespace: p.Namespace,
+					})
+				}
+				entry.EgressRules = append(entry.EgressRules, re)
+			}
+			overlayW = min(100, m.width-6)
+			overlayH = min(35, m.height-4)
+			// Netpol overlay renders its own hint bar, so we build the
+			// bordered box here to avoid OverlayStyle.Height() clipping it.
+			innerW := overlayW - 4 // account for OverlayStyle Padding(1,2) = 2 chars each side
+			innerH := overlayH - 2 // account for OverlayStyle Padding(1,2) = 1 line top + 1 line bottom
+			netpolContent := ui.RenderNetworkPolicyOverlay(entry, m.netpolScroll, innerW, innerH)
+			overlay := ui.OverlayStyle.Width(overlayW).Render(netpolContent)
+			bg := padToHeight(background, m.height)
+			return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+		}
+	case overlaySecretEditor:
+		overlay := ui.RenderSecretEditorOverlay(
+			m.secretData, m.secretCursor, m.secretRevealed, m.secretAllRevealed,
+			m.secretEditing, m.secretEditKey.Value, m.secretEditValue.Value, m.secretEditColumn,
+			m.width, m.height,
+		)
+		bg := padToHeight(background, m.height)
+		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+	case overlayConfigMapEditor:
+		overlay := ui.RenderConfigMapEditorOverlay(
+			m.configMapData, m.configMapCursor,
+			m.configMapEditing, m.configMapEditKey.Value, m.configMapEditValue.Value, m.configMapEditColumn,
+			m.width, m.height,
+		)
+		bg := padToHeight(background, m.height)
+		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+	case overlayRollback:
+		overlay := ui.RenderRollbackOverlay(m.rollbackRevisions, m.rollbackCursor, m.width, m.height)
+		bg := padToHeight(background, m.height)
+		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+	case overlayHelmRollback:
+		overlay := ui.RenderHelmRollbackOverlay(m.helmRollbackRevisions, m.helmRollbackCursor, m.width, m.height)
+		bg := padToHeight(background, m.height)
+		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+	case overlayLabelEditor:
+		overlay := ui.RenderLabelEditorOverlay(
+			m.labelData, m.labelCursor, m.labelTab,
+			m.labelEditing, m.labelEditKey.Value, m.labelEditValue.Value, m.labelEditColumn,
+			m.width, m.height,
+		)
+		bg := padToHeight(background, m.height)
+		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+	default:
+		return background
+	}
+
+	if overlayW < 10 {
+		overlayW = 10
+	}
+	if overlayH < 3 {
+		overlayH = 3
+	}
+
+	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
+
+	// Ensure background has exactly m.height lines for correct overlay placement.
+	bg := padToHeight(background, m.height)
+	return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+}
+
+// renderCanIOverlay renders the Can-I browser overlay on top of the given background.
+func (m Model) renderCanIOverlay(background string) string {
+	visibleGroupIdxs := m.canIVisibleGroups()
+	groupNames := make([]string, len(visibleGroupIdxs))
+	for i, idx := range visibleGroupIdxs {
+		name := m.canIGroups[idx].Name
+		if name == "" {
+			name = "core"
+		}
+		count := len(m.canIGroups[idx].Resources)
+		if m.canIAllowedOnly {
+			count = countAllowedResources(m.canIGroups[idx].Resources)
+		}
+		groupNames[i] = fmt.Sprintf("%s (%d)", name, count)
+	}
+	var resources []model.CanIResource
+	if m.canIGroupCursor >= 0 && m.canIGroupCursor < len(visibleGroupIdxs) {
+		resources = m.canIGroups[visibleGroupIdxs[m.canIGroupCursor]].Resources
+		if m.canIAllowedOnly {
+			resources = filterAllowedResources(resources)
+		}
+	}
+	subjectName := m.canISubjectName
+	if subjectName == "" {
+		subjectName = "Current User"
+	}
+	overlayW := min(m.width-4, m.width*90/100)
+	overlayH := min(m.height-4, m.height*80/100)
+	innerW := overlayW - 4
+	innerH := overlayH - 2
+
+	filterLabel := "all"
+	if m.canIAllowedOnly {
+		filterLabel = "allowed only"
+	}
+	hints := []struct{ key, desc string }{
+		{"j/k", "navigate"},
+		{"a", filterLabel},
+		{"s", "switch subject"},
+		{"/", "search groups"},
+		{"q/Esc", "close/back"},
+	}
+	hintParts := make([]string, 0, len(hints))
+	for _, h := range hints {
+		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
+	}
+	hintBar := ui.StatusBarBgStyle.Width(innerW).Render(strings.Join(hintParts, ui.DimStyle.Render(" | ")))
+
+	if m.canISearchActive {
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.canISearchInput.CursorLeft()) + ui.DimStyle.Render("\u2588") + ui.NormalStyle.Render(m.canISearchInput.CursorRight())
+		hintBar = ui.StatusBarBgStyle.Width(innerW).Render(searchBar)
+	} else if m.canISearchQuery != "" {
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.canISearchQuery)
+		hintBar = ui.StatusBarBgStyle.Width(innerW).Render(searchBar)
+	}
+
+	canIContent := ui.RenderCanIView(
+		groupNames, resources,
+		m.canIGroupCursor, m.canIGroupScroll,
+		subjectName, m.canINamespaces,
+		innerW, innerH,
+		hintBar,
+		m.canIResourceScroll,
+	)
+	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(canIContent)
+	bg := padToHeight(background, m.height)
+	return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+}
+
+// renderErrorLogOverlay renders the error log overlay on top of the given background.
+func (m Model) renderErrorLogOverlay(background string) string {
+	overlayW := min(140, m.width-4)
+	overlayH := min(30, m.height-4)
+	if overlayW < 10 {
+		overlayW = 10
+	}
+	if overlayH < 3 {
+		overlayH = 3
+	}
+
+	content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, overlayH, m.showDebugLogs)
+	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
+	bg := padToHeight(background, m.height)
+	return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+}

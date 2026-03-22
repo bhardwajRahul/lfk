@@ -1,0 +1,259 @@
+package app
+
+import (
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/janosmiko/lfk/internal/model"
+)
+
+func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Handle mouse scroll in log viewer mode.
+	if m.mode == modeLogs {
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			m.logFollow = false
+			if m.logScroll > 0 {
+				m.logScroll -= 3
+				if m.logScroll < 0 {
+					m.logScroll = 0
+				}
+			}
+			cmd := m.maybeLoadMoreHistory()
+			return m, cmd
+		case tea.MouseButtonWheelDown:
+			m.logFollow = false
+			m.logScroll += 3
+			m.clampLogScroll()
+		}
+		return m, nil
+	}
+
+	// Don't handle mouse in overlay/help/yaml modes.
+	if m.overlay != overlayNone || m.mode != modeExplorer {
+		return m, nil
+	}
+
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		return m.moveCursor(-3)
+	case tea.MouseButtonWheelDown:
+		return m.moveCursor(3)
+	case tea.MouseButtonLeft:
+		if msg.Action != tea.MouseActionPress {
+			return m, nil
+		}
+		return m.handleMouseClick(msg.X, msg.Y)
+	}
+	return m, nil
+}
+
+func (m Model) handleMouseClick(x, y int) (tea.Model, tea.Cmd) {
+	// Calculate column boundaries (must match viewExplorer).
+	var leftEnd, middleEnd int
+	if m.fullscreenMiddle || m.fullscreenDashboard {
+		// Fullscreen: only middle column exists.
+		leftEnd = 0
+		middleEnd = m.width
+	} else {
+		usable := m.width - 6
+		leftW := max(10, usable*12/100)
+		middleW := max(10, usable*51/100)
+		// Each column has border(2) + padding(2) = 4 extra chars width.
+		leftEnd = leftW + 4
+		middleEnd = leftEnd + middleW + 4
+	}
+
+	switch {
+	case x < leftEnd:
+		// Left column click: navigate parent.
+		return m.navigateParent()
+	case x < middleEnd:
+		// Middle column click: select item.
+		// y offset depends on whether column has a header line.
+		// Title bar (1) + top border (1) = 2 base offset.
+		baseOffset := 2 // title bar (1) + top border (1)
+		if len(m.tabs) > 1 {
+			baseOffset = 3 // title bar (1) + tab bar (1) + top border (1)
+		}
+		itemY := y - baseOffset
+		switch m.nav.Level {
+		case model.LevelResources, model.LevelOwned, model.LevelContainers:
+			// Table view has a header row for column names.
+			itemY--
+			if itemY >= 0 {
+				visible := m.visibleMiddleItems()
+				contentHeight := m.height - 4
+				if contentHeight < 3 {
+					contentHeight = 3
+				}
+				tableHeight := contentHeight - 1 // minus table header
+				startIdx := 0
+				if m.cursor() >= tableHeight {
+					startIdx = m.cursor() - tableHeight + 1
+				}
+				targetIdx := startIdx + itemY
+				if targetIdx >= 0 && targetIdx < len(visible) {
+					m.setCursor(targetIdx)
+					return m, m.loadPreview()
+				}
+			} else {
+				// Header row click — sort by the clicked column.
+				relX := x - 2 // border + padding
+				if !m.fullscreenMiddle && !m.fullscreenDashboard {
+					relX = x - leftEnd - 2
+				}
+				return m.handleHeaderClick(relX)
+			}
+		default:
+			// Column view has a header line (rendered by RenderColumn).
+			itemY--
+			if itemY >= 0 {
+				visible := m.visibleMiddleItems()
+				targetIdx := m.itemIndexFromDisplayLine(itemY)
+				if targetIdx >= 0 && targetIdx < len(visible) {
+					m.setCursor(targetIdx)
+					m.syncExpandedGroup()
+					return m, m.loadPreview()
+				}
+			}
+		}
+		return m, nil
+	default:
+		// Right column click: navigate child.
+		return m.navigateChild()
+	}
+}
+
+// handleHeaderClick sorts the table by the column that was clicked in the header row.
+// relX is the click position relative to the start of the middle column content area.
+func (m Model) handleHeaderClick(relX int) (tea.Model, tea.Cmd) {
+	items := m.visibleMiddleItems()
+	if len(items) == 0 {
+		return m, nil
+	}
+
+	// Replicate column width calculation from RenderTable.
+	// The table receives middleInner = middleW - colPad as its width.
+	usable := m.width - 6
+	middleW := max(10, usable*51/100)
+	if m.fullscreenMiddle {
+		middleW = m.width - 2
+	}
+	width := middleW - 2 // subtract colPad to match middleInner passed to RenderTable
+
+	// Detect which detail columns have data.
+	hasNs, hasReady, hasRestarts, hasAge, hasStatus := false, false, false, false, false
+	for _, item := range items {
+		if item.Namespace != "" {
+			hasNs = true
+		}
+		if item.Ready != "" {
+			hasReady = true
+		}
+		if item.Restarts != "" {
+			hasRestarts = true
+		}
+		if item.Age != "" {
+			hasAge = true
+		}
+		if item.Status != "" {
+			hasStatus = true
+		}
+	}
+
+	// Calculate column widths (must match RenderTable logic).
+	nsW, readyW, restartsW, ageW, statusW := 0, 0, 0, 0, 0
+	if hasNs {
+		nsW = len("NAMESPACE")
+		for _, item := range items {
+			if w := len(item.Namespace); w > nsW {
+				nsW = w
+			}
+		}
+		nsW++
+		if nsW > 30 {
+			nsW = 30
+		}
+	}
+	if hasReady {
+		readyW = len("READY")
+		for _, item := range items {
+			if w := len(item.Ready); w > readyW {
+				readyW = w
+			}
+		}
+		readyW++
+	}
+	if hasRestarts {
+		restartsW = len("RS") + 1
+		for _, item := range items {
+			if w := len(item.Restarts); w >= restartsW {
+				restartsW = w + 1
+			}
+		}
+	}
+	if hasAge {
+		ageW = len("AGE") + 1
+		for _, item := range items {
+			if w := len(item.Age); w >= ageW {
+				ageW = w + 1
+			}
+		}
+		if ageW > 10 {
+			ageW = 10
+		}
+	}
+	if hasStatus {
+		statusW = len("STATUS")
+		for _, item := range items {
+			if w := len(item.Status); w > statusW {
+				statusW = w
+			}
+		}
+		statusW++
+		if statusW > 20 {
+			statusW = 20
+		}
+	}
+
+	markerColW := 2
+
+	nameW := width - nsW - readyW - restartsW - ageW - statusW - markerColW
+	if nameW < 10 {
+		nameW = 10
+	}
+
+	// Determine which column was clicked based on cumulative position.
+	// Column order: marker | namespace | NAME | READY | RS | STATUS | extra columns... | AGE
+	pos := markerColW
+	if hasNs {
+		if relX < pos+nsW {
+			// Clicked NAMESPACE — sort by name.
+			return m.applySortMode(sortByName)
+		}
+		pos += nsW
+	}
+	pos += nameW
+	if relX < pos {
+		return m.applySortMode(sortByName)
+	}
+	if hasReady {
+		pos += readyW
+		if relX < pos {
+			return m.applySortMode(sortByStatus)
+		}
+	}
+	if hasRestarts {
+		pos += restartsW
+		if relX < pos {
+			return m.applySortMode(sortByStatus)
+		}
+	}
+	if hasStatus {
+		pos += statusW
+		if relX < pos {
+			return m.applySortMode(sortByStatus)
+		}
+	}
+	// Remaining space is AGE (or extra columns, mapped to age sort).
+	return m.applySortMode(sortByAge)
+}

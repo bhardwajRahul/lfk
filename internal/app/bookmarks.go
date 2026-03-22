@@ -62,19 +62,6 @@ func saveBookmarks(bookmarks []model.Bookmark) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// addBookmark appends a bookmark, deduplicating by matching context + resource type + resource name.
-func addBookmark(bookmarks []model.Bookmark, b model.Bookmark) []model.Bookmark {
-	for _, existing := range bookmarks {
-		if existing.Context == b.Context &&
-			existing.ResourceType == b.ResourceType &&
-			existing.ResourceName == b.ResourceName &&
-			existing.Namespace == b.Namespace {
-			return bookmarks // already exists
-		}
-	}
-	return append(bookmarks, b)
-}
-
 // removeBookmark removes the bookmark at the given index.
 func removeBookmark(bookmarks []model.Bookmark, idx int) []model.Bookmark {
 	if idx < 0 || idx >= len(bookmarks) {
