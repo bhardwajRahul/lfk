@@ -857,6 +857,98 @@ func TestActionsForBulk(t *testing.T) {
 	assert.Contains(t, labels, "Restart")
 }
 
+func TestActionsForPortForward(t *testing.T) {
+	actions := ActionsForPortForward()
+	require.Len(t, actions, 4, "should return exactly 4 port forward actions")
+
+	tests := []struct {
+		name        string
+		wantLabel   string
+		wantKey     string
+		wantDescNot string
+	}{
+		{"stop action", "Stop", "s", ""},
+		{"restart action", "Restart", "r", ""},
+		{"remove action", "Remove", "D", ""},
+		{"open in browser action", "Open in Browser", "O", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			found := false
+			for _, a := range actions {
+				if a.Label == tt.wantLabel {
+					found = true
+					assert.Equal(t, tt.wantKey, a.Key)
+					assert.NotEmpty(t, a.Description)
+					break
+				}
+			}
+			assert.True(t, found, "expected action with label %q", tt.wantLabel)
+		})
+	}
+
+	// Verify unique keys across all actions.
+	keys := make(map[string]bool)
+	for _, a := range actions {
+		assert.False(t, keys[a.Key], "duplicate key %q", a.Key)
+		keys[a.Key] = true
+	}
+}
+
+// --- IsForceDeleteableKind ---
+
+func TestIsForceDeleteableKind(t *testing.T) {
+	tests := []struct {
+		label string
+		kind  string
+		want  bool
+	}{
+		{"Pod", "Pod", true},
+		{"Job", "Job", true},
+		{"Deployment", "Deployment", false},
+		{"StatefulSet", "StatefulSet", false},
+		{"DaemonSet", "DaemonSet", false},
+		{"ReplicaSet", "ReplicaSet", false},
+		{"Service", "Service", false},
+		{"ConfigMap", "ConfigMap", false},
+		{"empty string", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.label, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsForceDeleteableKind(tt.kind))
+		})
+	}
+}
+
+// --- IsCoreCategory ---
+
+func TestIsCoreCategory(t *testing.T) {
+	tests := []struct {
+		label    string
+		category string
+		want     bool
+	}{
+		{"Dashboards", "Dashboards", true},
+		{"Workloads", "Workloads", true},
+		{"Config", "Config", true},
+		{"Networking", "Networking", true},
+		{"Storage", "Storage", true},
+		{"Access Control", "Access Control", true},
+		{"Cluster", "Cluster", true},
+		{"Helm", "Helm", true},
+		{"argoproj.io", "argoproj.io", false},
+		{"gateway.networking.k8s.io", "gateway.networking.k8s.io", false},
+		{"cert-manager.io", "cert-manager.io", false},
+		{"Custom", "Custom", false},
+		{"empty string", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.label, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsCoreCategory(tt.category))
+		})
+	}
+}
+
 // --- Templates ---
 
 func TestBuiltinTemplates(t *testing.T) {

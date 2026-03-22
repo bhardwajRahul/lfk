@@ -135,6 +135,111 @@ func TestParseExplainOutputEmpty(t *testing.T) {
 	}
 }
 
+// --- parseRecursiveExplainForSearch ---
+
+func TestParseRecursiveExplainForSearch(t *testing.T) {
+	explainOutput := `KIND:     Deployment
+VERSION:  v1
+
+RESOURCE: spec <DeploymentSpec>
+
+DESCRIPTION:
+    Specification of the desired behavior of the Deployment.
+
+FIELDS:
+    replicas	<integer>
+    selector	<Object>
+      matchLabels	<map[string]string>
+    template	<PodTemplateSpec>
+      metadata	<ObjectMeta>
+        name	<string>
+      spec	<PodSpec>
+        containers	<[]Container>
+          name	<string>
+          ports	<[]ContainerPort>
+            containerPort	<integer>
+`
+
+	t.Run("empty query returns all fields", func(t *testing.T) {
+		results := parseRecursiveExplainForSearch(explainOutput, "")
+		if len(results) == 0 {
+			t.Fatal("expected fields, got none")
+		}
+		// Should contain top-level and nested fields.
+		names := make([]string, 0, len(results))
+		for _, r := range results {
+			names = append(names, r.Name)
+		}
+		if !containsString(names, "replicas") {
+			t.Error("expected 'replicas' in results")
+		}
+		if !containsString(names, "containerPort") {
+			t.Error("expected 'containerPort' in results")
+		}
+	})
+
+	t.Run("query filters by field name", func(t *testing.T) {
+		results := parseRecursiveExplainForSearch(explainOutput, "container")
+		for _, r := range results {
+			if !strings.Contains(strings.ToLower(r.Name), "container") {
+				t.Errorf("unexpected result %q for query 'container'", r.Name)
+			}
+		}
+		if len(results) == 0 {
+			t.Error("expected results for query 'container'")
+		}
+	})
+
+	t.Run("builds correct paths", func(t *testing.T) {
+		results := parseRecursiveExplainForSearch(explainOutput, "containerPort")
+		if len(results) == 0 {
+			t.Fatal("expected results for query 'containerPort'")
+		}
+		found := false
+		for _, r := range results {
+			if r.Name == "containerPort" {
+				if !strings.Contains(r.Path, "containers") || !strings.Contains(r.Path, "containerPort") {
+					t.Errorf("expected path to include 'containers.containerPort', got %q", r.Path)
+				}
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected to find 'containerPort' in results")
+		}
+	})
+
+	t.Run("case insensitive query", func(t *testing.T) {
+		results := parseRecursiveExplainForSearch(explainOutput, "REPLICAS")
+		if len(results) == 0 {
+			t.Error("expected results for case-insensitive query 'REPLICAS'")
+		}
+	})
+
+	t.Run("no match returns empty", func(t *testing.T) {
+		results := parseRecursiveExplainForSearch(explainOutput, "nonexistentfield")
+		if len(results) != 0 {
+			t.Errorf("expected no results, got %d", len(results))
+		}
+	})
+
+	t.Run("empty input returns empty", func(t *testing.T) {
+		results := parseRecursiveExplainForSearch("", "anything")
+		if len(results) != 0 {
+			t.Errorf("expected no results, got %d", len(results))
+		}
+	})
+}
+
+func containsString(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 func TestParseExplainOutputWithPath(t *testing.T) {
 	input := `GROUP:      apps
 KIND:       Deployment

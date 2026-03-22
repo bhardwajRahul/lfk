@@ -539,6 +539,126 @@ func TestRenderResourceTree(t *testing.T) {
 	})
 }
 
+// --- truncateNoMarker ---
+
+func TestTruncateNoMarker(t *testing.T) {
+	tests := []struct {
+		name     string
+		s        string
+		maxW     int
+		expected string
+	}{
+		{"zero maxW", "hello", 0, ""},
+		{"negative maxW", "hello", -1, ""},
+		{"fits exactly", "hello", 5, "hello"},
+		{"fits with room", "hi", 5, "hi"},
+		{"needs truncation", "hello world", 6, "hello "},
+		{"maxW 1", "hello", 1, "h"},
+		{"empty string", "", 5, ""},
+		{"unicode fits", "héllo", 5, "héllo"},
+		{"unicode truncated", "héllo world", 4, "héll"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, truncateNoMarker(tt.s, tt.maxW))
+		})
+	}
+}
+
+// --- truncateStr ---
+
+func TestTruncateStr(t *testing.T) {
+	tests := []struct {
+		name     string
+		s        string
+		maxLen   int
+		expected string
+	}{
+		{"fits exactly", "hello", 5, "hello"},
+		{"fits with room", "hi", 5, "hi"},
+		{"needs truncation with ellipsis", "hello world", 8, "hello..."},
+		{"maxLen 3 no ellipsis", "hello", 3, "hel"},
+		{"maxLen 2 no ellipsis", "hello", 2, "he"},
+		{"maxLen 1 no ellipsis", "hello", 1, "h"},
+		{"empty string", "", 5, ""},
+		{"maxLen 4 with ellipsis", "abcdef", 4, "a..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, truncateStr(tt.s, tt.maxLen))
+		})
+	}
+}
+
+// --- VimScrollOff ---
+
+func TestVimScrollOff(t *testing.T) {
+	// Simple displayLines: each entry = 1 line.
+	oneLine := func(from, to int) int { return to - from }
+
+	t.Run("negative cursor returns 0", func(t *testing.T) {
+		assert.Equal(t, 0, VimScrollOff(0, -1, 10, 5, 2, oneLine))
+	})
+
+	t.Run("zero entries returns 0", func(t *testing.T) {
+		assert.Equal(t, 0, VimScrollOff(0, 0, 0, 5, 2, oneLine))
+	})
+
+	t.Run("all entries fit in viewport returns 0", func(t *testing.T) {
+		assert.Equal(t, 0, VimScrollOff(0, 3, 5, 10, 2, oneLine))
+	})
+
+	t.Run("cursor at top no scroll needed", func(t *testing.T) {
+		result := VimScrollOff(0, 0, 20, 10, 2, oneLine)
+		assert.Equal(t, 0, result)
+	})
+
+	t.Run("cursor near bottom scrolls down", func(t *testing.T) {
+		// cursor=15, 20 entries, height=10, scrolloff=2
+		// Cursor should be visible with scrolloff margin.
+		result := VimScrollOff(0, 15, 20, 10, 2, oneLine)
+		assert.Greater(t, result, 0)
+		// Cursor should be within the viewport.
+		assert.LessOrEqual(t, result, 15)
+	})
+
+	t.Run("cursor above viewport scrolls up", func(t *testing.T) {
+		// scroll=10, cursor=5 -> should scroll up to show cursor.
+		result := VimScrollOff(10, 5, 20, 10, 2, oneLine)
+		assert.LessOrEqual(t, result, 5)
+	})
+
+	t.Run("scrolloff clamped to half viewport", func(t *testing.T) {
+		// height=10, scrolloff=20 -> clamped to 4.
+		result := VimScrollOff(0, 5, 20, 10, 20, oneLine)
+		assert.GreaterOrEqual(t, result, 0)
+		assert.LessOrEqual(t, result, 5)
+	})
+
+	t.Run("no empty space at bottom", func(t *testing.T) {
+		// Cursor at last entry: scroll should not leave empty space below.
+		result := VimScrollOff(15, 19, 20, 10, 2, oneLine)
+		// displayLines(result, 20) should be >= height.
+		assert.Equal(t, 10, oneLine(result, 20))
+	})
+
+	t.Run("scroll past end clamped", func(t *testing.T) {
+		result := VimScrollOff(100, 5, 20, 10, 2, oneLine)
+		assert.LessOrEqual(t, result, 5)
+	})
+
+	t.Run("negative scroll normalized to 0", func(t *testing.T) {
+		// Negative scroll should be treated as 0.
+		result := VimScrollOff(-5, 0, 20, 10, 2, oneLine)
+		assert.Equal(t, 0, result)
+	})
+
+	t.Run("negative scroll with cursor in middle", func(t *testing.T) {
+		result := VimScrollOff(-10, 10, 20, 10, 2, oneLine)
+		assert.GreaterOrEqual(t, result, 0)
+	})
+}
+
 // --- formatTableRowStyled restart arrow ---
 
 func TestFormatTableRowStyled_RestartArrow(t *testing.T) {

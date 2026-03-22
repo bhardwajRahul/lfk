@@ -1,0 +1,158 @@
+package ui
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// --- RenderUnifiedDiffView ---
+
+func TestRenderUnifiedDiffView(t *testing.T) {
+	tests := []struct {
+		name       string
+		left       string
+		right      string
+		leftName   string
+		rightName  string
+		scroll     int
+		width      int
+		height     int
+		lineNums   bool
+		wantSubstr []string
+	}{
+		{
+			name:       "identical content shows unified header",
+			left:       "name: test\nreplicas: 1",
+			right:      "name: test\nreplicas: 1",
+			leftName:   "before",
+			rightName:  "after",
+			scroll:     0,
+			width:      80,
+			height:     30,
+			lineNums:   false,
+			wantSubstr: []string{"Resource Diff (unified)", "--- before", "+++ after", "name: test", "replicas: 1"},
+		},
+		{
+			name:       "added line shows plus prefix",
+			left:       "name: test",
+			right:      "name: test\nreplicas: 3",
+			leftName:   "old",
+			rightName:  "new",
+			scroll:     0,
+			width:      80,
+			height:     30,
+			lineNums:   false,
+			wantSubstr: []string{"+replicas: 3"},
+		},
+		{
+			name:       "removed line shows minus prefix",
+			left:       "name: test\nreplicas: 3",
+			right:      "name: test",
+			leftName:   "old",
+			rightName:  "new",
+			scroll:     0,
+			width:      80,
+			height:     30,
+			lineNums:   false,
+			wantSubstr: []string{"-replicas: 3"},
+		},
+		{
+			name:       "line numbers enabled",
+			left:       "line1\nline2",
+			right:      "line1\nline2\nline3",
+			leftName:   "a",
+			rightName:  "b",
+			scroll:     0,
+			width:      80,
+			height:     30,
+			lineNums:   true,
+			wantSubstr: []string{"1", "2"},
+		},
+		{
+			name:       "scroll info shown",
+			left:       "a",
+			right:      "b",
+			leftName:   "x",
+			rightName:  "y",
+			scroll:     0,
+			width:      120,
+			height:     30,
+			lineNums:   false,
+			wantSubstr: []string{"[1/"},
+		},
+		{
+			name:       "hint bar shows key bindings",
+			left:       "a",
+			right:      "b",
+			leftName:   "x",
+			rightName:  "y",
+			scroll:     0,
+			width:      120,
+			height:     30,
+			lineNums:   false,
+			wantSubstr: []string{"j/k", "scroll", "q/esc", "back", "side-by-side"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RenderUnifiedDiffView(tt.left, tt.right, tt.leftName, tt.rightName, tt.scroll, tt.width, tt.height, tt.lineNums)
+			for _, sub := range tt.wantSubstr {
+				assert.Contains(t, result, sub, "result should contain %q", sub)
+			}
+		})
+	}
+}
+
+// --- UnifiedDiffViewTotalLines ---
+
+func TestUnifiedDiffViewTotalLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		left     string
+		right    string
+		expected int
+	}{
+		{
+			name:     "identical single lines",
+			left:     "line1",
+			right:    "line1",
+			expected: 3, // 1 diff line + 2 header lines (--- and +++)
+		},
+		{
+			name:     "one addition",
+			left:     "line1",
+			right:    "line1\nline2",
+			expected: 4, // 2 diff lines + 2 headers
+		},
+		{
+			name:     "one removal",
+			left:     "line1\nline2",
+			right:    "line1",
+			expected: 4, // 2 diff lines + 2 headers
+		},
+		{
+			name:     "completely different",
+			left:     "aaa",
+			right:    "bbb",
+			expected: 4, // 1 removed + 1 added + 2 headers
+		},
+		{
+			name:     "empty inputs",
+			left:     "",
+			right:    "",
+			expected: 2, // just the 2 headers
+		},
+		{
+			name:     "multi-line diff",
+			left:     "a\nb\nc",
+			right:    "a\nx\nc",
+			expected: 6, // a(=) + b(<) + x(>) + c(=) + 2 headers
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, UnifiedDiffViewTotalLines(tt.left, tt.right))
+		})
+	}
+}

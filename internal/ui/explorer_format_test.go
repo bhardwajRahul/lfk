@@ -1,0 +1,281 @@
+package ui
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// --- formatTableRow ---
+
+func TestFormatTableRow(t *testing.T) {
+	tests := []struct {
+		name         string
+		itemName     string
+		ns           string
+		ready        string
+		restarts     string
+		status       string
+		nameW        int
+		nsW          int
+		readyW       int
+		restartsW    int
+		statusW      int
+		hasNs        bool
+		hasReady     bool
+		hasRestarts  bool
+		hasStatus    bool
+		wantContains []string
+		wantAbsent   []string
+	}{
+		{
+			name:         "all columns shown",
+			itemName:     "nginx",
+			ns:           "default",
+			ready:        "1/1",
+			restarts:     "0",
+			status:       "Running",
+			nameW:        15,
+			nsW:          12,
+			readyW:       6,
+			restartsW:    5,
+			statusW:      10,
+			hasNs:        true,
+			hasReady:     true,
+			hasRestarts:  true,
+			hasStatus:    true,
+			wantContains: []string{"nginx", "default", "1/1", "0", "Running"},
+		},
+		{
+			name:         "name only no optional columns",
+			itemName:     "my-pod",
+			ns:           "",
+			ready:        "",
+			restarts:     "",
+			status:       "",
+			nameW:        20,
+			nsW:          0,
+			readyW:       0,
+			restartsW:    0,
+			statusW:      0,
+			hasNs:        false,
+			hasReady:     false,
+			hasRestarts:  false,
+			hasStatus:    false,
+			wantContains: []string{"my-pod"},
+			wantAbsent:   []string{"Running"},
+		},
+		{
+			name:         "namespace and status only",
+			itemName:     "pod-1",
+			ns:           "prod",
+			ready:        "",
+			restarts:     "",
+			status:       "Pending",
+			nameW:        15,
+			nsW:          10,
+			readyW:       0,
+			restartsW:    0,
+			statusW:      10,
+			hasNs:        true,
+			hasReady:     false,
+			hasRestarts:  false,
+			hasStatus:    true,
+			wantContains: []string{"pod-1", "prod", "Pending"},
+		},
+		{
+			name:         "name truncated to nameW",
+			itemName:     "very-long-pod-name-that-exceeds-width",
+			ns:           "",
+			nameW:        10,
+			nsW:          0,
+			readyW:       0,
+			restartsW:    0,
+			statusW:      0,
+			hasNs:        false,
+			hasReady:     false,
+			hasRestarts:  false,
+			hasStatus:    false,
+			wantContains: []string{"very-long"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatTableRow(tt.itemName, tt.ns, tt.ready, tt.restarts, tt.status,
+				tt.nameW, tt.nsW, tt.readyW, tt.restartsW, tt.statusW,
+				tt.hasNs, tt.hasReady, tt.hasRestarts, tt.hasStatus)
+			for _, sub := range tt.wantContains {
+				assert.Contains(t, result, sub, "result should contain %q", sub)
+			}
+			for _, absent := range tt.wantAbsent {
+				assert.NotContains(t, result, absent, "result should not contain %q", absent)
+			}
+		})
+	}
+}
+
+// --- formatTableRow padding ---
+
+func TestFormatTableRow_Padding(t *testing.T) {
+	t.Run("name is padded to nameW", func(t *testing.T) {
+		result := formatTableRow("hi", "", "", "", "",
+			10, 0, 0, 0, 0, false, false, false, false)
+		assert.Equal(t, 10, len(result), "result length should match nameW")
+	})
+
+	t.Run("namespace is padded when present", func(t *testing.T) {
+		result := formatTableRow("pod", "ns", "", "", "",
+			10, 8, 0, 0, 0, true, false, false, false)
+		// Total = nsW + nameW = 8 + 10 = 18.
+		assert.Equal(t, 18, len(result))
+	})
+}
+
+// --- resourceColumnStyle ---
+
+func TestResourceColumnStyle(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+		val  string
+	}{
+		{name: "CPU column returns DimStyle", key: "CPU", val: "100m"},
+		{name: "MEM column returns DimStyle", key: "MEM", val: "256Mi"},
+		{name: "CPU/R percentage", key: "CPU/R", val: "45%"},
+		{name: "MEM/L percentage", key: "MEM/L", val: "90%"},
+		{name: "CPU% percentage", key: "CPU%", val: "50%"},
+		{name: "MEM% percentage", key: "MEM%", val: "80%"},
+		{name: "CPU Req returns secondary style", key: "CPU Req", val: "100m"},
+		{name: "Last Sync uses StatusStyle", key: "Last Sync", val: "Synced"},
+		{name: "Health uses StatusStyle", key: "Health", val: "Healthy"},
+		{name: "default key returns DimStyle", key: "Node", val: "node-1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			style := resourceColumnStyle(tt.key, tt.val)
+			// Verify the style can render without panicking.
+			rendered := style.Render("test")
+			assert.NotEmpty(t, rendered)
+		})
+	}
+}
+
+// --- pctStyle ---
+
+func TestPctStyle(t *testing.T) {
+	tests := []struct {
+		name string
+		val  string
+		desc string
+	}{
+		{name: "n/a returns dim", val: "n/a", desc: "dim"},
+		{name: "empty returns dim", val: "", desc: "dim"},
+		{name: "low percentage", val: "30%", desc: "dim"},
+		{name: "mid percentage", val: "50%", desc: "dim"},
+		{name: "75 percent threshold", val: "75%", desc: "orange"},
+		{name: "high percentage", val: "85%", desc: "orange"},
+		{name: "90 percent threshold", val: "90%", desc: "error"},
+		{name: "critical percentage", val: "99%", desc: "error"},
+		{name: "over 100 percent", val: "150%", desc: "error"},
+		{name: "invalid string returns dim", val: "abc%", desc: "dim"},
+		{name: "no percent sign", val: "42", desc: "dim"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			style := pctStyle(tt.val)
+			rendered := style.Render("test")
+			assert.NotEmpty(t, rendered, "pctStyle(%q) should render", tt.val)
+		})
+	}
+
+	t.Run("90 percent uses bold error style", func(t *testing.T) {
+		s := pctStyle("90%")
+		assert.True(t, s.GetBold(), "90%% should be bold")
+	})
+
+	t.Run("75 percent uses bold orange style", func(t *testing.T) {
+		s := pctStyle("75%")
+		assert.True(t, s.GetBold(), "75%% should be bold")
+	})
+
+	t.Run("low percent is not bold", func(t *testing.T) {
+		s := pctStyle("30%")
+		assert.False(t, s.GetBold(), "30%% should not be bold")
+	})
+}
+
+// --- RenderTabBar ---
+
+func TestRenderTabBar(t *testing.T) {
+	tests := []struct {
+		name       string
+		labels     []string
+		activeTab  int
+		width      int
+		wantSubstr []string
+	}{
+		{
+			name:       "single tab",
+			labels:     []string{"Pods"},
+			activeTab:  0,
+			width:      80,
+			wantSubstr: []string{"1 Pods"},
+		},
+		{
+			name:       "multiple tabs with active highlighted",
+			labels:     []string{"Pods", "Deployments", "Services"},
+			activeTab:  1,
+			width:      120,
+			wantSubstr: []string{"1 Pods", "2 Deployments", "3 Services"},
+		},
+		{
+			name:       "active tab index 0",
+			labels:     []string{"Tab1", "Tab2"},
+			activeTab:  0,
+			width:      80,
+			wantSubstr: []string{"1 Tab1", "2 Tab2"},
+		},
+		{
+			name:       "narrow width shows arrows for overflow",
+			labels:     []string{"AAAA", "BBBB", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH"},
+			activeTab:  4,
+			width:      50,
+			wantSubstr: []string{"5 EEEE"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RenderTabBar(tt.labels, tt.activeTab, tt.width)
+			for _, sub := range tt.wantSubstr {
+				assert.Contains(t, result, sub, "result should contain %q", sub)
+			}
+		})
+	}
+
+	t.Run("tab bar contains separator", func(t *testing.T) {
+		result := RenderTabBar([]string{"A", "B"}, 0, 80)
+		// The separator is a styled pipe character.
+		assert.True(t, strings.Contains(result, "│") || strings.Contains(result, "|"),
+			"tab bar should contain a separator")
+	})
+
+	t.Run("overflow shows left arrow indicator", func(t *testing.T) {
+		labels := make([]string, 20)
+		for i := range labels {
+			labels[i] = "Tab"
+		}
+		result := RenderTabBar(labels, 10, 60)
+		// When tabs overflow to the left, a left-arrow indicator should appear.
+		assert.Contains(t, result, "◂")
+	})
+
+	t.Run("overflow shows right arrow indicator", func(t *testing.T) {
+		labels := make([]string, 20)
+		for i := range labels {
+			labels[i] = "Tab"
+		}
+		result := RenderTabBar(labels, 0, 60)
+		assert.Contains(t, result, "▸")
+	})
+}

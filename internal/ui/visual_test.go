@@ -1,0 +1,321 @@
+package ui
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// --- RenderCursorAtCol ---
+
+func TestRenderCursorAtCol(t *testing.T) {
+	tests := []struct {
+		name       string
+		styledLine string
+		plainLine  string
+		col        int
+		wantSubstr []string
+		wantAbsent []string
+	}{
+		{
+			name:       "negative column returns styled line unchanged",
+			styledLine: "hello world",
+			plainLine:  "hello world",
+			col:        -1,
+			wantSubstr: []string{"hello world"},
+		},
+		{
+			name:       "cursor at first character",
+			styledLine: "hello",
+			plainLine:  "hello",
+			col:        0,
+			wantSubstr: []string{"h", "ello"},
+		},
+		{
+			name:       "cursor at middle character",
+			styledLine: "hello",
+			plainLine:  "hello",
+			col:        2,
+			wantSubstr: []string{"he", "l", "lo"},
+		},
+		{
+			name:       "cursor at last character",
+			styledLine: "hello",
+			plainLine:  "hello",
+			col:        4,
+			wantSubstr: []string{"hell", "o"},
+		},
+		{
+			name:       "cursor past end appends highlighted space",
+			styledLine: "hello",
+			plainLine:  "hello",
+			col:        10,
+			wantSubstr: []string{"hello", " "},
+		},
+		{
+			name:       "cursor at exact end appends highlighted space",
+			styledLine: "abc",
+			plainLine:  "abc",
+			col:        3,
+			wantSubstr: []string{"abc", " "},
+		},
+		{
+			name:       "empty line with cursor at 0 appends space",
+			styledLine: "",
+			plainLine:  "",
+			col:        0,
+			wantSubstr: []string{" "},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RenderCursorAtCol(tt.styledLine, tt.plainLine, tt.col)
+			for _, sub := range tt.wantSubstr {
+				assert.Contains(t, result, sub, "result should contain %q", sub)
+			}
+			for _, absent := range tt.wantAbsent {
+				assert.NotContains(t, result, absent, "result should not contain %q", absent)
+			}
+		})
+	}
+}
+
+// --- RenderVisualSelection ---
+
+func TestRenderVisualSelection(t *testing.T) {
+	tests := []struct {
+		name       string
+		line       string
+		visualType rune
+		lineIdx    int
+		selStart   int
+		selEnd     int
+		anchorLine int
+		anchorCol  int
+		cursorCol  int
+		colStart   int
+		colEnd     int
+		wantSubstr []string
+	}{
+		{
+			name:       "line visual mode highlights entire line",
+			line:       "hello world",
+			visualType: 'V',
+			lineIdx:    5,
+			selStart:   3,
+			selEnd:     7,
+			anchorLine: 3,
+			anchorCol:  0,
+			cursorCol:  0,
+			colStart:   0,
+			colEnd:     0,
+			wantSubstr: []string{"hello world"},
+		},
+		{
+			name:       "char visual mode single line",
+			line:       "hello world",
+			visualType: 'v',
+			lineIdx:    5,
+			selStart:   5,
+			selEnd:     5,
+			anchorLine: 5,
+			anchorCol:  2,
+			cursorCol:  7,
+			colStart:   2,
+			colEnd:     7,
+			wantSubstr: []string{"he", "llo wo", "rld"},
+		},
+		{
+			name:       "block visual mode highlights column range",
+			line:       "hello world",
+			visualType: 'B',
+			lineIdx:    5,
+			selStart:   3,
+			selEnd:     7,
+			anchorLine: 3,
+			anchorCol:  2,
+			cursorCol:  5,
+			colStart:   2,
+			colEnd:     5,
+			wantSubstr: []string{"he", "llo ", "world"},
+		},
+		{
+			name:       "char mode first line downward",
+			line:       "start here",
+			visualType: 'v',
+			lineIdx:    3,
+			selStart:   3,
+			selEnd:     5,
+			anchorLine: 3,
+			anchorCol:  3,
+			cursorCol:  5,
+			colStart:   3,
+			colEnd:     5,
+			wantSubstr: []string{"sta", "rt here"},
+		},
+		{
+			name:       "char mode last line downward",
+			line:       "end here",
+			visualType: 'v',
+			lineIdx:    5,
+			selStart:   3,
+			selEnd:     5,
+			anchorLine: 3,
+			anchorCol:  3,
+			cursorCol:  5,
+			colStart:   3,
+			colEnd:     5,
+			wantSubstr: []string{"end he", "re"},
+		},
+		{
+			name:       "char mode middle line fully highlighted",
+			line:       "middle line",
+			visualType: 'v',
+			lineIdx:    4,
+			selStart:   3,
+			selEnd:     5,
+			anchorLine: 3,
+			anchorCol:  2,
+			cursorCol:  6,
+			colStart:   2,
+			colEnd:     6,
+			wantSubstr: []string{"middle line"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RenderVisualSelection(tt.line, tt.visualType, tt.lineIdx,
+				tt.selStart, tt.selEnd, tt.anchorLine, tt.anchorCol, tt.cursorCol,
+				tt.colStart, tt.colEnd)
+			for _, sub := range tt.wantSubstr {
+				assert.Contains(t, result, sub, "result should contain %q", sub)
+			}
+		})
+	}
+}
+
+// --- highlightColumnRange ---
+
+func TestHighlightColumnRange(t *testing.T) {
+	tests := []struct {
+		name       string
+		line       string
+		colStart   int
+		colEnd     int
+		wantSubstr []string
+	}{
+		{
+			name:       "full line highlight",
+			line:       "hello",
+			colStart:   0,
+			colEnd:     5,
+			wantSubstr: []string{"hello"},
+		},
+		{
+			name:       "partial highlight in middle",
+			line:       "hello world",
+			colStart:   3,
+			colEnd:     8,
+			wantSubstr: []string{"hel", "lo wo", "rld"},
+		},
+		{
+			name:       "highlight at start",
+			line:       "hello",
+			colStart:   0,
+			colEnd:     3,
+			wantSubstr: []string{"hel", "lo"},
+		},
+		{
+			name:       "highlight at end",
+			line:       "hello",
+			colStart:   3,
+			colEnd:     5,
+			wantSubstr: []string{"hel", "lo"},
+		},
+		{
+			name:       "selection beyond line length shows padding",
+			line:       "hi",
+			colStart:   5,
+			colEnd:     10,
+			wantSubstr: []string{"hi", " "},
+		},
+		{
+			name:       "negative colStart clamped to 0",
+			line:       "hello",
+			colStart:   -3,
+			colEnd:     3,
+			wantSubstr: []string{"hel", "lo"},
+		},
+		{
+			name:       "colEnd beyond line clamped",
+			line:       "hi",
+			colStart:   0,
+			colEnd:     10,
+			wantSubstr: []string{"hi"},
+		},
+		{
+			name:       "colEnd less than colStart returns unmodified",
+			line:       "hello",
+			colStart:   5,
+			colEnd:     3,
+			wantSubstr: []string{"hello"},
+		},
+		{
+			name:       "empty line with selection beyond",
+			line:       "",
+			colStart:   0,
+			colEnd:     5,
+			wantSubstr: []string{" "},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runes := []rune(tt.line)
+			result := highlightColumnRange(runes, len(runes), tt.colStart, tt.colEnd)
+			for _, sub := range tt.wantSubstr {
+				assert.Contains(t, result, sub, "result should contain %q", sub)
+			}
+		})
+	}
+}
+
+// --- renderBlockSelection ---
+
+func TestRenderBlockSelection(t *testing.T) {
+	t.Run("block selection highlights columns inclusively", func(t *testing.T) {
+		runes := []rune("abcdefghij")
+		result := renderBlockSelection(runes, len(runes), 2, 5)
+		// Columns 2 through 5 inclusive should be highlighted.
+		assert.Contains(t, result, "ab")
+		assert.Contains(t, result, "cdef")
+		assert.Contains(t, result, "ghij")
+	})
+}
+
+// --- renderCharSelection ---
+
+func TestRenderCharSelection(t *testing.T) {
+	t.Run("single line selection", func(t *testing.T) {
+		runes := []rune("hello world")
+		result := renderCharSelection(runes, len(runes), 5, 5, 5, 5, 2, 7)
+		// Single line: highlight between cols 2 and 7.
+		assert.Contains(t, result, "he")
+		assert.Contains(t, result, "llo wo")
+		assert.Contains(t, result, "rld")
+	})
+
+	t.Run("multi-line start line downward", func(t *testing.T) {
+		runes := []rune("start line content")
+		result := renderCharSelection(runes, len(runes), 3, 3, 7, 3, 5, 8)
+		// Line at selStart: highlight from anchorCol (5) to end.
+		assert.True(t, strings.Contains(result, "start"), "should contain pre-selection text")
+	})
+
+	t.Run("multi-line middle line", func(t *testing.T) {
+		runes := []rune("fully selected")
+		result := renderCharSelection(runes, len(runes), 5, 3, 7, 3, 2, 8)
+		// Middle line: fully selected.
+		assert.Contains(t, result, "fully selected")
+	})
+}

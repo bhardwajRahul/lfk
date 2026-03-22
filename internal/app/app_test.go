@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -130,5 +131,249 @@ func TestRemoveBookmark(t *testing.T) {
 	t.Run("out of bounds unchanged", func(t *testing.T) {
 		result := removeBookmark([]model.Bookmark{bm1, bm2}, 5)
 		assert.Len(t, result, 2)
+	})
+}
+
+// --- selectionKey ---
+
+func TestSelectionKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		item     model.Item
+		expected string
+	}{
+		{
+			name:     "namespaced item",
+			item:     model.Item{Name: "my-pod", Namespace: "default"},
+			expected: "default/my-pod",
+		},
+		{
+			name:     "cluster-scoped item",
+			item:     model.Item{Name: "my-node"},
+			expected: "my-node",
+		},
+		{
+			name:     "empty name and namespace",
+			item:     model.Item{},
+			expected: "",
+		},
+		{
+			name:     "name only",
+			item:     model.Item{Name: "some-resource"},
+			expected: "some-resource",
+		},
+		{
+			name:     "namespace with slash in name",
+			item:     model.Item{Name: "a/b", Namespace: "ns"},
+			expected: "ns/a/b",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, selectionKey(tt.item))
+		})
+	}
+}
+
+// --- statusPriority ---
+
+func TestStatusPriority(t *testing.T) {
+	tests := []struct {
+		status   string
+		priority int
+	}{
+		// Priority 0: healthy statuses.
+		{"Running", 0},
+		{"Active", 0},
+		{"Bound", 0},
+		{"Available", 0},
+		{"Ready", 0},
+		{"Healthy", 0},
+		{"Healthy/Synced", 0},
+		{"Deployed", 0},
+		// Priority 1: in-progress statuses.
+		{"Pending", 1},
+		{"ContainerCreating", 1},
+		{"Waiting", 1},
+		{"Init", 1},
+		{"Progressing", 1},
+		{"Progressing/Synced", 1},
+		{"Suspended", 1},
+		{"Pending-install", 1},
+		{"Pending-upgrade", 1},
+		{"Pending-rollback", 1},
+		{"Uninstalling", 1},
+		// Priority 2: failed statuses.
+		{"Failed", 2},
+		{"CrashLoopBackOff", 2},
+		{"Error", 2},
+		{"ImagePullBackOff", 2},
+		{"Degraded", 2},
+		{"Degraded/OutOfSync", 2},
+		// Priority 3: unknown statuses.
+		{"Unknown", 3},
+		{"SomeRandomStatus", 3},
+		{"", 3},
+	}
+
+	for _, tt := range tests {
+		name := tt.status
+		if name == "" {
+			name = "empty string"
+		}
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.priority, statusPriority(tt.status))
+		})
+	}
+}
+
+// --- fullErrorMessage ---
+
+func TestFullErrorMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name:     "simple error",
+			err:      fmt.Errorf("something failed"),
+			expected: "something failed",
+		},
+		{
+			name:     "error with newlines",
+			err:      fmt.Errorf("line1\nline2\nline3"),
+			expected: "line1 line2 line3",
+		},
+		{
+			name:     "error with carriage returns",
+			err:      fmt.Errorf("line1\r\nline2"),
+			expected: "line1 line2",
+		},
+		{
+			name:     "error with multiple spaces",
+			err:      fmt.Errorf("too   many    spaces"),
+			expected: "too many spaces",
+		},
+		{
+			name:     "error with mixed whitespace",
+			err:      fmt.Errorf("a\n\n  b\r\n  c"),
+			expected: "a b c",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, fullErrorMessage(tt.err))
+		})
+	}
+}
+
+// --- copyMapStringInt ---
+
+func TestCopyMapStringInt(t *testing.T) {
+	t.Run("nil map returns empty", func(t *testing.T) {
+		result := copyMapStringInt(nil)
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
+
+	t.Run("empty map returns empty copy", func(t *testing.T) {
+		original := make(map[string]int)
+		result := copyMapStringInt(original)
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
+
+	t.Run("copy preserves values", func(t *testing.T) {
+		original := map[string]int{"a": 1, "b": 2, "c": 3}
+		result := copyMapStringInt(original)
+		assert.Equal(t, original, result)
+	})
+
+	t.Run("modifying copy does not affect original", func(t *testing.T) {
+		original := map[string]int{"a": 1, "b": 2}
+		result := copyMapStringInt(original)
+		result["a"] = 99
+		result["new"] = 42
+		assert.Equal(t, 1, original["a"])
+		_, exists := original["new"]
+		assert.False(t, exists)
+	})
+}
+
+// --- copyMapStringBool ---
+
+func TestCopyMapStringBool(t *testing.T) {
+	t.Run("nil map returns empty", func(t *testing.T) {
+		result := copyMapStringBool(nil)
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
+
+	t.Run("empty map returns empty copy", func(t *testing.T) {
+		original := make(map[string]bool)
+		result := copyMapStringBool(original)
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
+
+	t.Run("copy preserves values", func(t *testing.T) {
+		original := map[string]bool{"x": true, "y": false, "z": true}
+		result := copyMapStringBool(original)
+		assert.Equal(t, original, result)
+	})
+
+	t.Run("modifying copy does not affect original", func(t *testing.T) {
+		original := map[string]bool{"x": true}
+		result := copyMapStringBool(original)
+		result["x"] = false
+		result["new"] = true
+		assert.True(t, original["x"])
+		_, exists := original["new"]
+		assert.False(t, exists)
+	})
+}
+
+// --- copyItemCache ---
+
+func TestCopyItemCache(t *testing.T) {
+	t.Run("nil map returns empty", func(t *testing.T) {
+		result := copyItemCache(nil)
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
+
+	t.Run("copy preserves entries", func(t *testing.T) {
+		original := map[string][]model.Item{
+			"key1": {{Name: "pod1"}, {Name: "pod2"}},
+			"key2": {{Name: "svc1"}},
+		}
+		result := copyItemCache(original)
+		assert.Len(t, result, 2)
+		assert.Len(t, result["key1"], 2)
+		assert.Equal(t, "pod1", result["key1"][0].Name)
+		assert.Equal(t, "pod2", result["key1"][1].Name)
+		assert.Len(t, result["key2"], 1)
+	})
+
+	t.Run("modifying copy does not affect original", func(t *testing.T) {
+		original := map[string][]model.Item{
+			"key1": {{Name: "pod1"}},
+		}
+		result := copyItemCache(original)
+		result["key1"][0].Name = "modified"
+		assert.Equal(t, "pod1", original["key1"][0].Name)
+	})
+
+	t.Run("adding to copy does not affect original", func(t *testing.T) {
+		original := map[string][]model.Item{
+			"key1": {{Name: "pod1"}},
+		}
+		result := copyItemCache(original)
+		result["key2"] = []model.Item{{Name: "new"}}
+		_, exists := original["key2"]
+		assert.False(t, exists)
 	})
 }
