@@ -733,7 +733,16 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cu
 		return bodyBlock + "\n" + footer
 	}
 
-	maxVisible := min(20, len(templates))
+	// Fixed-height list: title(1) + filter(1) + blank(1) = 3 header lines,
+	// footer(1) + padding(2) = 3 bottom lines. Available = interiorH - 3 - 1.
+	interiorH := overlayH - 2
+	maxVisible := interiorH - 4 // 3 header lines + 1 footer
+	if maxVisible < 1 {
+		maxVisible = 1
+	}
+	if maxVisible > len(templates) {
+		maxVisible = len(templates)
+	}
 	start := 0
 	if cursor >= maxVisible {
 		start = cursor - maxVisible + 1
@@ -743,16 +752,11 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cu
 		end = len(templates)
 	}
 
-	lastCategory := ""
 	for i := start; i < end; i++ {
 		tmpl := templates[i]
-		if tmpl.Category != lastCategory {
-			lastCategory = tmpl.Category
-			b.WriteString("\n")
-			b.WriteString(OverlayDimStyle.Render("  " + tmpl.Category))
-			b.WriteString("\n")
-		}
-		line := fmt.Sprintf("    %s", tmpl.Name)
+		cat := OverlayDimStyle.Render("[" + tmpl.Category + "] ")
+		name := tmpl.Name
+		line := fmt.Sprintf("  %s%s", cat, name)
 		if i == cursor {
 			b.WriteString(OverlaySelectedStyle.Render(line))
 		} else {
@@ -777,7 +781,6 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cu
 
 	// Pin footer to the bottom of the overlay interior.
 	body := b.String()
-	interiorH := overlayH - 2
 	footerStr := footer.String()
 	bodyBlock := lipgloss.NewStyle().Height(interiorH - 1).Render(body)
 	return bodyBlock + "\n" + footerStr
