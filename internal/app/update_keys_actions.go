@@ -343,6 +343,8 @@ func (m Model) handleExplorerActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool
 		}
 		m.templateItems = templates
 		m.templateCursor = 0
+		m.templateFilter.Clear()
+		m.templateSearchMode = false
 		m.overlay = overlayTemplates
 		return m, nil, true
 

@@ -58,7 +58,7 @@
 
 ### Resource Management
 
-- **Resource templates**: Create resources from built-in templates (`a`)
+- **Resource templates**: Create resources from 25+ built-in templates (`a`, `/` to search); includes a Custom Resource template as a starting point
 - **Port forwarding** from the action menu (with local port setting and browser open); manage active forwards via the Networking group
 - **Clipboard support**: Copy resource name (`y`), YAML (`Ctrl+Y`), paste/apply from clipboard (`Ctrl+P`)
 - **Bookmarks**: Save favorite resource paths for quick navigation

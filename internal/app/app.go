@@ -466,8 +466,10 @@ type Model struct {
 	bookmarkSearchMode bookmarkOverlayMode // current interaction mode for bookmark overlay
 
 	// Template overlay state.
-	templateItems  []model.ResourceTemplate
-	templateCursor int
+	templateItems      []model.ResourceTemplate
+	templateCursor     int
+	templateFilter     TextInput // filter text for template overlay
+	templateSearchMode bool      // true when typing in filter mode
 
 	// Show decoded secret values in preview.
 	showSecretValues bool

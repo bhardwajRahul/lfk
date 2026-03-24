@@ -71,6 +71,7 @@ Search supports abbreviated resource type names (e.g., `pvc`, `hpa`, `deploy`).
 | `i` | Edit labels/annotations | No |
 | `@` | Monitoring overview (active Prometheus alerts) | No |
 | `Q` | Namespace resource quota dashboard | No |
+| `a` | Create new resource from template (/ to search) | No |
 
 Port forwarding is available via the action menu (`x`) on Pod, Service, Deployment, StatefulSet, and DaemonSet resources. After creating a port forward, the view automatically navigates to the Port Forwards list and displays the resolved local port in the status bar. Active port forwards can be managed via the "Port Forwards" virtual resource in the Networking group.
 

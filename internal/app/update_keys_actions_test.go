@@ -304,9 +304,9 @@ func TestActionKeyATemplateNoMatchKeepsOriginalOrder(t *testing.T) {
 
 	ret, _, _ := m.handleExplorerActionKey(runeKey('a'))
 	result := ret.(Model)
-	// First template should be the default first one (Deployment) when no match.
+	// First template should be the default first one (Pod) when no match.
 	require.NotEmpty(t, result.templateItems)
-	assert.Equal(t, "Deployment", result.templateItems[0].Name,
+	assert.Equal(t, "Pod", result.templateItems[0].Name,
 		"when no template matches current kind, original order should be preserved")
 }
 

@@ -707,14 +707,30 @@ func RenderBookmarkOverlay(allBookmarks []model.Bookmark, filter string, cursor,
 }
 
 // RenderTemplateOverlay renders the template selection overlay content.
-func RenderTemplateOverlay(templates []model.ResourceTemplate, cursor int) string {
+// filter is the current search text, filterMode indicates active filter input,
+// and overlayH is the total overlay height for footer positioning.
+func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cursor int, filterMode bool, overlayH int) string {
 	var b strings.Builder
 	b.WriteString(OverlayTitleStyle.Render("Create from Template"))
 	b.WriteString("\n")
 
+	// Show filter input line.
+	if filterMode {
+		b.WriteString(OverlayFilterStyle.Render("filter> " + filter))
+		b.WriteString(OverlayDimStyle.Render("\u2588"))
+	} else if filter != "" {
+		b.WriteString(OverlayDimStyle.Render("filter: "))
+		b.WriteString(OverlayFilterStyle.Render(filter))
+	}
+	b.WriteString("\n")
+
 	if len(templates) == 0 {
 		b.WriteString(OverlayDimStyle.Render("No templates available"))
-		return b.String()
+		body := b.String()
+		footer := OverlayDimStyle.Render("esc: close")
+		interiorH := overlayH - 2
+		bodyBlock := lipgloss.NewStyle().Height(interiorH - 1).Render(body)
+		return bodyBlock + "\n" + footer
 	}
 
 	maxVisible := min(20, len(templates))
@@ -747,8 +763,22 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, cursor int) strin
 		}
 	}
 
-	b.WriteString("\n\n")
-	b.WriteString(OverlayDimStyle.Render("enter: select  esc: close"))
+	// Build footer hints.
+	var footer strings.Builder
+	if filterMode {
+		footer.WriteString(OverlayDimStyle.Render("type to filter  "))
+		footer.WriteString(OverlayDimStyle.Render("enter: apply  "))
+		footer.WriteString(OverlayDimStyle.Render("esc: clear"))
+	} else {
+		footer.WriteString(OverlayDimStyle.Render("enter: select  "))
+		footer.WriteString(OverlayDimStyle.Render("/: filter  "))
+		footer.WriteString(OverlayDimStyle.Render("esc: close"))
+	}
 
-	return b.String()
+	// Pin footer to the bottom of the overlay interior.
+	body := b.String()
+	interiorH := overlayH - 2
+	footerStr := footer.String()
+	bodyBlock := lipgloss.NewStyle().Height(interiorH - 1).Render(body)
+	return bodyBlock + "\n" + footerStr
 }

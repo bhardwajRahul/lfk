@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/janosmiko/lfk/internal/model"
 	"github.com/janosmiko/lfk/internal/ui"
 )
 
@@ -195,14 +196,27 @@ func (m Model) handleNamespaceFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleTemplateOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.templateSearchMode {
+		return m.handleTemplateFilterMode(msg)
+	}
+
+	filtered := m.filteredTemplates()
+
 	switch msg.String() {
 	case "esc", "q":
+		// If filter is active, first esc clears filter; second closes overlay.
+		if m.templateFilter.Value != "" {
+			m.templateFilter.Clear()
+			m.templateCursor = 0
+			return m, nil
+		}
 		m.overlay = overlayNone
 		return m, nil
 	case "enter":
-		if len(m.templateItems) > 0 && m.templateCursor >= 0 && m.templateCursor < len(m.templateItems) {
-			tmpl := m.templateItems[m.templateCursor]
+		if len(filtered) > 0 && m.templateCursor >= 0 && m.templateCursor < len(filtered) {
+			tmpl := filtered[m.templateCursor]
 			m.overlay = overlayNone
+			m.templateFilter.Clear()
 			return m, m.applyTemplate(tmpl)
 		}
 		return m, nil
@@ -212,14 +226,81 @@ func (m Model) handleTemplateOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "down", "j", "ctrl+n":
-		if m.templateCursor < len(m.templateItems)-1 {
+		if m.templateCursor < len(filtered)-1 {
 			m.templateCursor++
 		}
+		return m, nil
+	case "/":
+		m.templateSearchMode = true
+		m.templateFilter.Clear()
 		return m, nil
 	case "ctrl+c":
 		return m.closeTabOrQuit()
 	}
 	return m, nil
+}
+
+// handleTemplateFilterMode handles keys when the template overlay is in filter input mode.
+func (m Model) handleTemplateFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.templateSearchMode = false
+		m.templateFilter.Clear()
+		m.templateCursor = 0
+		return m, nil
+	case "enter":
+		m.templateSearchMode = false
+		return m, nil
+	case "backspace":
+		if m.templateFilter.Value != "" {
+			m.templateFilter.Backspace()
+			m.templateCursor = 0
+		}
+		return m, nil
+	case "ctrl+w":
+		m.templateFilter.DeleteWord()
+		m.templateCursor = 0
+		return m, nil
+	case "ctrl+a":
+		m.templateFilter.Home()
+		return m, nil
+	case "ctrl+e":
+		m.templateFilter.End()
+		return m, nil
+	case "left":
+		m.templateFilter.Left()
+		return m, nil
+	case "right":
+		m.templateFilter.Right()
+		return m, nil
+	case "ctrl+c":
+		return m.closeTabOrQuit()
+	default:
+		key := msg.String()
+		if len(key) == 1 && key[0] >= 32 && key[0] < 127 {
+			m.templateFilter.Insert(key)
+			m.templateCursor = 0
+		}
+		return m, nil
+	}
+}
+
+// filteredTemplates returns templates matching the current template filter.
+// Matches against Name, Description, and Category (case-insensitive).
+func (m *Model) filteredTemplates() []model.ResourceTemplate {
+	if m.templateFilter.Value == "" {
+		return m.templateItems
+	}
+	filter := strings.ToLower(m.templateFilter.Value)
+	var filtered []model.ResourceTemplate
+	for _, tmpl := range m.templateItems {
+		if strings.Contains(strings.ToLower(tmpl.Name), filter) ||
+			strings.Contains(strings.ToLower(tmpl.Description), filter) ||
+			strings.Contains(strings.ToLower(tmpl.Category), filter) {
+			filtered = append(filtered, tmpl)
+		}
+	}
+	return filtered
 }
 
 func (m Model) handleRollbackOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

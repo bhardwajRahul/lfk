@@ -416,7 +416,7 @@ func TestRenderErrorLogOverlay(t *testing.T) {
 
 func TestRenderTemplateOverlay(t *testing.T) {
 	t.Run("empty templates", func(t *testing.T) {
-		result := RenderTemplateOverlay(nil, 0)
+		result := RenderTemplateOverlay(nil, "", 0, false, 25)
 		assert.Contains(t, result, "No templates available")
 	})
 
@@ -425,7 +425,7 @@ func TestRenderTemplateOverlay(t *testing.T) {
 			{Name: "Deployment", Description: "Basic deployment", Category: "Workloads"},
 			{Name: "Service", Description: "ClusterIP service", Category: "Networking"},
 		}
-		result := RenderTemplateOverlay(templates, 0)
+		result := RenderTemplateOverlay(templates, "", 0, false, 25)
 		assert.Contains(t, result, "Create from Template")
 		assert.Contains(t, result, "Deployment")
 		assert.Contains(t, result, "Service")

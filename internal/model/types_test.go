@@ -963,9 +963,17 @@ func TestBuiltinTemplates(t *testing.T) {
 }
 
 func TestBuiltinTemplatesContainNamespace(t *testing.T) {
+	// Cluster-scoped resources do not have a namespace field.
+	clusterScoped := map[string]bool{
+		"Namespace":          true,
+		"PersistentVolume":   true,
+		"StorageClass":       true,
+		"ClusterRole":        true,
+		"ClusterRoleBinding": true,
+	}
 	for _, tmpl := range BuiltinTemplates() {
-		if tmpl.Name == "Namespace" {
-			continue // Namespace template doesn't have NAMESPACE placeholder.
+		if clusterScoped[tmpl.Name] {
+			continue
 		}
 		require.Contains(t, tmpl.YAML, "NAMESPACE",
 			"template %s should contain NAMESPACE placeholder", tmpl.Name)

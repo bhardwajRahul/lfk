@@ -225,9 +225,10 @@ func (m Model) renderOverlay(background string) string {
 		overlayH = min(25, m.height-6)
 		content = ui.RenderBookmarkOverlay(m.bookmarks, m.bookmarkFilter.Value, m.overlayCursor, int(m.bookmarkSearchMode), overlayH)
 	case overlayTemplates:
-		content = ui.RenderTemplateOverlay(m.templateItems, m.templateCursor)
+		filtered := m.filteredTemplates()
 		overlayW = min(60, m.width-10)
 		overlayH = min(25, m.height-6)
+		content = ui.RenderTemplateOverlay(filtered, m.templateFilter.Value, m.templateCursor, m.templateSearchMode, overlayH)
 	case overlayColorscheme:
 		content = ui.RenderColorschemeOverlay(m.schemeEntries, m.schemeFilter.Value, m.schemeCursor, m.schemeFilterMode)
 		overlayW = min(50, m.width-10)
