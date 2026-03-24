@@ -198,6 +198,34 @@ func TestCollectExtraColumns(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
+	t.Run("extra columns do not absorb remaining width", func(t *testing.T) {
+		// When extra columns fit within their natural width, remaining space
+		// should NOT be added to the last column (it goes to NAME instead).
+		items := []model.Item{
+			{Name: "pod1", Kind: "Pod", Columns: []model.KeyValue{
+				{Key: "CPU", Value: "10m"},
+				{Key: "MEM", Value: "64Mi"},
+			}},
+			{Name: "pod2", Kind: "Pod", Columns: []model.KeyValue{
+				{Key: "CPU", Value: "20m"},
+				{Key: "MEM", Value: "128Mi"},
+			}},
+		}
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		defer func() { ActiveFullscreenMode = origFS }()
+
+		result := collectExtraColumns(items, 120, 30, "Pod")
+		if len(result) >= 2 {
+			lastCol := result[len(result)-1]
+			// The last column (MEM) should be sized to fit its content + header,
+			// not inflated with all remaining width. "MEM" = 3 chars, "128Mi" = 5 chars,
+			// so width should be around 6 (5+1 spacing), not 50+.
+			assert.LessOrEqual(t, lastCol.width, 20,
+				"last extra column should not absorb all remaining width")
+		}
+	})
+
 	t.Run("Used By column excluded from PVC table in both modes", func(t *testing.T) {
 		items := []model.Item{
 			{Name: "pvc1", Kind: "PersistentVolumeClaim", Columns: []model.KeyValue{

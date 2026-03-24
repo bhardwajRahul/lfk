@@ -279,10 +279,9 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 		remainingW -= colW
 	}
 
-	// Give the last column any remaining width so verbose fields (e.g. Event Message) aren't truncated unnecessarily.
-	if len(result) > 0 && remainingW > 0 {
-		result[len(result)-1].width += remainingW
-	}
+	// Remaining width is not assigned to extra columns — it flows back to the
+	// NAME column via the caller's width calculation, keeping resource names
+	// readable instead of padding the last extra column.
 
 	return result
 }
