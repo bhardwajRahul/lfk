@@ -199,6 +199,8 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 				"Labels": true, "Finalizers": true, "Annotations": true,
 				// PVC: "Used By" is shown in detail pane only.
 				"Used By": true,
+				// Deletion timestamp: shown in detail pane only.
+				"Deletion": true,
 			}
 		} else {
 			blocked = map[string]bool{
@@ -217,6 +219,8 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 				"Labels": true, "Finalizers": true, "Annotations": true,
 				// PVC: "Used By" is shown in detail pane only.
 				"Used By": true,
+				// Deletion timestamp: shown in detail pane only.
+				"Deletion": true,
 			}
 		}
 		for k, v := range rawMetricsCols {

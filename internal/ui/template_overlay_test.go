@@ -48,3 +48,15 @@ func TestRenderTemplateOverlayNoMatchingTemplates(t *testing.T) {
 	result := RenderTemplateOverlay(templates[:0], "xyz", 0, false, 25)
 	assert.Contains(t, result, "No templates available")
 }
+
+func TestRenderTemplateOverlayShowsNameOnly(t *testing.T) {
+	templates := []model.ResourceTemplate{
+		{Name: "Deployment", Description: "Create a Deployment", Category: "Workloads"},
+		{Name: "Service", Description: "Create a Service", Category: "Networking"},
+	}
+	result := RenderTemplateOverlay(templates, "", 0, false, 25)
+	assert.Contains(t, result, "Deployment")
+	assert.Contains(t, result, "Service")
+	assert.NotContains(t, result, "Create a Deployment")
+	assert.NotContains(t, result, "Create a Service")
+}

@@ -230,6 +230,43 @@ func (m Model) handleTemplateOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.templateCursor++
 		}
 		return m, nil
+	case "ctrl+d":
+		m.templateCursor += 10
+		if m.templateCursor >= len(filtered) {
+			m.templateCursor = len(filtered) - 1
+		}
+		return m, nil
+	case "ctrl+u":
+		m.templateCursor -= 10
+		if m.templateCursor < 0 {
+			m.templateCursor = 0
+		}
+		return m, nil
+	case "ctrl+f":
+		m.templateCursor += 20
+		if m.templateCursor >= len(filtered) {
+			m.templateCursor = len(filtered) - 1
+		}
+		return m, nil
+	case "ctrl+b":
+		m.templateCursor -= 20
+		if m.templateCursor < 0 {
+			m.templateCursor = 0
+		}
+		return m, nil
+	case "g":
+		if m.pendingG {
+			m.pendingG = false
+			m.templateCursor = 0
+			return m, nil
+		}
+		m.pendingG = true
+		return m, nil
+	case "G":
+		if len(filtered) > 0 {
+			m.templateCursor = len(filtered) - 1
+		}
+		return m, nil
 	case "/":
 		m.templateSearchMode = true
 		m.templateFilter.Clear()

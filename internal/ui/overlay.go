@@ -752,7 +752,7 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cu
 			b.WriteString(OverlayDimStyle.Render("  " + tmpl.Category))
 			b.WriteString("\n")
 		}
-		line := fmt.Sprintf("    %s - %s", tmpl.Name, tmpl.Description)
+		line := fmt.Sprintf("    %s", tmpl.Name)
 		if i == cursor {
 			b.WriteString(OverlaySelectedStyle.Render(line))
 		} else {

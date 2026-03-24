@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -287,6 +288,172 @@ func TestTemplateOverlayEnterEmptyListNoOp(t *testing.T) {
 	result := ret.(Model)
 	assert.Equal(t, overlayTemplates, result.overlay)
 	assert.Nil(t, cmd)
+}
+
+func TestTemplateOverlayCtrlDPageDown(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 25)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 0,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlD})
+	result := ret.(Model)
+	assert.Equal(t, 10, result.templateCursor)
+}
+
+func TestTemplateOverlayCtrlDClampsToEnd(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 5)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 0,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlD})
+	result := ret.(Model)
+	assert.Equal(t, 4, result.templateCursor)
+}
+
+func TestTemplateOverlayCtrlUPageUp(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 25)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 15,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlU})
+	result := ret.(Model)
+	assert.Equal(t, 5, result.templateCursor)
+}
+
+func TestTemplateOverlayCtrlUClampsToZero(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 25)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 3,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlU})
+	result := ret.(Model)
+	assert.Equal(t, 0, result.templateCursor)
+}
+
+func TestTemplateOverlayCtrlFFullPage(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 30)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 0,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlF})
+	result := ret.(Model)
+	assert.Equal(t, 20, result.templateCursor)
+}
+
+func TestTemplateOverlayCtrlBFullPageUp(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 30)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 25,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlB})
+	result := ret.(Model)
+	assert.Equal(t, 5, result.templateCursor)
+}
+
+func TestTemplateOverlayGGJumpsToTop(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 10)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 8,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	// First g sets pendingG.
+	ret, _ := m.handleTemplateOverlayKey(runeKey('g'))
+	result := ret.(Model)
+	assert.True(t, result.pendingG)
+	assert.Equal(t, 8, result.templateCursor) // cursor unchanged yet
+
+	// Second g jumps to top.
+	ret2, _ := result.handleTemplateOverlayKey(runeKey('g'))
+	result2 := ret2.(Model)
+	assert.False(t, result2.pendingG)
+	assert.Equal(t, 0, result2.templateCursor)
+}
+
+func TestTemplateOverlayShiftGJumpsToBottom(t *testing.T) {
+	templates := make([]model.ResourceTemplate, 10)
+	for i := range templates {
+		templates[i] = model.ResourceTemplate{Name: fmt.Sprintf("tmpl%d", i)}
+	}
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  templates,
+		templateCursor: 0,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(runeKey('G'))
+	result := ret.(Model)
+	assert.Equal(t, 9, result.templateCursor)
+}
+
+func TestTemplateOverlayShiftGEmptyListNoOp(t *testing.T) {
+	m := Model{
+		overlay:        overlayTemplates,
+		templateItems:  []model.ResourceTemplate{},
+		templateCursor: 0,
+		tabs:           []TabState{{}},
+		width:          80,
+		height:         40,
+	}
+	ret, _ := m.handleTemplateOverlayKey(runeKey('G'))
+	result := ret.(Model)
+	assert.Equal(t, 0, result.templateCursor)
 }
 
 // --- handleRollbackOverlayKey ---

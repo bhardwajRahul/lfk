@@ -226,6 +226,30 @@ func TestCollectExtraColumns(t *testing.T) {
 		}
 	})
 
+	t.Run("Deletion column excluded from table in both modes", func(t *testing.T) {
+		items := []model.Item{
+			{Name: "pod1", Kind: "Pod", Columns: []model.KeyValue{
+				{Key: "Node", Value: "worker-1"},
+				{Key: "Deletion", Value: "2026-01-15T10:00:00Z"},
+			}},
+			{Name: "pod2", Kind: "Pod", Columns: []model.KeyValue{
+				{Key: "Node", Value: "worker-2"},
+				{Key: "Deletion", Value: "2026-01-15T10:05:00Z"},
+			}},
+		}
+		for _, fs := range []bool{false, true} {
+			origFS := ActiveFullscreenMode
+			ActiveFullscreenMode = fs
+			result := collectExtraColumns(items, 120, 30, "Pod")
+			ActiveFullscreenMode = origFS
+
+			for _, col := range result {
+				assert.NotEqual(t, "Deletion", col.key,
+					"Deletion should be blocked from table (fullscreen=%v)", fs)
+			}
+		}
+	})
+
 	t.Run("Used By column excluded from PVC table in both modes", func(t *testing.T) {
 		items := []model.Item{
 			{Name: "pvc1", Kind: "PersistentVolumeClaim", Columns: []model.KeyValue{
