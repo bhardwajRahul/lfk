@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/janosmiko/lfk/internal/model"
 )
@@ -271,6 +272,42 @@ func TestActionKeyAOpensTemplates(t *testing.T) {
 	assert.True(t, handled)
 	result := ret.(Model)
 	assert.Equal(t, overlayTemplates, result.overlay)
+}
+
+func TestActionKeyATemplateMatchesCurrentKind(t *testing.T) {
+	m := baseExplorerModel()
+	m.nav.ResourceType = model.ResourceTypeEntry{
+		Kind:        "ConfigMap",
+		DisplayName: "ConfigMaps",
+		Resource:    "configmaps",
+		APIVersion:  "v1",
+	}
+	m.nav.Level = model.LevelResources
+
+	ret, _, handled := m.handleExplorerActionKey(runeKey('a'))
+	assert.True(t, handled)
+	result := ret.(Model)
+	assert.Equal(t, overlayTemplates, result.overlay)
+	require.NotEmpty(t, result.templateItems)
+	assert.Equal(t, "ConfigMap", result.templateItems[0].Name,
+		"template matching current resource kind should be first in the list")
+}
+
+func TestActionKeyATemplateNoMatchKeepsOriginalOrder(t *testing.T) {
+	m := baseExplorerModel()
+	m.nav.ResourceType = model.ResourceTypeEntry{
+		Kind:        "CustomWidget",
+		DisplayName: "CustomWidgets",
+		Resource:    "customwidgets",
+	}
+	m.nav.Level = model.LevelResources
+
+	ret, _, _ := m.handleExplorerActionKey(runeKey('a'))
+	result := ret.(Model)
+	// First template should be the default first one (Deployment) when no match.
+	require.NotEmpty(t, result.templateItems)
+	assert.Equal(t, "Deployment", result.templateItems[0].Name,
+		"when no template matches current kind, original order should be preserved")
 }
 
 // --- handleExplorerActionKey: . opens filter presets ---

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -330,7 +331,17 @@ func (m Model) handleExplorerActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool
 
 	case "a":
 		// Open template creation overlay.
-		m.templateItems = model.BuiltinTemplates()
+		// Sort templates so the one matching the current resource kind appears first.
+		templates := model.BuiltinTemplates()
+		currentKind := m.nav.ResourceType.Kind
+		if currentKind != "" {
+			sort.SliceStable(templates, func(i, j int) bool {
+				iMatch := strings.EqualFold(templates[i].Name, currentKind)
+				jMatch := strings.EqualFold(templates[j].Name, currentKind)
+				return iMatch && !jMatch
+			})
+		}
+		m.templateItems = templates
 		m.templateCursor = 0
 		m.overlay = overlayTemplates
 		return m, nil, true
