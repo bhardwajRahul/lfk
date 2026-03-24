@@ -222,6 +222,7 @@ func TestRenderDetailsOnlyWithColumns(t *testing.T) {
 	}
 	result := m.renderDetailsOnly(80, 20)
 	assert.Contains(t, result, "DETAILS")
+	assert.Contains(t, result, "pod-1", "header should include resource name")
 }
 
 func TestRenderDetailsOnlyWithYAML(t *testing.T) {
@@ -235,6 +236,7 @@ func TestRenderDetailsOnlyWithYAML(t *testing.T) {
 	}
 	result := m.renderDetailsOnly(80, 20)
 	assert.Contains(t, result, "DETAILS")
+	assert.Contains(t, result, "cm-1", "header should include resource name")
 	assert.Contains(t, result, "apiVersion")
 }
 
@@ -247,7 +249,20 @@ func TestRenderDetailsOnlyNoData(t *testing.T) {
 		middleItems: []model.Item{{Name: "cm-1"}},
 	}
 	result := m.renderDetailsOnly(80, 20)
+	assert.Contains(t, result, "cm-1", "header should include resource name even with no data")
 	assert.Contains(t, result, "No details available")
+}
+
+func TestRenderDetailsOnlyNoSelection(t *testing.T) {
+	m := Model{
+		nav: model.NavigationState{
+			Level:        model.LevelResources,
+			ResourceType: model.ResourceTypeEntry{Kind: "Pod"},
+		},
+		middleItems: []model.Item{},
+	}
+	result := m.renderDetailsOnly(80, 20)
+	assert.Contains(t, result, "DETAILS", "header should still show DETAILS when nothing selected")
 }
 
 // --- renderRightColumnContent: owned level ---

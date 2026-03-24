@@ -447,6 +447,7 @@ func TestRenderRightColumnSplitPreview(t *testing.T) {
 	}
 	result := m.renderRightColumn(80, 30)
 	assert.NotEmpty(t, result)
+	assert.Contains(t, result, "deploy-1", "split preview DETAILS header should include resource name")
 }
 
 func TestRenderRightColumnSplitPreviewWithEvents(t *testing.T) {

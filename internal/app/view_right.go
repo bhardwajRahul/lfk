@@ -186,7 +186,11 @@ func (m Model) hasSplitPreview() bool {
 // renderDetailsOnly renders the details portion (without children table) for the right column.
 func (m Model) renderDetailsOnly(width, height int) string {
 	sel := m.selectedMiddleItem()
-	detailsHeader := ui.DimStyle.Bold(true).Render("DETAILS")
+	headerText := "DETAILS"
+	if sel != nil && sel.Name != "" {
+		headerText = "DETAILS: " + sel.Name
+	}
+	detailsHeader := ui.DimStyle.Bold(true).Render(headerText)
 	var bottomContent string
 	if sel != nil && len(sel.Columns) > 0 {
 		bottomContent = ui.RenderResourceSummary(sel, "", width, height)
@@ -335,7 +339,11 @@ func (m Model) renderSplitPreview(width, height int) string {
 
 	// Render details summary in bottom portion.
 	sel := m.selectedMiddleItem()
-	detailsHeader := ui.DimStyle.Bold(true).Render("DETAILS")
+	headerText := "DETAILS"
+	if sel != nil && sel.Name != "" {
+		headerText = "DETAILS: " + sel.Name
+	}
+	detailsHeader := ui.DimStyle.Bold(true).Render(headerText)
 	var bottomContent string
 	if sel != nil && len(sel.Columns) > 0 {
 		bottomContent = ui.RenderResourceSummary(sel, "", width, detailsHeight)

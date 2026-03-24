@@ -85,7 +85,7 @@ func TestFormatTableRow(t *testing.T) {
 			wantContains: []string{"pod-1", "prod", "Pending"},
 		},
 		{
-			name:         "name truncated to nameW",
+			name:         "name truncated to nameW with gap",
 			itemName:     "very-long-pod-name-that-exceeds-width",
 			ns:           "",
 			nameW:        10,
@@ -97,7 +97,7 @@ func TestFormatTableRow(t *testing.T) {
 			hasReady:     false,
 			hasRestarts:  false,
 			hasStatus:    false,
-			wantContains: []string{"very-long"},
+			wantContains: []string{"very-lon~"},
 		},
 	}
 	for _, tt := range tests {
@@ -202,6 +202,45 @@ func TestPctStyle(t *testing.T) {
 	t.Run("low percent is not bold", func(t *testing.T) {
 		s := pctStyle("30%")
 		assert.False(t, s.GetBold(), "30%% should not be bold")
+	})
+}
+
+// --- Truncated column spacing ---
+
+func TestTruncatedColumnSpacing(t *testing.T) {
+	t.Run("truncated name has space before next column", func(t *testing.T) {
+		// Name that exceeds nameW, followed by a status column.
+		// After truncation, there must be at least 1 space before the status text.
+		result := formatTableRow(
+			"very-long-pod-name-that-definitely-exceeds", "", "", "", "Running",
+			15, 0, 0, 0, 10,
+			false, false, false, true,
+		)
+		// The name is truncated to 15 chars. The status "Running" should NOT immediately
+		// follow the truncated name — there must be at least 1 space gap.
+		assert.Contains(t, result, "~ ", "truncated name should have space before next column")
+		assert.Contains(t, result, "Running")
+	})
+
+	t.Run("truncated namespace has space before name", func(t *testing.T) {
+		result := formatTableRow(
+			"pod-1", "extremely-long-namespace-name-here", "", "", "",
+			15, 12, 0, 0, 0,
+			true, false, false, false,
+		)
+		// Namespace truncated to 12 chars, must have space before name.
+		assert.Contains(t, result, "~ ", "truncated namespace should have space before name column")
+		assert.Contains(t, result, "pod-1")
+	})
+
+	t.Run("non-truncated columns still padded correctly", func(t *testing.T) {
+		result := formatTableRow(
+			"short", "ns", "", "", "OK",
+			15, 10, 0, 0, 10,
+			true, false, false, true,
+		)
+		// Short values should be padded as before.
+		assert.Equal(t, 35, len(result), "total width should be nsW+nameW+statusW")
 	})
 }
 

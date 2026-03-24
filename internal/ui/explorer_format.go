@@ -12,15 +12,17 @@ import (
 )
 
 // formatTableRow builds a plain text table row.
+// Column widths include padding space; truncation reserves 1 char for the gap
+// so truncated text never touches the next column.
 func formatTableRow(name, ns, ready, restarts, status string,
 	nameW, nsW, readyW, restartsW, statusW int,
 	hasNs, hasReady, hasRestarts, hasStatus bool,
 ) string {
 	var parts []string
 	if hasNs {
-		parts = append(parts, padRight(Truncate(ns, nsW), nsW))
+		parts = append(parts, padRight(Truncate(ns, nsW-1), nsW))
 	}
-	parts = append(parts, padRight(Truncate(name, nameW), nameW))
+	parts = append(parts, padRight(Truncate(name, nameW-1), nameW))
 	if hasReady {
 		parts = append(parts, padRight(ready, readyW))
 	}
@@ -28,7 +30,7 @@ func formatTableRow(name, ns, ready, restarts, status string,
 		parts = append(parts, padRight(restarts, restartsW))
 	}
 	if hasStatus {
-		parts = append(parts, padRight(Truncate(status, statusW), statusW))
+		parts = append(parts, padRight(Truncate(status, statusW-1), statusW))
 	}
 	// Age is appended later in formatTableRowWithExtra, after extra columns.
 	return strings.Join(parts, "")
@@ -48,7 +50,7 @@ func formatTableRowStyled(item model.Item, nameW, nsW, readyW, restartsW, status
 		if ns == "" {
 			ns = "-"
 		}
-		parts = append(parts, DimStyle.Render(padRight(Truncate(ns, nsW), nsW)))
+		parts = append(parts, DimStyle.Render(padRight(Truncate(ns, nsW-1), nsW)))
 	}
 
 	// Name with optional icon styling.
@@ -65,7 +67,7 @@ func formatTableRowStyled(item model.Item, nameW, nsW, readyW, restartsW, status
 		}
 		icon := iconSt.Render(resolvedIcon) + " "
 		iconVisualW := lipgloss.Width(icon)
-		nameRemaining := nameW - iconVisualW
+		nameRemaining := nameW - iconVisualW - 1 // -1 reserves gap before next column
 		if nameRemaining < 1 {
 			nameRemaining = 1
 		}
@@ -83,7 +85,7 @@ func formatTableRowStyled(item model.Item, nameW, nsW, readyW, restartsW, status
 		}
 		parts = append(parts, icon+namePart+strings.Repeat(" ", pad))
 	} else {
-		displayName := Truncate(item.Name, nameW)
+		displayName := Truncate(item.Name, nameW-1)
 		if ActiveHighlightQuery != "" {
 			displayName = highlightName(displayName, ActiveHighlightQuery)
 		}
@@ -112,7 +114,7 @@ func formatTableRowStyled(item model.Item, nameW, nsW, readyW, restartsW, status
 		}
 	}
 	if hasStatus {
-		parts = append(parts, StatusStyle(item.Status).Render(padRight(Truncate(item.Status, statusW), statusW)))
+		parts = append(parts, StatusStyle(item.Status).Render(padRight(Truncate(item.Status, statusW-1), statusW)))
 	}
 	// Age is appended later in formatTableRowStyledWithExtra, after extra columns.
 
@@ -339,12 +341,12 @@ func formatTableRowWithExtra(name, ns, ready, restarts, status, age string,
 		case strings.HasPrefix(val, "↑ ") || strings.HasPrefix(val, "↓ "):
 			arrow := string([]rune(val)[0])
 			baseVal := val[len("↑ "):]
-			row += arrow + padRight(truncFn(baseVal, ec.width-1), ec.width-1)
+			row += arrow + padRight(truncFn(baseVal, ec.width-2), ec.width-1)
 		case ec.hasArrow:
 			// Placeholder space to align with rows that have arrows.
-			row += " " + padRight(truncFn(val, ec.width-1), ec.width-1)
+			row += " " + padRight(truncFn(val, ec.width-2), ec.width-1)
 		default:
-			row += padRight(truncFn(val, ec.width), ec.width)
+			row += padRight(truncFn(val, ec.width-1), ec.width)
 		}
 	}
 
@@ -381,15 +383,15 @@ func formatTableRowStyledWithExtra(item model.Item, nameW, nsW, readyW, restarts
 		switch {
 		case strings.HasPrefix(val, "↑ "):
 			baseVal := val[len("↑ "):]
-			base += ErrorStyle.Render("↑") + style.Render(padRight(truncFn(baseVal, ec.width-1), ec.width-1))
+			base += ErrorStyle.Render("↑") + style.Render(padRight(truncFn(baseVal, ec.width-2), ec.width-1))
 		case strings.HasPrefix(val, "↓ "):
 			baseVal := val[len("↓ "):]
-			base += StatusRunning.Render("↓") + style.Render(padRight(truncFn(baseVal, ec.width-1), ec.width-1))
+			base += StatusRunning.Render("↓") + style.Render(padRight(truncFn(baseVal, ec.width-2), ec.width-1))
 		case ec.hasArrow:
 			// Placeholder space to align with rows that have arrows.
-			base += " " + style.Render(padRight(truncFn(val, ec.width-1), ec.width-1))
+			base += " " + style.Render(padRight(truncFn(val, ec.width-2), ec.width-1))
 		default:
-			base += style.Render(padRight(truncFn(val, ec.width), ec.width))
+			base += style.Render(padRight(truncFn(val, ec.width-1), ec.width))
 		}
 	}
 
