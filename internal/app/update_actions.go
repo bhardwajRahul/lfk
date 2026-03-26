@@ -839,8 +839,8 @@ func (m Model) refreshCurrentLevel() tea.Cmd {
 func (m Model) closeTabOrQuit() (tea.Model, tea.Cmd) {
 	if len(m.tabs) > 1 {
 		m.tabs = append(m.tabs[:m.activeTab], m.tabs[m.activeTab+1:]...)
-		if m.activeTab >= len(m.tabs) {
-			m.activeTab = len(m.tabs) - 1
+		if m.activeTab > 0 {
+			m.activeTab--
 		}
 		// Load the surviving tab BEFORE saving session, so saveCurrentTab
 		// writes the surviving tab's data (not the closed tab's stale state).

@@ -76,18 +76,17 @@ func TestCloseMiddleTabPreservesCorrectData(t *testing.T) {
 	result := ret.(Model)
 
 	assert.Len(t, result.tabs, 2, "should have 2 tabs after close")
-	assert.Equal(t, 1, result.activeTab, "activeTab should remain at index 1")
+	assert.Equal(t, 0, result.activeTab, "activeTab should move to previous tab (index 0)")
 
-	// The surviving tab at index 1 is what was originally tab 2 (dev/Services).
-	// After loadTab, the model fields should reflect dev/Services, not staging/Deployments.
-	assert.Equal(t, "dev", result.nav.Context, "model context should be dev (was tab 2)")
-	assert.Equal(t, "Service", result.nav.ResourceType.Kind, "resource kind should be Service")
-	assert.Equal(t, "dev-ns", result.namespace, "namespace should be dev-ns")
-	assert.Equal(t, "svc-1", result.middleItems[0].Name, "middleItems should be from dev tab")
+	// After closing tab 1 (staging), model should load the previous tab (prod/Pods).
+	assert.Equal(t, "prod", result.nav.Context, "model context should be prod (previous tab)")
+	assert.Equal(t, "Pod", result.nav.ResourceType.Kind, "resource kind should be Pod")
+	assert.Equal(t, "prod-ns", result.namespace, "namespace should be prod-ns")
+	assert.Equal(t, "pod-1", result.middleItems[0].Name, "middleItems should be from prod tab")
 
-	// Tab 0 (prod) should be unchanged.
-	assert.Equal(t, "prod", result.tabs[0].nav.Context)
-	assert.Equal(t, "prod-ns", result.tabs[0].namespace)
+	// Tab 1 (originally tab 2 = dev) should be unchanged.
+	assert.Equal(t, "dev", result.tabs[1].nav.Context)
+	assert.Equal(t, "dev-ns", result.tabs[1].namespace)
 }
 
 // --- closeTabOrQuit: close first tab preserves correct data ---
@@ -260,16 +259,16 @@ func TestTabDataIsolationAfterClose(t *testing.T) {
 	assert.NotEqual(t, "staging", result.nav.Context, "closed tab context must not persist")
 	assert.NotEqual(t, "staging-ns", result.namespace, "closed tab namespace must not persist")
 
-	// Model should reflect the surviving tab that was loaded (dev/Services at new index 1).
-	assert.Equal(t, "dev", result.nav.Context, "model context should be dev")
-	assert.Equal(t, "dev-ns", result.namespace, "model namespace should be dev-ns")
-	assert.Equal(t, "svc-1", result.middleItems[0].Name, "model middleItems should reflect loaded tab")
-	assert.Equal(t, "dev-left", result.leftItems[0].Name, "model leftItems should reflect loaded tab")
+	// Model should reflect the previous tab (prod/Pods at index 0).
+	assert.Equal(t, "prod", result.nav.Context, "model context should be prod (previous tab)")
+	assert.Equal(t, "prod-ns", result.namespace, "model namespace should be prod-ns")
+	assert.Equal(t, "pod-1", result.middleItems[0].Name, "model middleItems should reflect loaded tab")
+	assert.Equal(t, "prod-left", result.leftItems[0].Name, "model leftItems should reflect loaded tab")
 
-	// Verify the remaining tab at index 0 still has prod data.
-	assert.Equal(t, "prod", result.tabs[0].nav.Context)
-	assert.Equal(t, "prod-ns", result.tabs[0].namespace)
-	assert.Equal(t, "pod-1", result.tabs[0].middleItems[0].Name)
+	// Verify the remaining tab at index 1 still has dev data.
+	assert.Equal(t, "dev", result.tabs[1].nav.Context)
+	assert.Equal(t, "dev-ns", result.tabs[1].namespace)
+	assert.Equal(t, "svc-1", result.tabs[1].middleItems[0].Name)
 }
 
 // --- close two tabs sequentially ---
@@ -277,21 +276,22 @@ func TestTabDataIsolationAfterClose(t *testing.T) {
 func TestCloseTabsSequentially(t *testing.T) {
 	m := threeTabModel(1) // active = staging
 
-	// Close tab 1 (staging). Now tabs = [prod, dev], activeTab = 1 (dev).
+	// Close tab 1 (staging). Now tabs = [prod, dev], activeTab = 0 (prod, previous tab).
 	ret, _ := m.closeTabOrQuit()
 	m = ret.(Model)
 
 	assert.Len(t, m.tabs, 2)
-	assert.Equal(t, "dev", m.nav.Context)
+	assert.Equal(t, 0, m.activeTab, "should move to previous tab")
+	assert.Equal(t, "prod", m.nav.Context, "should load prod (previous tab)")
 
-	// Close tab 1 (dev). Now tabs = [prod], activeTab = 0 (prod).
+	// Close tab 0 (prod). Now tabs = [dev], activeTab = 0 (dev, no previous).
 	ret, _ = m.closeTabOrQuit()
 	m = ret.(Model)
 
 	assert.Len(t, m.tabs, 1)
 	assert.Equal(t, 0, m.activeTab)
-	assert.Equal(t, "prod", m.nav.Context)
-	assert.Equal(t, "prod-ns", m.namespace)
+	assert.Equal(t, "dev", m.nav.Context)
+	assert.Equal(t, "dev-ns", m.namespace)
 }
 
 // --- saveCurrentSession writes surviving tab data, not closed tab data ---
@@ -303,13 +303,13 @@ func TestCloseTabSavesCorrectSessionData(t *testing.T) {
 	result := ret.(Model)
 
 	// After closeTabOrQuit, saveCurrentSession was called internally.
-	// The active tab slot in the tabs array should contain the surviving tab's
-	// data (dev), not the closed tab's data (staging).
+	// The active tab slot in the tabs array should contain the previous tab's
+	// data (prod), not the closed tab's data (staging).
 	activeTabState := result.tabs[result.activeTab]
-	assert.Equal(t, "dev", activeTabState.nav.Context,
-		"saved tab state should reflect dev (surviving tab), not staging (closed tab)")
-	assert.Equal(t, "dev-ns", activeTabState.namespace,
-		"saved tab namespace should be dev-ns")
+	assert.Equal(t, "prod", activeTabState.nav.Context,
+		"saved tab state should reflect prod (previous tab), not staging (closed tab)")
+	assert.Equal(t, "prod-ns", activeTabState.namespace,
+		"saved tab namespace should be prod-ns")
 }
 
 // --- close tab with two tabs: close first ---
