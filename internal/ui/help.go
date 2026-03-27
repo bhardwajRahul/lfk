@@ -275,7 +275,7 @@ func helpSections() []helpSection {
 		{
 			title: "General",
 			bindings: []helpEntry{
-				{"T", "Switch color scheme"},
+				{"T", "Switch color scheme (t: toggle transparent bg)"},
 				{"q", "Quit (with confirmation)"},
 				{"Esc", "Go back / quit"},
 				{"Ctrl+C", "Close tab (quit if last)"},

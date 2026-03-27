@@ -545,6 +545,19 @@ func (m Model) handleColorschemeNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		m.previewSchemeAtCursor(filtered)
 		return m, nil
 
+	case "t":
+		ui.ConfigTransparentBg = !ui.ConfigTransparentBg
+		// Re-apply current theme to update bar styles.
+		if theme, ok := ui.BuiltinSchemes()[ui.ActiveSchemeName]; ok {
+			ui.ApplyTheme(theme)
+		}
+		if ui.ConfigTransparentBg {
+			m.setStatusMessage("Transparent background: on", false)
+		} else {
+			m.setStatusMessage("Transparent background: off", false)
+		}
+		return m, scheduleStatusClear()
+
 	case "ctrl+c":
 		return m.closeTabOrQuit()
 	}

@@ -134,6 +134,7 @@ func (m Model) overlayHintBar() string {
 		return m.renderHints([]hintEntry{
 			{"j/k", "navigate"},
 			{"enter", "apply"},
+			{"t", "transparent bg"},
 			{"/", "filter"},
 			{"esc", "cancel"},
 		})
