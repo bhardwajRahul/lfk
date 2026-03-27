@@ -6,7 +6,8 @@ The configuration file is located at `~/.config/lfk/config.yaml`. All fields are
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `colorscheme` | string | `"tokyonight"` | Built-in color scheme name. Custom `theme` overrides are applied on top. |
+| `colorscheme` | string | `"tokyonight"` | Built-in color scheme name (460+ available). Press `T` in-app to browse. Custom `theme` overrides are applied on top. |
+| `transparent_background` | bool | `false` | Use the terminal's own background for bars. Selection highlights remain opaque. |
 | `icons` | string | `"unicode"` | Icon display mode: `"unicode"`, `"simple"` (ASCII), `"emoji"`, or `"none"`. |
 | `log_path` | string | `"~/.local/share/lfk/lfk.log"` | Path to the application log file. |
 | `dashboard` | bool | `true` | Show cluster dashboard when entering a context. Set to `false` to go directly to resource types. |
@@ -314,23 +315,13 @@ terminal: pty
 
 ## Color Schemes
 
-### Available Built-in Schemes
+Over 460 built-in color schemes are available, generated from [ghostty terminal themes](https://github.com/ghostty-org/ghostty). Popular schemes include:
 
-| Dark | Light |
-|---|---|
-| `tokyonight` (default) | `tokyonight-day` |
-| `tokyonight-storm` | `bluloco-light` |
-| `kanagawa-wave` | `gruvbox-light` |
-| `kanagawa-dragon` | `catppuccin-latte` |
-| `bluloco-dark` | |
-| `nord` | |
-| `gruvbox-dark` | |
-| `dracula` | |
-| `catppuccin-mocha` | |
-| `catppuccin-macchiato` | |
-| `catppuccin-frappe` | |
+`tokyonight` (default), `dracula`, `nord`, `catppuccin-mocha`, `catppuccin-latte`, `rose-pine`, `gruvbox-dark`, `gruvbox-light`, `everforest-dark`, `one-half-dark`, `ayu-dark`, `nightfox`, `monokai-pro`, `github-dark`, `github-light`, `solarized-dark`, `solarized-light`, and many more.
 
-Switch themes at runtime with `T`. Runtime changes are not persisted — set `colorscheme` in your config to make it permanent.
+Switch themes at runtime with `T` to browse all available themes interactively with live preview. Runtime changes are not persisted — set `colorscheme` in your config to make it permanent.
+
+To regenerate themes from the latest ghostty source, run `make generate-themes`.
 
 ## Session Persistence
 

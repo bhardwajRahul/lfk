@@ -32,3 +32,6 @@ __debug_bin*
 
 # Logs
 *.log
+
+# Downloaded theme sources (generated file is committed, raw themes are not)
+themes/ghostty/

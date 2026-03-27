@@ -138,6 +138,11 @@ var ConfigLogTailLines = 1000
 // ActiveSchemeName holds the name of the currently active color scheme.
 var ActiveSchemeName = "tokyonight"
 
+// ConfigTransparentBg controls whether bar/surface backgrounds are transparent.
+// When true, TitleBarStyle, TitleBreadcrumbStyle, and StatusBarBgStyle skip
+// setting a background color so the terminal's own background shows through.
+var ConfigTransparentBg bool
+
 type configFile struct {
 	// Colorscheme selects a built-in color scheme by name (e.g. "dracula", "nord").
 	// Custom theme overrides in the "theme" section are applied on top.
@@ -179,6 +184,10 @@ type configFile struct {
 	// ConfirmOnExit controls whether ctrl+c on the last tab shows a quit confirmation.
 	// Defaults to true. Set to false to exit immediately on ctrl+c.
 	ConfirmOnExit *bool `json:"confirm_on_exit" yaml:"confirm_on_exit"`
+	// TransparentBg makes bar and surface backgrounds transparent so the terminal's
+	// own background shows through. Selection highlights remain opaque.
+	// Defaults to false.
+	TransparentBg *bool `json:"transparent_background" yaml:"transparent_background"`
 }
 
 // DefaultAbbreviations returns the default search abbreviation map.
@@ -387,6 +396,11 @@ func LoadAndApplyTheme() {
 		ConfigConfirmOnExit = *cfg.ConfirmOnExit
 	}
 
+	// Apply transparent background setting.
+	if cfg.TransparentBg != nil {
+		ConfigTransparentBg = *cfg.TransparentBg
+	}
+
 	ApplyTheme(theme)
 	ActiveKeybindings = kb
 	SearchAbbreviations = abbr
@@ -429,14 +443,18 @@ func ApplyTheme(t Theme) {
 	StatusOther = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Dimmed))
 
 	TitleBarStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color(t.BarBg)).
 		Foreground(lipgloss.Color(t.Text)).
 		Padding(0, 1)
+	if !ConfigTransparentBg {
+		TitleBarStyle = TitleBarStyle.Background(lipgloss.Color(t.BarBg))
+	}
 
 	TitleBreadcrumbStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(t.Primary)).
-		Background(lipgloss.Color(t.BarBg))
+		Foreground(lipgloss.Color(t.Primary))
+	if !ConfigTransparentBg {
+		TitleBreadcrumbStyle = TitleBreadcrumbStyle.Background(lipgloss.Color(t.BarBg))
+	}
 
 	TitleStyle = lipgloss.NewStyle().
 		Bold(true).
@@ -480,9 +498,11 @@ func ApplyTheme(t Theme) {
 		Italic(true)
 
 	StatusBarBgStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color(t.BarBg)).
 		Foreground(lipgloss.Color(t.Dimmed)).
 		Padding(0, 1)
+	if !ConfigTransparentBg {
+		StatusBarBgStyle = StatusBarBgStyle.Background(lipgloss.Color(t.BarBg))
+	}
 
 	StatusBarStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(t.Dimmed)).

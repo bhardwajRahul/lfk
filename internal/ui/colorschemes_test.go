@@ -9,6 +9,7 @@ import (
 func TestBuiltinSchemes(t *testing.T) {
 	schemes := BuiltinSchemes()
 	assert.NotEmpty(t, schemes)
+	assert.Greater(t, len(schemes), 400, "should have 400+ generated themes")
 
 	// Verify each scheme has all fields populated.
 	for name, theme := range schemes {
@@ -32,12 +33,10 @@ func TestBuiltinSchemesContainExpectedThemes(t *testing.T) {
 	schemes := BuiltinSchemes()
 	expected := []string{
 		"tokyonight", "tokyonight-storm", "tokyonight-day",
-		"kanagawa-wave", "kanagawa-dragon",
-		"bluloco-dark", "bluloco-light",
-		"nord",
+		"dracula", "nord",
 		"gruvbox-dark", "gruvbox-light",
-		"dracula",
-		"catppuccin-mocha", "catppuccin-macchiato", "catppuccin-frappe", "catppuccin-latte",
+		"catppuccin-mocha", "catppuccin-latte",
+		"rose-pine", "rose-pine-moon", "rose-pine-dawn",
 	}
 	for _, name := range expected {
 		_, ok := schemes[name]
@@ -46,11 +45,11 @@ func TestBuiltinSchemesContainExpectedThemes(t *testing.T) {
 }
 
 func TestIsLightScheme(t *testing.T) {
-	// Known light schemes.
+	// Known light schemes (detected by background luminance).
 	assert.True(t, IsLightScheme("tokyonight-day"))
-	assert.True(t, IsLightScheme("bluloco-light"))
 	assert.True(t, IsLightScheme("gruvbox-light"))
 	assert.True(t, IsLightScheme("catppuccin-latte"))
+	assert.True(t, IsLightScheme("rose-pine-dawn"))
 
 	// Known dark schemes.
 	assert.False(t, IsLightScheme("tokyonight"))

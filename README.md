@@ -73,7 +73,7 @@
 
 ### Customization
 
-- **Built-in color schemes**: Tokyonight, Kanagawa, Bluloco, Nord, Gruvbox, Dracula, Catppuccin (with dark/light variants)
+- **460+ built-in color schemes** from [ghostty themes](https://github.com/ghostty-org/ghostty): Tokyonight, Catppuccin, Dracula, Nord, Rose Pine, Gruvbox, and many more. Transparent background support.
 - **Runtime theme switching**: Press `T` to preview and switch themes without restarting
 - **Custom color themes** via config file (Tokyonight theme by default)
 - **Configurable keybindings** for direct actions
@@ -479,31 +479,21 @@ custom_actions:
 
 ### Built-in Color Schemes
 
-Set a built-in color scheme in your config file:
+Over 460 built-in color schemes are available, generated from [ghostty terminal themes](https://github.com/ghostty-org/ghostty). Set one in your config:
 
 ```yaml
 colorscheme: catppuccin-mocha
 ```
 
-Available schemes:
+Popular schemes: `tokyonight` (default), `dracula`, `nord`, `catppuccin-mocha`, `rose-pine`, `gruvbox-dark`, `everforest-dark`, `one-half-dark`, `ayu-dark`, `nightfox`, `github-dark`, `solarized-dark`, and many more.
 
-| Dark | Light |
-|---|---|
-| `tokyonight` (default) | `tokyonight-day` |
-| `tokyonight-storm` | `bluloco-light` |
-| `kanagawa-wave` | `gruvbox-light` |
-| `kanagawa-dragon` | `catppuccin-latte` |
-| `bluloco-dark` | |
-| `nord` | |
-| `gruvbox-dark` | |
-| `dracula` | |
-| `catppuccin-mocha` | |
-| `catppuccin-macchiato` | |
-| `catppuccin-frappe` | |
+Press `T` at runtime to browse all themes interactively with live preview. Set `colorscheme` in your config to make it permanent. Custom `theme` overrides are applied on top.
 
-You can also switch themes at runtime by pressing `T`. Runtime changes are not persisted - to make a theme permanent, set `colorscheme` in your config file.
+To use your terminal's own background instead of the theme's:
 
-Custom `theme` overrides in the config are applied on top of the selected color scheme.
+```yaml
+transparent_background: true
+```
 
 ### Theme Configuration
 
@@ -562,7 +552,8 @@ The following direct-action keybindings can be overridden in the config file. Ot
 |   |   +-- overlay.go         # Overlay rendering (namespace, actions, bookmarks, etc.)
 |   |   +-- styles.go          # Lipgloss styles and color palette
 |   |   +-- theme.go           # Config file loading, theme/keybinding customization
-|   |   +-- colorschemes.go    # Built-in color schemes (Tokyonight, Catppuccin, etc.)
+|   |   +-- colorschemes.go    # Color scheme lookup and grouping
+|   |   +-- colorschemes_gen.go # Generated 460+ themes from ghostty
 |   |   +-- help.go            # Help screen rendering
 |   |   +-- logviewer.go       # Log viewer rendering
 |   +-- logger/

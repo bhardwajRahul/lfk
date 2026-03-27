@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
 )
@@ -216,4 +217,67 @@ func TestApplyThemeWithDifferentSchemes(t *testing.T) {
 	}
 	// Restore default.
 	ApplyTheme(DefaultTheme())
+}
+
+func TestTransparentBgConfig(t *testing.T) {
+	t.Run("parses transparent_background from YAML", func(t *testing.T) {
+		data := []byte("transparent_background: true\n")
+		var cfg configFile
+		err := yamlUnmarshal(data, &cfg)
+		assert.NoError(t, err)
+		assert.NotNil(t, cfg.TransparentBg)
+		assert.True(t, *cfg.TransparentBg)
+	})
+
+	t.Run("defaults to false when not set", func(t *testing.T) {
+		data := []byte("colorscheme: tokyonight\n")
+		var cfg configFile
+		err := yamlUnmarshal(data, &cfg)
+		assert.NoError(t, err)
+		assert.Nil(t, cfg.TransparentBg)
+	})
+
+	t.Run("transparent mode skips bar backgrounds", func(t *testing.T) {
+		orig := ConfigTransparentBg
+		defer func() {
+			ConfigTransparentBg = orig
+			ApplyTheme(DefaultTheme())
+		}()
+
+		theme := DefaultTheme()
+
+		// Opaque mode: bars should have background set.
+		ConfigTransparentBg = false
+		ApplyTheme(theme)
+		// lipgloss.NoColor{} is the zero type when no background is set.
+		_, isNoColor := TitleBarStyle.GetBackground().(lipgloss.NoColor)
+		assert.False(t, isNoColor, "opaque TitleBarStyle should have a background color")
+
+		_, isNoColor = StatusBarBgStyle.GetBackground().(lipgloss.NoColor)
+		assert.False(t, isNoColor, "opaque StatusBarBgStyle should have a background color")
+
+		// Transparent mode: bars should NOT have background set.
+		ConfigTransparentBg = true
+		ApplyTheme(theme)
+		_, isNoColor = TitleBarStyle.GetBackground().(lipgloss.NoColor)
+		assert.True(t, isNoColor, "transparent TitleBarStyle should have no background")
+
+		_, isNoColor = StatusBarBgStyle.GetBackground().(lipgloss.NoColor)
+		assert.True(t, isNoColor, "transparent StatusBarBgStyle should have no background")
+	})
+
+	t.Run("transparent mode keeps selection backgrounds", func(t *testing.T) {
+		orig := ConfigTransparentBg
+		defer func() {
+			ConfigTransparentBg = orig
+			ApplyTheme(DefaultTheme())
+		}()
+
+		ConfigTransparentBg = true
+		ApplyTheme(DefaultTheme())
+
+		// SelectedStyle should still have a background even in transparent mode.
+		_, isNoColor := SelectedStyle.GetBackground().(lipgloss.NoColor)
+		assert.False(t, isNoColor, "SelectedStyle should keep background in transparent mode")
+	})
 }

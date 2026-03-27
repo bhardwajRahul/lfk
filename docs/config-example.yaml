@@ -3,12 +3,17 @@
 # All fields are optional — only specify what you want to override.
 
 # ─── Color Scheme ──────────────────────────────────────────────────────────────
-# Built-in color scheme. Custom theme overrides below are applied on top.
-# Options: tokyonight (default), tokyonight-storm, tokyonight-day,
-#          kanagawa-wave, kanagawa-dragon, bluloco-dark, bluloco-light,
-#          nord, gruvbox-dark, gruvbox-light, dracula,
-#          catppuccin-mocha, catppuccin-macchiato, catppuccin-frappe, catppuccin-latte
+# Built-in color scheme. 460+ themes are available (generated from ghostty themes).
+# Press T in-app to browse and preview all themes interactively.
+# Popular options: tokyonight (default), dracula, nord, catppuccin-mocha,
+#   rose-pine, gruvbox-dark, everforest-dark, one-half-dark, ayu-dark, nightfox
 colorscheme: tokyonight
+
+# ─── Transparent Background ───────────────────────────────────────────────────
+# Use the terminal's own background instead of the theme's background colors
+# for title bar and status bar. Selection highlights remain opaque.
+# Default: false
+# transparent_background: false
 
 # ─── Icon Mode ─────────────────────────────────────────────────────────────────
 # How resource icons are displayed.
