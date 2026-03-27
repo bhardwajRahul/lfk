@@ -395,11 +395,13 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string) stri
 	}
 
 	content := strings.Join(displayLines, "\n")
+	content = FillLinesBg(content, contentW-2, SurfaceBg) // -2 for innerPanelStyle padding
 	innerPanel := innerPanelStyle.
 		Width(contentW).
 		Render(content)
 
 	body := title + "\n" + innerPanel
+	body = FillLinesBg(body, boxW-4, SurfaceBg) // -4 for OverlayStyle padding(1,2)
 
 	return OverlayStyle.
 		Width(boxW).

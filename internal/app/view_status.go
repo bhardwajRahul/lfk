@@ -379,6 +379,7 @@ func (m Model) renderOverlay(background string) string {
 		overlayW = min(80, m.width-10)
 		overlayH = min(20, m.height-6)
 		content = ui.RenderCanISubjectOverlay(m.filteredOverlayItems(), m.overlayFilter.Value, m.overlayCursor, m.canISubjectFilterMode)
+		content = ui.FillLinesBg(content, overlayW-4, ui.SurfaceBg)
 		overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
 		return ui.PlaceOverlay(m.width, m.height, overlay, canIBg)
 	case overlayExplainSearch:
@@ -428,6 +429,7 @@ func (m Model) renderOverlay(background string) string {
 			innerW := overlayW - 4 // account for OverlayStyle Padding(1,2) = 2 chars each side
 			innerH := overlayH - 2 // account for OverlayStyle Padding(1,2) = 1 line top + 1 line bottom
 			netpolContent := ui.RenderNetworkPolicyOverlay(entry, m.netpolScroll, innerW, innerH)
+			netpolContent = ui.FillLinesBg(netpolContent, innerW, ui.SurfaceBg)
 			overlay := ui.OverlayStyle.Width(overlayW).Render(netpolContent)
 			bg := padToHeight(background, m.height)
 			return ui.PlaceOverlay(m.width, m.height, overlay, bg)
@@ -475,6 +477,7 @@ func (m Model) renderOverlay(background string) string {
 		overlayH = 3
 	}
 
+	content = ui.FillLinesBg(content, overlayW-4, ui.SurfaceBg) // -4 for OverlayStyle padding(1,2)
 	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
 
 	// Ensure background has exactly m.height lines for correct overlay placement.
@@ -531,6 +534,7 @@ func (m Model) renderCanIOverlay(background string) string {
 		hintBar,
 		m.canIResourceScroll,
 	)
+	canIContent = ui.FillLinesBg(canIContent, overlayW-4, ui.SurfaceBg)
 	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(canIContent)
 	bg := padToHeight(background, m.height)
 	return ui.PlaceOverlay(m.width, m.height, overlay, bg)
@@ -548,6 +552,7 @@ func (m Model) renderErrorLogOverlay(background string) string {
 	}
 
 	content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, overlayH, m.showDebugLogs)
+	content = ui.FillLinesBg(content, overlayW-4, ui.SurfaceBg)
 	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
 	bg := padToHeight(background, m.height)
 	return ui.PlaceOverlay(m.width, m.height, overlay, bg)
