@@ -241,7 +241,7 @@ func randomSuffix(n int) string {
 	return string(b)
 }
 
-// runDebugPodWithPVC runs an alpine debug pod with a PVC mounted at /mnt/data.
+// runDebugPodWithPVC runs an alpine debug pod with a PVC mounted at /data.
 func (m Model) runDebugPodWithPVC() tea.Cmd {
 	kubectlPath, err := exec.LookPath("kubectl")
 	if err != nil {
@@ -267,7 +267,7 @@ func (m Model) runDebugPodWithPVC() tea.Cmd {
 				"command": ["sh"],
 				"stdin": true,
 				"tty": true,
-				"volumeMounts": [{"name": "data", "mountPath": "/mnt/data"}]
+				"volumeMounts": [{"name": "data", "mountPath": "/data"}]
 			}],
 			"volumes": [{"name": "data", "persistentVolumeClaim": {"claimName": "%s"}}],
 			"restartPolicy": "Never"

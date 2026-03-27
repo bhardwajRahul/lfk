@@ -397,7 +397,7 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: /mnt/data
+    path: /data
 `,
 		},
 		{
