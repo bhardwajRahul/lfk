@@ -150,12 +150,12 @@ func (m *Model) clampLogScroll() {
 		if contentWidth < 10 {
 			contentWidth = 10
 		}
-		// Account for line number gutter width.
+		// Account for cursor gutter (1) and line number gutter width.
 		lineNumWidth := 0
 		if m.logLineNumbers && len(m.logLines) > 0 {
 			lineNumWidth = len(fmt.Sprintf("%d", len(m.logLines))) + 1
 		}
-		availWidth := contentWidth - lineNumWidth
+		availWidth := contentWidth - 1 - lineNumWidth // -1 for cursor gutter
 		if availWidth < 10 {
 			availWidth = 10
 		}
@@ -223,7 +223,7 @@ func (m *Model) logMaxScroll() int {
 		if m.logLineNumbers && len(m.logLines) > 0 {
 			lineNumWidth = len(fmt.Sprintf("%d", len(m.logLines))) + 1
 		}
-		availWidth := contentWidth - lineNumWidth
+		availWidth := contentWidth - 1 - lineNumWidth // -1 for cursor gutter
 		if availWidth < 10 {
 			availWidth = 10
 		}

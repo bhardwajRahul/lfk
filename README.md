@@ -139,6 +139,19 @@ docker run -it --rm \
   janosmiko/lfk
 ```
 
+### External Dependencies
+
+**Required:**
+- `kubectl` - Kubernetes CLI (must be configured and in PATH)
+
+**Optional** (needed only for specific features):
+| Command | Feature |
+|---------|---------|
+| `helm` | Helm release management (values, diff, upgrade, rollback, uninstall) |
+| `trivy` | Container image vulnerability scanning ([install](https://aquasecurity.github.io/trivy)) |
+
+All other features (KEDA, External Secrets, Argo Workflows, cert-manager, ArgoCD, FluxCD, PVC resize, etc.) use the Kubernetes API directly and require no additional CLI tools.
+
 ## Usage
 
 ```bash
