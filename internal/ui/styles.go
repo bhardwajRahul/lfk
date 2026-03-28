@@ -54,6 +54,10 @@ var (
 	BarDimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(ColorDimmed))
 
+	// BarNormalStyle is NormalStyle but with bar background (for status bar text).
+	BarNormalStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorFile))
+
 	// Category header in resource type list.
 	CategoryStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(ColorDimmed)).

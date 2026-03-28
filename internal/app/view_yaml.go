@@ -46,20 +46,20 @@ func (m Model) viewYAML() string {
 	}
 	yamlHintParts := make([]string, 0, len(yamlHints))
 	for _, h := range yamlHints {
-		yamlHintParts = append(yamlHintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
+		yamlHintParts = append(yamlHintParts, ui.HelpKeyStyle.Render(h.key)+ui.BarDimStyle.Render(": "+h.desc))
 	}
-	hint := ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(strings.Join(yamlHintParts, ui.DimStyle.Render(" \u2502 ")))
+	hint := ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(strings.Join(yamlHintParts, ui.BarDimStyle.Render(" \u2502 ")))
 
 	// If search is active, show search bar instead of hints.
 	if m.yamlSearchMode {
-		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.yamlSearchText.CursorLeft()) + ui.DimStyle.Render("\u2588") + ui.NormalStyle.Render(m.yamlSearchText.CursorRight())
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.yamlSearchText.CursorLeft()) + ui.BarDimStyle.Render("\u2588") + ui.BarNormalStyle.Render(m.yamlSearchText.CursorRight())
 		hint = ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(searchBar)
 	} else if m.yamlSearchText.Value != "" {
 		matchInfo := fmt.Sprintf(" [%d/%d]", m.yamlMatchIdx+1, len(m.yamlMatchLines))
 		if len(m.yamlMatchLines) == 0 {
 			matchInfo = " [no matches]"
 		}
-		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.yamlSearchText.Value) + ui.DimStyle.Render(matchInfo)
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.yamlSearchText.Value) + ui.BarDimStyle.Render(matchInfo)
 		hint = ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(searchBar)
 	}
 
@@ -190,9 +190,17 @@ func (m Model) viewYAML() string {
 	}
 
 	bodyContent := strings.Join(highlightedLines, "\n")
+	// Fill background so ANSI resets from styled segments don't leave gaps.
+	contentWidth := m.width - 4 // border (2) + padding (2)
+	if contentWidth < 10 {
+		contentWidth = 10
+	}
+	bodyContent = ui.FillLinesBg(bodyContent, contentWidth, ui.BaseBg)
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(ui.ColorPrimary)).
+		BorderBackground(ui.BaseBg).
+		Background(ui.BaseBg).
 		Padding(0, 1).
 		Width(m.width - 2).
 		Height(maxLines).

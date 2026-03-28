@@ -27,7 +27,7 @@ var canIVerbs = []struct {
 func RenderCanIView(groups []string, resources []model.CanIResource, groupCursor, groupScroll int, subjectName string, namespaces []string, width, height int, hintBar string, resourceScroll int) string {
 	// Title bar — truncate if it exceeds the available width.
 	scopeLabel := "ns:" + strings.Join(namespaces, ",")
-	titleText := TitleStyle.Render("RBAC Permissions ("+subjectName+")") + "  " + DimStyle.Render(scopeLabel)
+	titleText := TitleStyle.Render("RBAC Permissions ("+subjectName+")") + "  " + BarDimStyle.Render(scopeLabel)
 	if lipgloss.Width(titleText) > width {
 		// Drop scope label if too wide.
 		titleText = TitleStyle.Render("RBAC Permissions (" + subjectName + ")")

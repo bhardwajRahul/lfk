@@ -71,14 +71,14 @@ func (m Model) statusBar() string {
 
 	// Show command bar when active.
 	if m.commandBarActive {
-		prompt := ui.HelpKeyStyle.Render(":") + m.commandBarInput.CursorLeft() + ui.DimStyle.Render("\u2588") + m.commandBarInput.CursorRight()
+		prompt := ui.HelpKeyStyle.Render(":") + m.commandBarInput.CursorLeft() + ui.BarDimStyle.Render("\u2588") + m.commandBarInput.CursorRight()
 		if len(m.commandBarSuggestions) > 0 {
 			prompt += "  "
 			for i, s := range m.commandBarSuggestions {
 				if i == m.commandBarSelectedSuggestion {
 					prompt += ui.OverlaySelectedStyle.Render(" "+s+" ") + " "
 				} else {
-					prompt += ui.DimStyle.Render(s) + " "
+					prompt += ui.BarDimStyle.Render(s) + " "
 				}
 			}
 		}
@@ -87,11 +87,11 @@ func (m Model) statusBar() string {
 
 	// Show filter/search input in status bar when active.
 	if m.filterActive {
-		prompt := ui.HelpKeyStyle.Render("filter") + ui.DimStyle.Render(": ") + m.filterInput.CursorLeft() + ui.DimStyle.Render("\u2588") + m.filterInput.CursorRight()
+		prompt := ui.HelpKeyStyle.Render("filter") + ui.BarDimStyle.Render(": ") + m.filterInput.CursorLeft() + ui.BarDimStyle.Render("\u2588") + m.filterInput.CursorRight()
 		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).Render(prompt)
 	}
 	if m.searchActive {
-		prompt := ui.HelpKeyStyle.Render("search") + ui.DimStyle.Render(": ") + m.searchInput.CursorLeft() + ui.DimStyle.Render("\u2588") + m.searchInput.CursorRight()
+		prompt := ui.HelpKeyStyle.Render("search") + ui.BarDimStyle.Render(": ") + m.searchInput.CursorLeft() + ui.BarDimStyle.Render("\u2588") + m.searchInput.CursorRight()
 		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).Render(prompt)
 	}
 	// When a status message is active, show it exclusively (hide key hints).
@@ -118,12 +118,12 @@ func (m Model) statusBar() string {
 		var helpHint string
 		switch {
 		case m.helpSearchActive:
-			helpHint = ui.HelpKeyStyle.Render("search") + ui.DimStyle.Render(": ") + m.helpSearchInput.View()
+			helpHint = ui.HelpKeyStyle.Render("search") + ui.BarDimStyle.Render(": ") + m.helpSearchInput.View()
 		case m.helpFilter.Value != "":
-			helpHint = ui.DimStyle.Render("filter: ") +
+			helpHint = ui.BarDimStyle.Render("filter: ") +
 				ui.HelpKeyStyle.Render(m.helpFilter.Value) + "  " +
-				ui.HelpKeyStyle.Render("/") + ui.DimStyle.Render(" edit") + "  " +
-				ui.HelpKeyStyle.Render("Esc") + ui.DimStyle.Render(" close")
+				ui.HelpKeyStyle.Render("/") + ui.BarDimStyle.Render(" edit") + "  " +
+				ui.HelpKeyStyle.Render("Esc") + ui.BarDimStyle.Render(" close")
 		default:
 			helpHint = m.renderHints([]hintEntry{
 				{"j/k", "scroll"},
@@ -519,10 +519,10 @@ func (m Model) renderCanIOverlay(background string) string {
 	// Search bar shown inside the overlay; normal hints moved to the main status bar.
 	var hintBar string
 	if m.canISearchActive {
-		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.canISearchInput.CursorLeft()) + ui.DimStyle.Render("\u2588") + ui.NormalStyle.Render(m.canISearchInput.CursorRight())
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.canISearchInput.CursorLeft()) + ui.BarDimStyle.Render("\u2588") + ui.BarNormalStyle.Render(m.canISearchInput.CursorRight())
 		hintBar = ui.StatusBarBgStyle.Width(innerW).Render(searchBar)
 	} else if m.canISearchQuery != "" {
-		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.canISearchQuery)
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.canISearchQuery)
 		hintBar = ui.StatusBarBgStyle.Width(innerW).Render(searchBar)
 	}
 

@@ -34,9 +34,9 @@ func (m Model) viewDescribe() string {
 	}
 	hintParts := make([]string, 0, len(hints))
 	for _, h := range hints {
-		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
+		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.BarDimStyle.Render(": "+h.desc))
 	}
-	hint := ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(strings.Join(hintParts, ui.DimStyle.Render(" \u2502 ")))
+	hint := ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(strings.Join(hintParts, ui.BarDimStyle.Render(" \u2502 ")))
 
 	lines := strings.Split(m.describeContent, "\n")
 
@@ -93,16 +93,16 @@ func (m Model) viewExplain() string {
 	}
 	hintParts := make([]string, 0, len(hints))
 	for _, h := range hints {
-		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.DimStyle.Render(": "+h.desc))
+		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+ui.BarDimStyle.Render(": "+h.desc))
 	}
-	hint := ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(strings.Join(hintParts, ui.DimStyle.Render(" | ")))
+	hint := ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(strings.Join(hintParts, ui.BarDimStyle.Render(" | ")))
 
 	// If search is active, show search bar instead of hints.
 	if m.explainSearchActive {
-		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.explainSearchInput.CursorLeft()) + ui.DimStyle.Render("\u2588") + ui.NormalStyle.Render(m.explainSearchInput.CursorRight())
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.explainSearchInput.CursorLeft()) + ui.BarDimStyle.Render("\u2588") + ui.BarNormalStyle.Render(m.explainSearchInput.CursorRight())
 		hint = ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(searchBar)
 	} else if m.explainSearchQuery != "" {
-		searchBar := ui.HelpKeyStyle.Render("/") + ui.NormalStyle.Render(m.explainSearchQuery)
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.explainSearchQuery)
 		hint = ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(searchBar)
 	}
 
@@ -291,7 +291,7 @@ func (m Model) viewExecTerminal() string {
 	}
 	hintParts := make([]string, 0, len(hints))
 	for _, h := range hints {
-		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+" "+ui.DimStyle.Render(h.desc))
+		hintParts = append(hintParts, ui.HelpKeyStyle.Render(h.key)+" "+ui.BarDimStyle.Render(h.desc))
 	}
 	hintLine := "  " + strings.Join(hintParts, "  ")
 

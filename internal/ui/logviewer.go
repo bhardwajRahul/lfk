@@ -54,7 +54,7 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	if len(indicators) > 0 {
 		titleText += " " + strings.Join(indicators, " ")
 	}
-	lineInfo := DimStyle.Render(fmt.Sprintf(" [%d lines]", len(lines)))
+	lineInfo := BarDimStyle.Render(fmt.Sprintf(" [%d lines]", len(lines)))
 	titleText += lineInfo
 
 	// Constrain title to terminal width to prevent wrapping (which adds extra lines).
@@ -68,6 +68,7 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	titleBar := TitleStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(titleText)
 
 	// Footer: show status message, search input, or key hints.
+	// Use BarDimStyle (not DimStyle) so hint text matches the bar background.
 	var footer string
 	if statusMsg != "" {
 		style := HelpKeyStyle
@@ -76,41 +77,41 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 		}
 		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(style.Render(statusMsg))
 	} else if searchActive {
-		prompt := HelpKeyStyle.Render("/") + DimStyle.Render(": ") + searchInput + DimStyle.Render("\u2588") + DimStyle.Render("  (enter:apply  esc:cancel)")
+		prompt := HelpKeyStyle.Render("/") + BarDimStyle.Render(": ") + searchInput + BarDimStyle.Render("\u2588") + BarDimStyle.Render("  (enter:apply  esc:cancel)")
 		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(prompt)
 	} else if visualMode {
 		hintParts := []string{
-			HelpKeyStyle.Render("j/k") + DimStyle.Render(":extend"),
-			HelpKeyStyle.Render("h/l") + DimStyle.Render(":column"),
-			HelpKeyStyle.Render("y") + DimStyle.Render(":copy"),
-			HelpKeyStyle.Render("v/V/ctrl+v") + DimStyle.Render(":switch mode"),
-			HelpKeyStyle.Render("esc") + DimStyle.Render(":cancel"),
+			HelpKeyStyle.Render("j/k") + BarDimStyle.Render(":extend"),
+			HelpKeyStyle.Render("h/l") + BarDimStyle.Render(":column"),
+			HelpKeyStyle.Render("y") + BarDimStyle.Render(":copy"),
+			HelpKeyStyle.Render("v/V/ctrl+v") + BarDimStyle.Render(":switch mode"),
+			HelpKeyStyle.Render("esc") + BarDimStyle.Render(":cancel"),
 		}
-		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(strings.Join(hintParts, DimStyle.Render(" | ")))
+		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(strings.Join(hintParts, BarDimStyle.Render(" | ")))
 	} else {
 		hintParts := []string{
-			HelpKeyStyle.Render("q") + DimStyle.Render(":close"),
-			HelpKeyStyle.Render("j/k") + DimStyle.Render(":move"),
-			HelpKeyStyle.Render("ctrl+d/u") + DimStyle.Render(":half page"),
-			HelpKeyStyle.Render("ctrl+f/b") + DimStyle.Render(":page"),
-			HelpKeyStyle.Render("f") + DimStyle.Render(":follow"),
-			HelpKeyStyle.Render("tab/z") + DimStyle.Render(":wrap"),
-			HelpKeyStyle.Render("#") + DimStyle.Render(":line#"),
-			HelpKeyStyle.Render("s") + DimStyle.Render(":timestamps"),
-			HelpKeyStyle.Render("c") + DimStyle.Render(":previous"),
-			HelpKeyStyle.Render("v/V/ctrl+v") + DimStyle.Render(":select"),
-			HelpKeyStyle.Render("/") + DimStyle.Render(":search"),
-			HelpKeyStyle.Render("n/N") + DimStyle.Render(":next/prev"),
-			HelpKeyStyle.Render("123G") + DimStyle.Render(":goto"),
-			HelpKeyStyle.Render("S") + DimStyle.Render(":save"),
-			HelpKeyStyle.Render("ctrl+s") + DimStyle.Render(":save all"),
+			HelpKeyStyle.Render("q") + BarDimStyle.Render(":close"),
+			HelpKeyStyle.Render("j/k") + BarDimStyle.Render(":move"),
+			HelpKeyStyle.Render("ctrl+d/u") + BarDimStyle.Render(":half page"),
+			HelpKeyStyle.Render("ctrl+f/b") + BarDimStyle.Render(":page"),
+			HelpKeyStyle.Render("f") + BarDimStyle.Render(":follow"),
+			HelpKeyStyle.Render("tab/z") + BarDimStyle.Render(":wrap"),
+			HelpKeyStyle.Render("#") + BarDimStyle.Render(":line#"),
+			HelpKeyStyle.Render("s") + BarDimStyle.Render(":timestamps"),
+			HelpKeyStyle.Render("c") + BarDimStyle.Render(":previous"),
+			HelpKeyStyle.Render("v/V/ctrl+v") + BarDimStyle.Render(":select"),
+			HelpKeyStyle.Render("/") + BarDimStyle.Render(":search"),
+			HelpKeyStyle.Render("n/N") + BarDimStyle.Render(":next/prev"),
+			HelpKeyStyle.Render("123G") + BarDimStyle.Render(":goto"),
+			HelpKeyStyle.Render("S") + BarDimStyle.Render(":save"),
+			HelpKeyStyle.Render("ctrl+s") + BarDimStyle.Render(":save all"),
 		}
 		if canSwitchPod {
-			hintParts = append(hintParts, HelpKeyStyle.Render("\\")+DimStyle.Render(":switch pod"))
+			hintParts = append(hintParts, HelpKeyStyle.Render("\\")+BarDimStyle.Render(":switch pod"))
 		} else if canFilterContainers {
-			hintParts = append(hintParts, HelpKeyStyle.Render("\\")+DimStyle.Render(":containers"))
+			hintParts = append(hintParts, HelpKeyStyle.Render("\\")+BarDimStyle.Render(":containers"))
 		}
-		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(strings.Join(hintParts, DimStyle.Render(" | ")))
+		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(strings.Join(hintParts, BarDimStyle.Render(" | ")))
 	}
 
 	// Content area: subtract border top + bottom (2 lines).
@@ -151,6 +152,18 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 		}
 	}
 
+	// Sanitize visible lines: replace non-printable characters (except common
+	// whitespace) that can break terminal width calculations and corrupt the layout.
+	{
+		end := scroll + contentHeight
+		if end > len(displayLines) {
+			end = len(displayLines)
+		}
+		for i := scroll; i < end; i++ {
+			displayLines[i] = sanitizeLogLine(displayLines[i])
+		}
+	}
+
 	// Compute visual selection range.
 	selStart, selEnd := -1, -1
 	if visualMode {
@@ -177,9 +190,14 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	}
 
 	bodyContent := strings.Join(rendered, "\n")
+	// Fill each line's background so ANSI resets from styled segments
+	// (line numbers, search highlights) don't leave gaps in the theme bg.
+	bodyContent = FillLinesBg(bodyContent, contentWidth, BaseBg)
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(ColorPrimary)).
+		BorderBackground(BaseBg).
+		Background(BaseBg).
 		Padding(0, 1).
 		Width(width - 2).
 		Height(contentHeight).
@@ -413,4 +431,33 @@ func stripTimestampRaw(s string) string {
 		return s
 	}
 	return s[spaceIdx+1:]
+}
+
+// sanitizeLogLine replaces non-printable control characters (except tab) with
+// the Unicode replacement character. Binary data from processes like MySQL
+// handshakes contains bytes that break terminal width calculations and corrupt
+// the log viewer layout.
+func sanitizeLogLine(s string) string {
+	// Fast path: check if any sanitization is needed.
+	needsSanitize := false
+	for _, r := range s {
+		if r != '\t' && (r < 32 || r == 127) {
+			needsSanitize = true
+			break
+		}
+	}
+	if !needsSanitize {
+		return s
+	}
+
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r != '\t' && (r < 32 || r == 127) {
+			b.WriteRune('\ufffd') // Unicode replacement character
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

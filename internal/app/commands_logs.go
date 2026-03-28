@@ -44,7 +44,13 @@ func (m *Model) startLogStream() tea.Cmd {
 	}
 
 	// Capture selected containers for filtering (empty = show all).
-	selectedContainers := append([]string(nil), m.logSelectedContainers...)
+	// Only filter client-side when in --all-containers mode (no -c flag).
+	// When containerName is set, kubectl already filters server-side via -c,
+	// and log lines lack the [pod/name/container] prefix that matchesContainerFilter needs.
+	var selectedContainers []string
+	if containerName == "" {
+		selectedContainers = append([]string(nil), m.logSelectedContainers...)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.logCancel = cancel
@@ -474,8 +480,11 @@ func (m *Model) fetchOlderLogs() tea.Cmd {
 	kubeconfigPaths := m.client.KubeconfigPaths()
 	newTail := m.logTailLines + ui.ConfigLogTailLines
 	prevTotal := len(m.logLines)
-	// Capture selected containers for filtering (empty = show all).
-	selectedContainers := append([]string(nil), m.logSelectedContainers...)
+	// Only filter client-side when in --all-containers mode (no -c flag).
+	var selectedContainers []string
+	if containerName == "" {
+		selectedContainers = append([]string(nil), m.logSelectedContainers...)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.logHistoryCancel = cancel
@@ -509,7 +518,7 @@ func (m *Model) fetchOlderLogs() tea.Cmd {
 				}
 			} else {
 				args = []string{
-					"logs", name, "-c", containerName, "--prefix", "-n", ns, "--context", kctx,
+					"logs", name, "-c", containerName, "-n", ns, "--context", kctx,
 				}
 			}
 		default:

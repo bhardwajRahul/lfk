@@ -183,3 +183,54 @@ func TestStripTimestamp(t *testing.T) {
 		})
 	}
 }
+
+// --- sanitizeLogLine ---
+
+func TestSanitizeLogLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "normal text unchanged",
+			input:    "INFO: server started on port 8080",
+			expected: "INFO: server started on port 8080",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "tab preserved",
+			input:    "key\tvalue",
+			expected: "key\tvalue",
+		},
+		{
+			name:     "null bytes replaced",
+			input:    "hello\x00world",
+			expected: "hello\ufffdworld",
+		},
+		{
+			name:     "control chars replaced",
+			input:    "data\x01\x02\x03end",
+			expected: "data\ufffd\ufffd\ufffdend",
+		},
+		{
+			name:     "DEL char replaced",
+			input:    "before\x7fafter",
+			expected: "before\ufffdafter",
+		},
+		{
+			name:     "mysql binary handshake",
+			input:    "5.5.5-10.6.25-MariaDB\x00Z$~sD7*k]\x00\x00\x00o7cn",
+			expected: "5.5.5-10.6.25-MariaDB\ufffdZ$~sD7*k]\ufffd\ufffd\ufffdo7cn",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, sanitizeLogLine(tt.input))
+		})
+	}
+}

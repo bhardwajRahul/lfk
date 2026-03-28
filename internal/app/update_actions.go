@@ -348,6 +348,11 @@ func (m Model) executeAction(actionLabel string) (tea.Model, tea.Cmd) {
 		}
 
 		// Direct log streaming for pods or when container is already selected.
+		// Reset parent context so stale values from a previous group-resource
+		// log session don't leak into the new session's pod/container selector.
+		m.logParentKind = ""
+		m.logParentName = ""
+
 		if m.actionCtx.containerName != "" {
 			m.addLogEntry("DBG", fmt.Sprintf("$ kubectl logs -f %s -c %s -n %s --context %s", name, m.actionCtx.containerName, ns, ctx))
 		} else {
@@ -364,8 +369,14 @@ func (m Model) executeAction(actionLabel string) (tea.Model, tea.Cmd) {
 		m.logPrevious = false
 		m.logIsMulti = false
 		m.logMultiItems = nil
-		m.logSelectedContainers = nil
 		m.logContainers = nil
+		// For single-container logs, pre-select that container so the
+		// container selector overlay shows the correct active state.
+		if m.actionCtx.containerName != "" {
+			m.logSelectedContainers = []string{m.actionCtx.containerName}
+		} else {
+			m.logSelectedContainers = nil
+		}
 		m.logTailLines = ui.ConfigLogTailLines
 		m.logHasMoreHistory = true
 		m.logLoadingHistory = false

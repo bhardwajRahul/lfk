@@ -477,6 +477,10 @@ func ApplyTheme(t Theme) {
 		Foreground(lipgloss.Color(t.Dimmed)).
 		Background(barBg)
 
+	BarNormalStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(t.Text)).
+		Background(barBg)
+
 	TitleBarStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(t.Text)).
 		Background(barBg).
@@ -549,7 +553,8 @@ func ApplyTheme(t Theme) {
 
 	HelpKeyStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(t.Secondary)).
-		Bold(true)
+		Bold(true).
+		Background(barBg)
 
 	ErrorStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(t.Error)).
@@ -658,6 +663,10 @@ func ApplyTheme(t Theme) {
 
 	DeprecationStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(t.Warning)).
+		Background(baseBg)
+
+	YamlCursorIndicatorStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(t.Primary)).
 		Background(baseBg)
 }
 
