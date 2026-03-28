@@ -7,23 +7,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Tokyonight-inspired color palette (matching the v project).
+// Tokyonight Storm color palette (default theme).
 const (
 	ColorPrimary    = "#7aa2f7" // Blue - borders, headers, breadcrumbs
 	ColorSecondary  = "#9ece6a" // Green - help keys, running status, success
 	ColorFile       = "#c0caf5" // Light purple - normal text
-	ColorSelectedFg = "#1a1b26" // Dark - selected item foreground
+	ColorSelectedFg = "#24283b" // Dark - selected item foreground
 	ColorSelectedBg = "#7aa2f7" // Blue - selected item background
-	ColorBorder     = "#3b4261" // Dark blue - inactive borders
-	ColorDimmed     = "#565f89" // Muted purple - help text, placeholders
+	ColorBorder     = "#4e5575" // Dark blue - inactive borders
+	ColorDimmed     = "#4e5575" // Muted purple - help text, placeholders
 	ColorError      = "#f7768e" // Red/Pink - errors, failures
 	ColorWarning    = "#e0af68" // Orange/Yellow - warnings, pending
 	ColorPurple     = "#bb9af7" // Purple - special values
 	ColorOrange     = "#ff9e64" // Orange - high usage warning
 	ColorCyan       = "#73daca" // Cyan - very new resources (< 1h)
-	ColorBase       = "#1a1b26" // Dark background base
-	ColorBarBg      = "#24283b" // Slightly lighter bar background
-	ColorSurface    = "#1f2335" // Surface background for overlays
+	ColorBase       = "#24283b" // Dark background base
+	ColorBarBg      = "#313446" // Slightly lighter bar background
+	ColorSurface    = "#2a2e40" // Surface background for overlays
 )
 
 var (

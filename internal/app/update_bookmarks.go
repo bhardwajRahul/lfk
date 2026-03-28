@@ -459,6 +459,14 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 		return m, m.loadPreview()
 	}
 
+	// Save the clusters-level cursor so navigating back restores it.
+	for i, ctx := range contexts {
+		if ctx.Name == sess.Context {
+			m.cursorMemory[""] = i
+			break
+		}
+	}
+
 	// Navigate into the saved context (same as navigateChild at LevelClusters).
 	m.nav.Context = sess.Context
 	m.applyPinnedGroups()

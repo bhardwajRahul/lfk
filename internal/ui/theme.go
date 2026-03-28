@@ -136,7 +136,7 @@ var ConfigConfirmOnExit = true
 var ConfigLogTailLines = 1000
 
 // ActiveSchemeName holds the name of the currently active color scheme.
-var ActiveSchemeName = "tokyonight"
+var ActiveSchemeName = "tokyonight-storm"
 
 // ConfigTransparentBg controls whether bar/surface backgrounds are transparent.
 // When true, TitleBarStyle, TitleBreadcrumbStyle, and StatusBarBgStyle skip
@@ -238,22 +238,22 @@ func DefaultAbbreviations() map[string]string {
 	}
 }
 
-// DefaultTheme returns the default Tokyonight-inspired theme.
+// DefaultTheme returns the default Tokyonight Storm theme.
 func DefaultTheme() Theme {
 	return Theme{
 		Primary:    "#7aa2f7",
 		Secondary:  "#9ece6a",
 		Text:       "#c0caf5",
-		SelectedFg: "#1a1b26",
+		SelectedFg: "#24283b",
 		SelectedBg: "#7aa2f7",
-		Border:     "#3b4261",
-		Dimmed:     "#565f89",
+		Border:     "#4e5575",
+		Dimmed:     "#4e5575",
 		Error:      "#f7768e",
 		Warning:    "#e0af68",
 		Purple:     "#bb9af7",
-		Base:       "#1a1b26",
-		BarBg:      "#24283b",
-		Surface:    "#1f2335",
+		Base:       "#24283b",
+		BarBg:      "#313446",
+		Surface:    "#2a2e40",
 	}
 }
 
@@ -470,7 +470,7 @@ func ApplyTheme(t Theme) {
 
 	var barBg lipgloss.TerminalColor = lipgloss.NoColor{}
 	if !ConfigTransparentBg {
-		barBg = lipgloss.Color(t.BarBg)
+		barBg = baseBg
 	}
 
 	BarDimStyle = lipgloss.NewStyle().
