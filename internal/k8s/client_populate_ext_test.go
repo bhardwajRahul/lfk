@@ -332,8 +332,9 @@ func TestPopulateArgoCDApplication(t *testing.T) {
 				},
 			},
 			wantCols: map[string]string{
-				"Health":          "Degraded",
-				"ComparisonError": "rpc error: code = NotFound desc = repo not found",
+				"Health":                    "Degraded",
+				"Condition":                 "ComparisonError, SyncError",
+				"condition:ComparisonError": "rpc error: code = NotFound desc = repo not found",
 			},
 		},
 		{
@@ -348,7 +349,8 @@ func TestPopulateArgoCDApplication(t *testing.T) {
 				},
 			},
 			wantCols: map[string]string{
-				"OrphanedResourceWarning": "(no message)",
+				"Condition":                         "OrphanedResourceWarning",
+				"condition:OrphanedResourceWarning": "(no message)",
 			},
 		},
 	}

@@ -238,7 +238,7 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 			threshold = 1
 		}
 		for _, key := range order {
-			if blocked[key] || strings.HasPrefix(key, "__") || strings.HasPrefix(key, "secret:") || strings.HasPrefix(key, "owner:") || strings.HasPrefix(key, "data:") {
+			if blocked[key] || strings.HasPrefix(key, "__") || strings.HasPrefix(key, "secret:") || strings.HasPrefix(key, "owner:") || strings.HasPrefix(key, "data:") || strings.HasPrefix(key, "condition:") {
 				continue
 			}
 			info := seen[key]

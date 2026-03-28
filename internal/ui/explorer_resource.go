@@ -69,6 +69,11 @@ func RenderResourceSummary(item *model.Item, yaml string, width, height int) str
 			dataLines = append(dataLines, renderDataKV(label, kv.Value, width)...)
 			continue
 		}
+		if strings.HasPrefix(kv.Key, "condition:") {
+			label := kv.Key[len("condition:"):]
+			rows = append(rows, detailRow{strings.ToUpper(label), kv.Value})
+			continue
+		}
 		if kv.Key == "Labels" || kv.Key == "Finalizers" || kv.Key == "Annotations" || kv.Key == "Used By" || kv.Key == "Selector" {
 			multiLineFields = append(multiLineFields, kv)
 			continue

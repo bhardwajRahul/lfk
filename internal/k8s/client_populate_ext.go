@@ -286,7 +286,10 @@ func populateArgoCDApplication(ti *model.Item, _ map[string]interface{}, status,
 		}
 	}
 	// Extract conditions (e.g., ComparisonError, InvalidSpecError, SyncError).
+	// A short "Condition" column shows the type names in the table view.
+	// Full messages are stored as "condition:<type>" detail-only keys.
 	if conditions, ok := status["conditions"].([]interface{}); ok {
+		var condTypes []string
 		for _, c := range conditions {
 			cond, ok := c.(map[string]interface{})
 			if !ok {
@@ -297,6 +300,9 @@ func populateArgoCDApplication(ti *model.Item, _ map[string]interface{}, status,
 			if condType == "" {
 				continue
 			}
+			condTypes = append(condTypes, condType)
+			// Full message stored with "condition:" prefix so it's excluded
+			// from the table (prefix-blocked) but shown in the DETAILS pane.
 			value := condMsg
 			if value == "" {
 				value = "(no message)"
@@ -306,7 +312,10 @@ func populateArgoCDApplication(ti *model.Item, _ map[string]interface{}, status,
 					value += " (" + formatRelativeTime(t) + ")"
 				}
 			}
-			ti.Columns = append(ti.Columns, model.KeyValue{Key: condType, Value: value})
+			ti.Columns = append(ti.Columns, model.KeyValue{Key: "condition:" + condType, Value: value})
+		}
+		if len(condTypes) > 0 {
+			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Condition", Value: strings.Join(condTypes, ", ")})
 		}
 	}
 	if spec != nil {
