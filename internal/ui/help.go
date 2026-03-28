@@ -309,8 +309,9 @@ func buildHelpLines(filter string) []string {
 					continue
 				}
 			}
-			keyPart := HelpKeyStyle.Render(fmt.Sprintf("%-*s", keyW, b.key))
-			descPart := DimStyle.Render(b.desc)
+			keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSecondary)).Bold(true).Background(SurfaceBg)
+			keyPart := keyStyle.Render(fmt.Sprintf("%-*s", keyW, b.key))
+			descPart := OverlayDimStyle.Render(b.desc)
 			sectionLines = append(sectionLines, "    "+keyPart+"  "+descPart)
 		}
 
@@ -324,13 +325,13 @@ func buildHelpLines(filter string) []string {
 				lines = append(lines, "")
 			}
 		}
-		header := HeaderStyle.Render(section.title)
+		header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorPrimary)).Underline(true).Background(SurfaceBg).Render(section.title)
 		lines = append(lines, "  "+header)
 		lines = append(lines, sectionLines...)
 	}
 
 	if filter != "" && len(lines) == 0 {
-		lines = append(lines, DimStyle.Render("  No matching keybindings"))
+		lines = append(lines, OverlayDimStyle.Render("  No matching keybindings"))
 	}
 
 	return lines
@@ -350,16 +351,19 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string) stri
 
 	contentW := boxW - 6 // account for border + padding
 
-	title := TitleStyle.Render("Keybindings")
+	title := OverlayTitleStyle.Render("Keybindings")
 
 	lines := buildHelpLines(filter)
 	totalLines := len(lines)
 
 	// Calculate visible area: title, borders, padding, help line.
+	// Always reserve 2 lines for scroll indicators so the window height
+	// stays constant regardless of scroll position.
 	maxLines := max(boxH-6, 5)
+	visibleLines := max(maxLines-2, 1)
 
 	// Clamp scroll.
-	maxScroll := max(totalLines-maxLines, 0)
+	maxScroll := max(totalLines-visibleLines, 0)
 	if scroll > maxScroll {
 		scroll = maxScroll
 	}
@@ -369,16 +373,7 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string) stri
 
 	// Determine scroll indicators.
 	hasAbove := scroll > 0
-	hasBelow := scroll+maxLines < totalLines
-
-	// Reserve lines for scroll indicators if needed.
-	visibleLines := maxLines
-	if hasAbove {
-		visibleLines--
-	}
-	if hasBelow {
-		visibleLines--
-	}
+	hasBelow := scroll+visibleLines < totalLines
 
 	// Slice visible portion.
 	end := min(scroll+visibleLines, totalLines)
@@ -386,12 +381,17 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string) stri
 
 	// Build final lines with indicators.
 	var displayLines []string
+	// Always include indicator lines (empty when not scrollable) to keep height stable.
 	if hasAbove {
-		displayLines = append(displayLines, DimStyle.Render("  \u2191 more above"))
+		displayLines = append(displayLines, OverlayDimStyle.Render("  \u2191 more above"))
+	} else {
+		displayLines = append(displayLines, "")
 	}
 	displayLines = append(displayLines, visible...)
 	if hasBelow {
-		displayLines = append(displayLines, DimStyle.Render("  \u2193 more below"))
+		displayLines = append(displayLines, OverlayDimStyle.Render("  \u2193 more below"))
+	} else {
+		displayLines = append(displayLines, "")
 	}
 
 	content := strings.Join(displayLines, "\n")
