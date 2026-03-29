@@ -339,7 +339,9 @@ func buildHelpLines(filter string) []string {
 
 // RenderHelpScreen renders a full help overlay with all keybindings.
 // It supports scrolling via the scroll parameter and filtering via the filter parameter.
-func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string) string {
+// searchInput is the live search prompt text (shown when the user is actively typing);
+// pass "" when not searching.
+func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter, searchInput string) string {
 	boxW := screenWidth * 70 / 100
 	boxH := screenHeight * 80 / 100
 	if boxW < 50 {
@@ -356,10 +358,9 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string) stri
 	lines := buildHelpLines(filter)
 	totalLines := len(lines)
 
-	// Calculate visible area: title, borders, padding, help line.
-	// Always reserve 2 lines for scroll indicators so the window height
-	// stays constant regardless of scroll position.
-	maxLines := max(boxH-6, 5)
+	// Calculate visible area: title, borders, padding, search bar, scroll indicators.
+	// Reserve 8 lines: border(2) + padding(0) + title(1) + gap(1) + search bar(2) + indicator(2).
+	maxLines := max(boxH-8, 5)
 	visibleLines := max(maxLines-2, 1)
 
 	// Clamp scroll.
@@ -400,7 +401,18 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter string) stri
 		Width(contentW).
 		Render(content)
 
-	body := title + "\n" + innerPanel
+	// Build search/filter bar at the bottom of the overlay.
+	var searchBar string
+	switch {
+	case searchInput != "":
+		searchBar = HelpKeyStyle.Render("/") + OverlayNormalStyle.Render(searchInput)
+	case filter != "":
+		searchBar = OverlayDimStyle.Render("filter: ") + HelpKeyStyle.Render(filter)
+	default:
+		searchBar = OverlayDimStyle.Render("j/k: scroll | /: search | esc: close")
+	}
+
+	body := title + "\n" + innerPanel + "\n" + searchBar
 	body = FillLinesBg(body, boxW-4, SurfaceBg) // -4 for OverlayStyle padding(1,2)
 
 	return OverlayStyle.

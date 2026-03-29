@@ -71,7 +71,11 @@ func (m Model) View() string {
 		// Use the full terminal height so the overlay is correctly sized
 		// and the bottom hint bar of the underlying view is not clipped.
 		if m.mode == modeHelp {
-			overlay := ui.RenderHelpScreen(m.width, fullHeight, m.helpScroll, m.helpFilter.Value)
+			searchInput := ""
+			if m.helpSearchActive {
+				searchInput = m.helpSearchInput.Value()
+			}
+			overlay := ui.RenderHelpScreen(m.width, fullHeight, m.helpScroll, m.helpFilter.Value, searchInput)
 			view = ui.PlaceOverlay(m.width, fullHeight, overlay, view)
 		}
 
@@ -92,7 +96,11 @@ func (m Model) View() string {
 
 	// Render help screen as an overlay on top of the explorer view.
 	if m.mode == modeHelp {
-		overlay := ui.RenderHelpScreen(m.width, m.height, m.helpScroll, m.helpFilter.Value)
+		searchInput := ""
+		if m.helpSearchActive {
+			searchInput = m.helpSearchInput.Value()
+		}
+		overlay := ui.RenderHelpScreen(m.width, m.height, m.helpScroll, m.helpFilter.Value, searchInput)
 		view = ui.PlaceOverlay(m.width, m.height, overlay, view)
 	}
 
