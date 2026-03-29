@@ -504,7 +504,31 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.yamlCollapsed = make(map[string]bool)
 			}
 			m.yamlCollapsed[sec] = !m.yamlCollapsed[sec]
+
+			// Move cursor to the fold header line so it stays visible
+			// after collapsing.
+			if m.yamlCollapsed[sec] {
+				// Find the section's startLine and locate it in the
+				// new visible line mapping.
+				var startLine int
+				for _, s := range m.yamlSections {
+					if s.key == sec {
+						startLine = s.startLine
+						break
+					}
+				}
+				yamlForDisplay := m.maskYAMLIfSecret(m.yamlContent)
+				_, newMapping := buildVisibleLines(yamlForDisplay, m.yamlSections, m.yamlCollapsed)
+				for vi, orig := range newMapping {
+					if orig == startLine {
+						m.yamlCursor = vi
+						break
+					}
+				}
+			}
+
 			m.clampYAMLScroll()
+			m.ensureYAMLCursorVisible()
 		}
 		return m, nil
 	case "Z":
