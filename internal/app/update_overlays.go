@@ -43,6 +43,8 @@ func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelmRollbackOverlayKey(msg)
 	case overlayLabelEditor:
 		return m.handleLabelEditorKey(msg)
+	case overlayAutoSync:
+		return m.handleAutoSyncKey(msg)
 	case overlayColorscheme:
 		return m.handleColorschemeOverlayKey(msg)
 	case overlayFilterPreset:

@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -372,6 +373,86 @@ func (c *Client) RefreshArgoApp(contextName, namespace, name string) error {
 		return fmt.Errorf("refreshing application %s: %w", name, err)
 	}
 	return nil
+}
+
+// GetAutoSyncConfig reads the autosync configuration from an ArgoCD Application.
+func (c *Client) GetAutoSyncConfig(ctx context.Context, contextName, namespace, name string) (enabled, selfHeal, prune bool, err error) {
+	dynClient, err := c.dynamicForContext(contextName)
+	if err != nil {
+		return false, false, false, err
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    "argoproj.io",
+		Version:  "v1alpha1",
+		Resource: "applications",
+	}
+
+	app, err := dynClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return false, false, false, fmt.Errorf("getting application: %w", err)
+	}
+
+	automated, found, _ := unstructured.NestedMap(app.Object, "spec", "syncPolicy", "automated")
+	if !found || automated == nil {
+		return false, false, false, nil
+	}
+
+	enabled = true
+	if sh, ok := automated["selfHeal"].(bool); ok {
+		selfHeal = sh
+	}
+	if pr, ok := automated["prune"].(bool); ok {
+		prune = pr
+	}
+
+	return enabled, selfHeal, prune, nil
+}
+
+// UpdateAutoSyncConfig updates the autosync configuration for an ArgoCD Application.
+func (c *Client) UpdateAutoSyncConfig(ctx context.Context, contextName, namespace, name string, enabled, selfHeal, prune bool) error {
+	dynClient, err := c.dynamicForContext(contextName)
+	if err != nil {
+		return err
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    "argoproj.io",
+		Version:  "v1alpha1",
+		Resource: "applications",
+	}
+
+	var patchData []byte
+	if !enabled {
+		// Remove automated section entirely.
+		patchData, err = json.Marshal(map[string]interface{}{
+			"spec": map[string]interface{}{
+				"syncPolicy": map[string]interface{}{
+					"automated": nil,
+				},
+			},
+		})
+	} else {
+		patchData, err = json.Marshal(map[string]interface{}{
+			"spec": map[string]interface{}{
+				"syncPolicy": map[string]interface{}{
+					"automated": map[string]interface{}{
+						"selfHeal": selfHeal,
+						"prune":    prune,
+					},
+				},
+			},
+		})
+	}
+	if err != nil {
+		return fmt.Errorf("marshaling patch: %w", err)
+	}
+
+	_, err = dynClient.Resource(gvr).Namespace(namespace).Patch(
+		ctx, name, k8stypes.MergePatchType, patchData, metav1.PatchOptions{},
+	)
+
+	return err
 }
 
 // --- FluxCD helpers ---

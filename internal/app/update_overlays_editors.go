@@ -353,6 +353,39 @@ func (m Model) handleConfigMapEditorKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleAutoSyncKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.overlay = overlayNone
+		return m, nil
+	case "j", "down":
+		if m.autoSyncCursor < 2 {
+			m.autoSyncCursor++
+		}
+		return m, nil
+	case "k", "up":
+		if m.autoSyncCursor > 0 {
+			m.autoSyncCursor--
+		}
+		return m, nil
+	case " ", "enter":
+		switch m.autoSyncCursor {
+		case 0:
+			m.autoSyncEnabled = !m.autoSyncEnabled
+		case 1:
+			m.autoSyncSelfHeal = !m.autoSyncSelfHeal
+		case 2:
+			m.autoSyncPrune = !m.autoSyncPrune
+		}
+		return m, nil
+	case "ctrl+s":
+		return m, m.saveAutoSyncConfig()
+	case "ctrl+c":
+		return m.closeTabOrQuit()
+	}
+	return m, nil
+}
+
 func (m Model) handleLabelEditorKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.labelData == nil {
 		m.overlay = overlayNone

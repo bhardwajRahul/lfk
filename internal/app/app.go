@@ -68,6 +68,7 @@ const (
 	overlayLogContainerSelect
 	overlayQuitConfirm
 	overlayPVCResize
+	overlayAutoSync
 )
 
 // bookmarkOverlayMode tracks the interaction mode for the bookmark overlay.
@@ -564,6 +565,12 @@ type Model struct {
 	labelEditValue    TextInput
 	labelEditColumn   int                     // 0=key, 1=value
 	labelResourceType model.ResourceTypeEntry // the resource type being edited
+
+	// ArgoCD autosync overlay state.
+	autoSyncEnabled  bool
+	autoSyncSelfHeal bool
+	autoSyncPrune    bool
+	autoSyncCursor   int // 0=autosync, 1=selfheal, 2=prune
 
 	// Quick filter preset state.
 	filterPresets         []FilterPreset

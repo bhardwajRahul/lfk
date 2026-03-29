@@ -213,6 +213,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 		}
 	case "Application":
 		return []ActionMenuItem{
+			{Label: "Configure AutoSync", Description: "Toggle autosync, self-heal, prune", Key: "A"},
 			{Label: "Sync", Description: "Sync application", Key: "s"},
 			{Label: "Sync (Apply Only)", Description: "Sync application without hooks", Key: "a"},
 			{Label: "Terminate Sync", Description: "Terminate running sync operation", Key: "T"},

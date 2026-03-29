@@ -508,6 +508,9 @@ func (m Model) executeAction(actionLabel string) (tea.Model, tea.Cmd) {
 		m.setStatusMessage("Loading events...", false)
 		m.addLogEntry("DBG", fmt.Sprintf("Loading event timeline for %s/%s in %s", m.actionCtx.kind, name, ns))
 		return m, m.loadEventTimeline()
+	case "Configure AutoSync":
+		m.addLogEntry("DBG", fmt.Sprintf("Loading autosync config for %s/%s in %s", ns, name, ctx))
+		return m, m.loadAutoSyncConfig()
 	case "Sync":
 		m.addLogEntry("DBG", fmt.Sprintf("Sync (hook strategy) %s/%s in %s", ns, name, ctx))
 		m.loading = true

@@ -262,6 +262,14 @@ func (m Model) overlayHintBar() string {
 			{Key: "esc", Desc: "close"},
 		})
 
+	case overlayAutoSync:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "jk", Desc: "nav"},
+			{Key: "space", Desc: "toggle"},
+			{Key: "ctrl+s", Desc: "save"},
+			{Key: "esc", Desc: "cancel"},
+		})
+
 	case overlayCanI:
 		if m.canISearchActive {
 			return m.renderHints([]ui.HintEntry{

@@ -470,6 +470,13 @@ func (m Model) renderOverlay(background string) string {
 		)
 		bg := ui.PadToHeight(background, m.height)
 		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+	case overlayAutoSync:
+		overlay := ui.RenderAutoSyncOverlay(
+			m.autoSyncEnabled, m.autoSyncSelfHeal, m.autoSyncPrune,
+			m.autoSyncCursor, m.width, m.height,
+		)
+		bg := ui.PadToHeight(background, m.height)
+		return ui.PlaceOverlay(m.width, m.height, overlay, bg)
 	default:
 		return background
 	}

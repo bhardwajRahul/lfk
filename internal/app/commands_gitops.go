@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -349,5 +350,59 @@ func (m Model) terminateArgoSync() tea.Cmd {
 			return actionResultMsg{err: err}
 		}
 		return actionResultMsg{message: fmt.Sprintf("Sync termination requested for %s", name)}
+	}
+}
+
+// autoSyncLoadedMsg carries the current autosync configuration.
+type autoSyncLoadedMsg struct {
+	enabled, selfHeal, prune bool
+	err                      error
+}
+
+// autoSyncSavedMsg carries the result of saving autosync configuration.
+type autoSyncSavedMsg struct {
+	err error
+}
+
+func (m Model) loadAutoSyncConfig() tea.Cmd {
+	sel := m.selectedMiddleItem()
+	if sel == nil {
+		return nil
+	}
+
+	kctx := m.nav.Context
+	ns := sel.Namespace
+	if ns == "" {
+		ns = m.resolveNamespace()
+	}
+	name := sel.Name
+	client := m.client
+
+	return func() tea.Msg {
+		enabled, selfHeal, prune, err := client.GetAutoSyncConfig(context.Background(), kctx, ns, name)
+		return autoSyncLoadedMsg{enabled: enabled, selfHeal: selfHeal, prune: prune, err: err}
+	}
+}
+
+func (m Model) saveAutoSyncConfig() tea.Cmd {
+	sel := m.selectedMiddleItem()
+	if sel == nil {
+		return nil
+	}
+
+	kctx := m.nav.Context
+	ns := sel.Namespace
+	if ns == "" {
+		ns = m.resolveNamespace()
+	}
+	name := sel.Name
+	enabled := m.autoSyncEnabled
+	selfHeal := m.autoSyncSelfHeal
+	prune := m.autoSyncPrune
+	client := m.client
+
+	return func() tea.Msg {
+		err := client.UpdateAutoSyncConfig(context.Background(), kctx, ns, name, enabled, selfHeal, prune)
+		return autoSyncSavedMsg{err: err}
 	}
 }

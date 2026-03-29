@@ -1282,6 +1282,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(m.refreshCurrentLevel(), scheduleStatusClear())
 
+	case autoSyncLoadedMsg:
+		if msg.err != nil {
+			m.setErrorFromErr("Loading autosync config: ", msg.err)
+			return m, scheduleStatusClear()
+		}
+		m.autoSyncEnabled = msg.enabled
+		m.autoSyncSelfHeal = msg.selfHeal
+		m.autoSyncPrune = msg.prune
+		m.autoSyncCursor = 0
+		m.overlay = overlayAutoSync
+		return m, nil
+
+	case autoSyncSavedMsg:
+		if msg.err != nil {
+			m.setErrorFromErr("Saving autosync config: ", msg.err)
+		} else {
+			m.setStatusMessage("AutoSync configuration updated", false)
+			m.overlay = overlayNone
+		}
+		return m, tea.Batch(m.refreshCurrentLevel(), scheduleStatusClear())
+
 	case exportDoneMsg:
 		if msg.err != nil {
 			m.setErrorFromErr("Export failed: ", msg.err)
