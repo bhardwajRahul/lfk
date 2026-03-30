@@ -88,7 +88,7 @@ func RenderResourceSummary(item *model.Item, yaml string, width, height int) str
 		if strings.HasPrefix(kv.Key, "cond:") {
 			continue
 		}
-		if kv.Key == "Labels" || kv.Key == "Finalizers" || kv.Key == "Annotations" || kv.Key == "Used By" || kv.Key == "Selector" {
+		if kv.Key == "Labels" || kv.Key == "Finalizers" || kv.Key == "Annotations" || kv.Key == "Used By" || kv.Key == "Selector" || kv.Key == "Taints" {
 			multiLineFields = append(multiLineFields, kv)
 			continue
 		}
@@ -195,7 +195,7 @@ func RenderResourceSummary(item *model.Item, yaml string, width, height int) str
 
 	// Render multi-line fields in order: Labels, Annotations, Finalizers,
 	// then Selector, Used By.
-	multiOrder := []string{"Labels", "Annotations", "Finalizers", "Selector", "Used By"}
+	multiOrder := []string{"Labels", "Annotations", "Finalizers", "Taints", "Selector", "Used By"}
 	multiMap := make(map[string]model.KeyValue, len(multiLineFields))
 	for _, kv := range multiLineFields {
 		multiMap[kv.Key] = kv
