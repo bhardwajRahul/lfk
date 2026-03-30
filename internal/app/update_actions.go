@@ -522,6 +522,9 @@ func (m Model) executeAction(actionLabel string) (tea.Model, tea.Cmd) {
 	case "Refresh":
 		m.addLogEntry("DBG", fmt.Sprintf("Hard refresh %s/%s in %s", ns, name, ctx))
 		m.loading = true
+		if m.actionCtx.kind == "ApplicationSet" {
+			return m, m.refreshArgoAppSet()
+		}
 		return m, m.refreshArgoApp()
 	case "Terminate Sync":
 		m.addLogEntry("DBG", fmt.Sprintf("Terminate sync for %s/%s in %s", ns, name, ctx))

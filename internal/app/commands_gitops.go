@@ -38,6 +38,19 @@ func (m Model) refreshArgoApp() tea.Cmd {
 	}
 }
 
+func (m Model) refreshArgoAppSet() tea.Cmd {
+	ctx := m.actionCtx.context
+	ns := m.actionNamespace()
+	name := m.actionCtx.name
+	return func() tea.Msg {
+		err := m.client.RefreshArgoAppSet(ctx, ns, name)
+		if err != nil {
+			return actionResultMsg{err: err}
+		}
+		return actionResultMsg{message: fmt.Sprintf("Refresh triggered for ApplicationSet %s", name)}
+	}
+}
+
 // reconcileFluxResource triggers reconciliation of a Flux resource.
 func (m Model) reconcileFluxResource() tea.Cmd {
 	ctx := m.actionCtx.context

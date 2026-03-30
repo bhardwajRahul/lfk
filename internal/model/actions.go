@@ -224,6 +224,14 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
 		}
+	case "ApplicationSet":
+		return []ActionMenuItem{
+			{Label: "Refresh", Description: "Trigger ApplicationSet refresh", Key: "R"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this ApplicationSet", Key: "D"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}
 	case "PersistentVolumeClaim":
 		return []ActionMenuItem{
 			{Label: "Resize", Description: "Expand PVC storage size", Key: "r"},

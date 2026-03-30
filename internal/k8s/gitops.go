@@ -375,6 +375,26 @@ func (c *Client) RefreshArgoApp(contextName, namespace, name string) error {
 	return nil
 }
 
+// RefreshArgoAppSet triggers a refresh on an ArgoCD ApplicationSet by setting
+// the argocd.argoproj.io/refresh annotation.
+func (c *Client) RefreshArgoAppSet(contextName, namespace, name string) error {
+	dynClient, err := c.dynamicForContext(contextName)
+	if err != nil {
+		return err
+	}
+
+	gvr := schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "applicationsets"}
+
+	patch := []byte(`{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"true"}}}`)
+	_, err = dynClient.Resource(gvr).Namespace(namespace).Patch(
+		context.Background(), name, k8stypes.MergePatchType, patch, metav1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("refreshing applicationset %s: %w", name, err)
+	}
+	return nil
+}
+
 // GetAutoSyncConfig reads the autosync configuration from an ArgoCD Application.
 func (c *Client) GetAutoSyncConfig(ctx context.Context, contextName, namespace, name string) (enabled, selfHeal, prune bool, err error) {
 	dynClient, err := c.dynamicForContext(contextName)
