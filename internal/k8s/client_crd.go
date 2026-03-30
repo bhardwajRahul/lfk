@@ -368,9 +368,9 @@ func extractStatus(obj map[string]interface{}) string {
 		}
 	}
 	if conditions, ok := statusMap["conditions"].([]interface{}); ok && len(conditions) > 0 {
-		// Prefer "Available" condition with status "True" over other conditions
-		// (e.g., Deployments often have "Progressing" as the last condition even
-		// when fully available).
+		// Prefer "Available" or "Ready" condition with status "True".
+		// Track the last True condition and last condition overall.
+		var lastTrueType, lastType string
 		for _, c := range conditions {
 			cond, ok := c.(map[string]interface{})
 			if !ok {
@@ -378,15 +378,22 @@ func extractStatus(obj map[string]interface{}) string {
 			}
 			condType, _ := cond["type"].(string)
 			condStatus, _ := cond["status"].(string)
-			if condType == "Available" && condStatus == "True" {
-				return "Available"
+			if condStatus == "True" && (condType == "Available" || condType == "Ready") {
+				return condType
+			}
+			lastType = condType
+			if condStatus == "True" {
+				lastTrueType = condType
 			}
 		}
-		// Fall back to the last condition's type.
-		if cond, ok := conditions[len(conditions)-1].(map[string]interface{}); ok {
-			if t, ok := cond["type"].(string); ok {
-				return t
-			}
+		// Prefer a True condition when the last condition is a negative
+		// type with False status (e.g., "Failed: False" should not be
+		// shown when "JobCreated: True" exists).
+		if lastTrueType != "" && isNegativeConditionType(lastType) {
+			return lastTrueType
+		}
+		if lastType != "" {
+			return lastType
 		}
 	}
 	return ""
