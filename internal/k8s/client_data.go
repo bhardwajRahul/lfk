@@ -171,6 +171,7 @@ func (c *Client) GetLabelAnnotationData(ctx context.Context, contextName string,
 }
 
 // UpdateLabelAnnotationData updates labels and annotations for any resource.
+// Deleted keys are set to null in the merge patch so the API server removes them.
 func (c *Client) UpdateLabelAnnotationData(ctx context.Context, contextName string, rt model.ResourceTypeEntry, namespace, name string, labels, annotations map[string]string) error {
 	dynClient, err := c.dynamicForContext(contextName)
 	if err != nil {
@@ -183,10 +184,42 @@ func (c *Client) UpdateLabelAnnotationData(ctx context.Context, contextName stri
 		Resource: rt.Resource,
 	}
 
+	// Fetch current resource to detect deleted keys.
+	var obj *unstructured.Unstructured
+	if rt.Namespaced {
+		obj, err = dynClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	} else {
+		obj, err = dynClient.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("getting resource for label update: %w", err)
+	}
+
+	// Build patch maps with null for deleted keys (merge patch semantics).
+	labelPatch := make(map[string]interface{}, len(labels))
+	for k, v := range labels {
+		labelPatch[k] = v
+	}
+	for k := range obj.GetLabels() {
+		if _, ok := labels[k]; !ok {
+			labelPatch[k] = nil // delete
+		}
+	}
+
+	annotPatch := make(map[string]interface{}, len(annotations))
+	for k, v := range annotations {
+		annotPatch[k] = v
+	}
+	for k := range obj.GetAnnotations() {
+		if _, ok := annotations[k]; !ok {
+			annotPatch[k] = nil // delete
+		}
+	}
+
 	patchData, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
-			"labels":      labels,
-			"annotations": annotations,
+			"labels":      labelPatch,
+			"annotations": annotPatch,
 		},
 	})
 	if err != nil {

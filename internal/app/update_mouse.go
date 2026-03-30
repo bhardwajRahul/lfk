@@ -28,6 +28,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Handle tab bar clicks in any mode.
+	if len(m.tabs) > 1 && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress && msg.Y == 1 {
+		if tab := m.tabAtX(msg.X); tab >= 0 && tab != m.activeTab {
+			return m.switchToTab(tab)
+		}
+		return m, nil
+	}
+
 	// Don't handle mouse in overlay/help/yaml modes.
 	if m.overlay != overlayNone || m.mode != modeExplorer {
 		return m, nil
@@ -248,4 +256,39 @@ func (m Model) handleHeaderClick(relX int) (tea.Model, tea.Cmd) {
 	}
 	// Remaining space is AGE (or extra columns, mapped to age sort).
 	return m.applySortMode(sortByAge)
+}
+
+// tabAtX returns the tab index at the given X coordinate in the tab bar,
+// or -1 if the click is not on any tab.
+func (m *Model) tabAtX(x int) int {
+	labels := m.tabLabels()
+	// Tab bar: each tab label is padded with 1 char on each side (Padding(0,1)),
+	// separated by " | " (3 chars). Tab bar starts at x=1 (bar left padding).
+	pos := 1
+	for i, label := range labels {
+		tabW := len(label) + 2 // label + padding(0,1) on each side
+		if x >= pos && x < pos+tabW {
+			return i
+		}
+		pos += tabW + 3 // separator " | "
+	}
+	return -1
+}
+
+// switchToTab saves the current tab and loads the target tab.
+func (m Model) switchToTab(tab int) (tea.Model, tea.Cmd) {
+	m.saveCurrentTab()
+	if cmd := m.loadTab(tab); cmd != nil {
+		return m, cmd
+	}
+	if m.mode == modeExplorer {
+		return m, m.loadPreview()
+	}
+	if m.mode == modeLogs && m.logCh != nil {
+		return m, m.waitForLogLine()
+	}
+	if m.mode == modeExec && m.execPTY != nil {
+		return m, m.scheduleExecTick()
+	}
+	return m, nil
 }

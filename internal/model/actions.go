@@ -226,7 +226,6 @@ func ActionsForKind(kind string) []ActionMenuItem {
 		}
 	case "ApplicationSet":
 		return []ActionMenuItem{
-			{Label: "Refresh", Description: "Trigger ApplicationSet refresh", Key: "R"},
 			{Label: "Describe", Description: "Describe resource", Key: "v"},
 			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
 			{Label: "Delete", Description: "Delete this ApplicationSet", Key: "D"},
