@@ -520,9 +520,9 @@ func (m Model) executeAction(actionLabel string) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, m.syncArgoApp(true)
 	case "Refresh":
-		m.addLogEntry("DBG", fmt.Sprintf("Hard refresh %s/%s in %s", ns, name, ctx))
+		m.addLogEntry("DBG", fmt.Sprintf("Hard refresh %s (%s) %s/%s in %s", m.actionCtx.kind, rt.Resource, ns, name, ctx))
 		m.loading = true
-		if m.actionCtx.kind == "ApplicationSet" {
+		if m.actionCtx.kind == "ApplicationSet" || rt.Resource == "applicationsets" {
 			return m, m.refreshArgoAppSet()
 		}
 		return m, m.refreshArgoApp()
