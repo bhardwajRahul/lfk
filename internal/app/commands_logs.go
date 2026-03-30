@@ -76,14 +76,14 @@ func (m *Model) startLogStream() tea.Cmd {
 			if selector != "" {
 				args = []string{
 					"logs", "-l", selector, "--all-containers=true", "--prefix", followFlag,
-					"--max-log-requests=20", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "--ignore-errors", "-n", ns, "--context", kctx,
 				}
 			} else {
 				// Fallback: use resource reference (follows only one pod).
 				resourceRef := strings.ToLower(kind) + "/" + name
 				args = []string{
 					"logs", resourceRef, "--all-containers=true", "--prefix", followFlag,
-					"--max-log-requests=20", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "--ignore-errors", "-n", ns, "--context", kctx,
 				}
 			}
 		default:
@@ -91,7 +91,9 @@ func (m *Model) startLogStream() tea.Cmd {
 			if containerName != "" {
 				args = append(args, "-c", containerName)
 			} else if kind == "Pod" {
-				args = append(args, "--all-containers=true", "--prefix", "--max-log-requests=20")
+				// --ignore-errors prevents the stream from dying when init
+				// containers haven't started yet (all-containers includes them).
+				args = append(args, "--all-containers=true", "--prefix", "--max-log-requests=20", "--ignore-errors")
 			}
 		}
 
