@@ -425,9 +425,10 @@ func populateArgoWorkflow(ti *model.Item, status map[string]interface{}) {
 	// for each node and store as detail-only columns with "step:" prefix.
 	if nodes, ok := status["nodes"].(map[string]interface{}); ok {
 		type stepInfo struct {
-			name    string
-			phase   string
-			message string
+			name      string
+			phase     string
+			message   string
+			startedAt time.Time
 		}
 		var steps []stepInfo
 		for _, n := range nodes {
@@ -441,12 +442,28 @@ func populateArgoWorkflow(ti *model.Item, status map[string]interface{}) {
 			}
 			phase, _ := node["phase"].(string)
 			msg, _ := node["message"].(string)
+			var started time.Time
+			if s, ok := node["startedAt"].(string); ok && s != "" {
+				started, _ = time.Parse(time.RFC3339, s)
+			}
 			if displayName != "" {
-				steps = append(steps, stepInfo{name: displayName, phase: phase, message: msg})
+				steps = append(steps, stepInfo{name: displayName, phase: phase, message: msg, startedAt: started})
 			}
 		}
-		// Sort steps by name for stable output.
-		sort.Slice(steps, func(i, j int) bool { return steps[i].name < steps[j].name })
+		// Sort steps by execution order (startedAt), unstarted steps last.
+		sort.Slice(steps, func(i, j int) bool {
+			si, sj := steps[i].startedAt, steps[j].startedAt
+			if si.IsZero() && sj.IsZero() {
+				return steps[i].name < steps[j].name
+			}
+			if si.IsZero() {
+				return false
+			}
+			if sj.IsZero() {
+				return true
+			}
+			return si.Before(sj)
+		})
 		for _, s := range steps {
 			val := s.phase
 			if s.message != "" {
