@@ -23,8 +23,10 @@ func populateResourceDetailsExt(ti *model.Item, obj map[string]interface{}, kind
 			}
 		}
 		if status != nil {
-			// Extract Ready condition.
+			// Extract Ready condition; fall back to generic extraction when
+			// no Ready condition exists (e.g., helm.cattle.io HelmCharts).
 			if conditions, ok := status["conditions"].([]interface{}); ok {
+				foundReady := false
 				for _, c := range conditions {
 					cond, ok := c.(map[string]interface{})
 					if !ok {
@@ -35,6 +37,7 @@ func populateResourceDetailsExt(ti *model.Item, obj map[string]interface{}, kind
 					condMessage, _ := cond["message"].(string)
 					condReason, _ := cond["reason"].(string)
 					if condType == "Ready" {
+						foundReady = true
 						ti.Columns = append(ti.Columns, model.KeyValue{Key: "Ready", Value: condStatus})
 						if condReason != "" {
 							ti.Columns = append(ti.Columns, model.KeyValue{Key: "Reason", Value: condReason})
@@ -49,6 +52,9 @@ func populateResourceDetailsExt(ti *model.Item, obj map[string]interface{}, kind
 						}
 						break
 					}
+				}
+				if !foundReady && len(conditions) > 0 {
+					extractGenericConditions(ti, conditions)
 				}
 			}
 			// Extract last applied revision.
