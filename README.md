@@ -2,12 +2,49 @@
 
 **LFK** is a lightning-fast, keyboard-focused, yazi-inspired terminal user interface for navigating and managing Kubernetes clusters. Built for speed and efficiency, it brings a three-column Miller columns layout with an owner-based resource hierarchy to your terminal.
 
+## Screenshots
+
+### Demo
+
 ![Demo](./docs/imgs/demo.gif)
 
-> **Disclaimer**: This project is largely vibe coded with AI assistance. While it works well for daily Kubernetes operations, please review the code and use it at your own risk. Contributions and bug reports are welcome!
+### Pods
 
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/janosmiko?style=flat&logo=githubsponsors&label=Sponsors)](https://github.com/sponsors/janosmiko)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=flat&logo=buymeacoffee)](https://buymeacoffee.com/janosmiko)
+![Pods](./docs/imgs/pods.png)
+
+### Pods fullscreen
+
+![Pods fullscreen](./docs/imgs/pods-fullscreen.png)
+
+### Helm integration
+
+![Helm integration](./docs/imgs/helm-integration.png)
+
+### ArgoCD integration
+
+![ArgoCD integration](./docs/imgs/argocd-integration.png)
+
+![ArgoCD auto-sync config](./docs/imgs/argocd-autosync.png)
+
+### ConfigMap and Secret editors
+
+![ConfigMap editor](./docs/imgs/configmap-editor.png)
+
+### Label and annotation editor
+
+![Label editor](./docs/imgs/label-editor.png)
+
+### Can-I RBAC permissions browser
+
+![Can-I viewer](./docs/imgs/can-i.png)
+
+### YAML preview
+
+![Yaml preview](./docs/imgs/yaml-preview.png)
+
+### API Explorer
+
+![API Explorer](./docs/imgs/api-explorer.png)
 
 ## Features
 
