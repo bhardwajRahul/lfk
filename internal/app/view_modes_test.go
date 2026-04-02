@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/janosmiko/lfk/internal/model"
+	"github.com/janosmiko/lfk/internal/ui"
 )
 
 // --- wrappedLineCount ---
@@ -151,7 +152,7 @@ func TestClampLogScrollWithWrap(t *testing.T) {
 // --- ensureLogCursorVisible ---
 
 func TestEnsureLogCursorVisible(t *testing.T) {
-	t.Run("cursor above viewport scrolls up", func(t *testing.T) {
+	t.Run("cursor above viewport scrolls up with scrolloff", func(t *testing.T) {
 		m := Model{
 			height:    20,
 			width:     80,
@@ -161,7 +162,9 @@ func TestEnsureLogCursorVisible(t *testing.T) {
 			logCursor: 10,
 		}
 		m.ensureLogCursorVisible()
-		assert.Equal(t, 10, m.logScroll)
+		// Scroll should position cursor with scrolloff margin above it.
+		so := ui.ConfigScrollOff
+		assert.Equal(t, 10-so, m.logScroll)
 	})
 
 	t.Run("cursor below viewport scrolls down", func(t *testing.T) {

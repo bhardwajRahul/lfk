@@ -214,7 +214,7 @@ func RenderColorschemeOverlay(entries []SchemeEntry, filter string, cursor int, 
 
 	// Scrolling window with vim-style scrolloff for stable viewport.
 	maxVisible := SchemeOverlayMaxVisible
-	scrollOff := 3
+	scrollOff := ConfigScrollOff
 	if len(items) <= maxVisible {
 		scrollOff = 0
 	} else if maxSO := (maxVisible - 1) / 2; scrollOff > maxSO {

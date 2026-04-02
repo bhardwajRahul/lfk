@@ -197,13 +197,11 @@ func (m *Model) clampLogScroll() {
 	}
 }
 
-// ensureLogCursorVisible adjusts logScroll so the cursor is within the visible content area.
+// ensureLogCursorVisible adjusts logScroll so the cursor is within the visible
+// content area with scrolloff margin.
 func (m *Model) ensureLogCursorVisible() {
 	if m.logCursor < 0 {
 		return
-	}
-	if m.logCursor < 0 {
-		m.logCursor = 0
 	}
 	if len(m.logLines) > 0 && m.logCursor >= len(m.logLines) {
 		m.logCursor = len(m.logLines) - 1
@@ -212,13 +210,17 @@ func (m *Model) ensureLogCursorVisible() {
 	if viewH < 1 {
 		viewH = 1
 	}
-	// Scroll up if cursor is above viewport.
-	if m.logCursor < m.logScroll {
-		m.logScroll = m.logCursor
+	so := ui.ConfigScrollOff
+	if so > viewH/2 {
+		so = viewH / 2
 	}
-	// Scroll down if cursor is below viewport.
-	if m.logCursor >= m.logScroll+viewH {
-		m.logScroll = m.logCursor - viewH + 1
+	// Scroll up if cursor is above viewport (with scrolloff).
+	if m.logCursor < m.logScroll+so {
+		m.logScroll = m.logCursor - so
+	}
+	// Scroll down if cursor is below viewport (with scrolloff).
+	if m.logCursor >= m.logScroll+viewH-so {
+		m.logScroll = m.logCursor - viewH + so + 1
 	}
 	m.clampLogScroll()
 }

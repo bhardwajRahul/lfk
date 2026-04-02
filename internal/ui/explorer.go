@@ -422,7 +422,7 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 	}
 
 	// Determine visible window using vim-style scrolloff.
-	scrollOff := 10
+	scrollOff := ConfigScrollOff
 	startEntry := 0
 
 	// Use persistent scroll position if available (vim-style stable viewport).

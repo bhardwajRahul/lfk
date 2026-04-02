@@ -237,7 +237,7 @@ func RenderCanISubjectOverlay(items []model.Item, filter string, cursor int, fil
 	}
 
 	maxVisible := min(15, len(items))
-	scrollOff := 3
+	scrollOff := ConfigScrollOff
 	// Disable or reduce scrolloff when all items fit the visible area.
 	if len(items) <= maxVisible {
 		scrollOff = 0

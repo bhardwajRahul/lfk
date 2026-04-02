@@ -328,14 +328,19 @@ func (m Model) handleErrorLogOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// errorLogEnsureCursorVisible adjusts scroll so the cursor line is within the visible window.
+// errorLogEnsureCursorVisible adjusts scroll so the cursor line is within the
+// visible window with scrolloff margin.
 func (m Model) errorLogEnsureCursorVisible(maxVisible, maxScroll int) int {
 	scroll := m.errorLogScroll
-	if m.errorLogCursorLine < scroll {
-		scroll = m.errorLogCursorLine
+	so := ui.ConfigScrollOff
+	if so > maxVisible/2 {
+		so = maxVisible / 2
 	}
-	if m.errorLogCursorLine >= scroll+maxVisible {
-		scroll = m.errorLogCursorLine - maxVisible + 1
+	if m.errorLogCursorLine < scroll+so {
+		scroll = m.errorLogCursorLine - so
+	}
+	if m.errorLogCursorLine >= scroll+maxVisible-so {
+		scroll = m.errorLogCursorLine - maxVisible + so + 1
 	}
 	return max(min(scroll, maxScroll), 0)
 }

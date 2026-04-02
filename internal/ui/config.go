@@ -247,6 +247,10 @@ var ConfigConfirmOnExit = true
 // ConfigLogTailLines controls how many log lines are initially loaded via --tail.
 var ConfigLogTailLines = 1000
 
+// ConfigScrollOff is the number of lines to keep visible above/below the cursor.
+// Used by all views with cursor-based navigation.
+var ConfigScrollOff = 5
+
 // ActiveSchemeName holds the name of the currently active color scheme.
 var ActiveSchemeName = "tokyonight-storm"
 
@@ -291,6 +295,9 @@ type configFile struct {
 	// When the user scrolls to the top, older logs are fetched in the background.
 	// Defaults to 1000.
 	LogTailLines *int `json:"log_tail_lines" yaml:"log_tail_lines"`
+	// ScrollOff is the number of lines to keep visible above/below the cursor.
+	// Defaults to 5.
+	ScrollOff *int `json:"scrolloff" yaml:"scrolloff"`
 	// ConfirmOnExit controls whether ctrl+c on the last tab shows a quit confirmation.
 	// Defaults to true. Set to false to exit immediately on ctrl+c.
 	ConfirmOnExit *bool `json:"confirm_on_exit" yaml:"confirm_on_exit"`
@@ -478,6 +485,11 @@ func LoadConfig() {
 	// Apply log tail lines setting.
 	if cfg.LogTailLines != nil && *cfg.LogTailLines > 0 {
 		ConfigLogTailLines = *cfg.LogTailLines
+	}
+
+	// Apply scrolloff setting.
+	if cfg.ScrollOff != nil && *cfg.ScrollOff >= 0 {
+		ConfigScrollOff = *cfg.ScrollOff
 	}
 
 	// Apply confirm on exit setting.

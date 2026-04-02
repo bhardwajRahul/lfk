@@ -741,7 +741,7 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 	}
 
 	// Scrolling: use vim-style scrolloff for stable viewport.
-	scrollOff := 10
+	scrollOff := ConfigScrollOff
 	startIdx := 0
 	if ActiveMiddleScroll >= 0 {
 		startIdx = VimScrollOff(ActiveMiddleScroll, cursor, len(items), height, scrollOff, tableDisplayLines)

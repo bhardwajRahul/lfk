@@ -29,7 +29,7 @@ func RenderColumnToggleOverlay(entries []ColumnToggleEntry, cursor int, filter s
 	if maxVisible < 1 {
 		maxVisible = 1
 	}
-	scrollOff := 3
+	scrollOff := ConfigScrollOff
 	if maxVisible < 8 {
 		scrollOff = 0
 	}

@@ -69,7 +69,7 @@ func RenderFinalizerSearchOverlay(
 	}
 
 	// Determine scroll window with scrolloff margin.
-	scrollOff := 3
+	scrollOff := ConfigScrollOff
 	if maxVisible < 8 {
 		scrollOff = 0
 	}

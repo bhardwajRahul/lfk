@@ -589,6 +589,9 @@ custom_actions:
 
 # Show quit confirmation on ctrl+c (default: true)
 # confirm_on_exit: true
+
+# Number of lines to keep visible above/below the cursor (default: 5)
+# scrolloff: 5
 ```
 
 > For detailed documentation, see [`docs/config-reference.md`](docs/config-reference.md), [`docs/config-example.yaml`](docs/config-example.yaml), and [`docs/keybindings.md`](docs/keybindings.md).

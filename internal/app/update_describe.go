@@ -687,11 +687,15 @@ func (m *Model) ensureDiffFoldState(regions []ui.DiffFoldRegion) {
 
 // ensureDiffCursorVisible adjusts diffScroll so the cursor is within the viewport.
 func (m *Model) ensureDiffCursorVisible(viewportLines, maxScroll int) {
-	if m.diffCursor < m.diffScroll {
-		m.diffScroll = m.diffCursor
+	so := ui.ConfigScrollOff
+	if so > viewportLines/2 {
+		so = viewportLines / 2
 	}
-	if m.diffCursor >= m.diffScroll+viewportLines {
-		m.diffScroll = m.diffCursor - viewportLines + 1
+	if m.diffCursor < m.diffScroll+so {
+		m.diffScroll = m.diffCursor - so
+	}
+	if m.diffCursor >= m.diffScroll+viewportLines-so {
+		m.diffScroll = m.diffCursor - viewportLines + so + 1
 	}
 	m.diffScroll = max(min(m.diffScroll, maxScroll), 0)
 }

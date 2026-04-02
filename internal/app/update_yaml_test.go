@@ -4,22 +4,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/janosmiko/lfk/internal/ui"
 )
 
 // --- ensureYAMLCursorVisible ---
 
 func TestEnsureYAMLCursorVisible(t *testing.T) {
-	t.Run("cursor above viewport scrolls up", func(t *testing.T) {
+	so := ui.ConfigScrollOff
+
+	t.Run("cursor above viewport scrolls up with scrolloff", func(t *testing.T) {
 		m := Model{
 			height:     30,
 			yamlScroll: 20,
 			yamlCursor: 5,
 		}
 		m.ensureYAMLCursorVisible()
-		assert.Equal(t, 5, m.yamlScroll)
+		assert.Equal(t, max(5-so, 0), m.yamlScroll)
 	})
 
-	t.Run("cursor below viewport scrolls down", func(t *testing.T) {
+	t.Run("cursor below viewport scrolls down with scrolloff", func(t *testing.T) {
 		m := Model{
 			height:     30,
 			yamlScroll: 0,
@@ -27,28 +31,29 @@ func TestEnsureYAMLCursorVisible(t *testing.T) {
 		}
 		m.ensureYAMLCursorVisible()
 		maxLines := m.yamlViewportLines()
-		assert.Equal(t, 50-maxLines+1, m.yamlScroll)
+		assert.Equal(t, 50-maxLines+so+1, m.yamlScroll)
 	})
 
 	t.Run("cursor within viewport no scroll change", func(t *testing.T) {
 		m := Model{
 			height:     30,
-			yamlScroll: 5,
+			yamlScroll: 0,
 			yamlCursor: 10,
 		}
 		m.ensureYAMLCursorVisible()
-		assert.Equal(t, 5, m.yamlScroll)
+		assert.Equal(t, 0, m.yamlScroll)
 	})
 
-	t.Run("small height uses minimum maxLines", func(t *testing.T) {
+	t.Run("small height clamps scrolloff", func(t *testing.T) {
 		m := Model{
 			height:     5,
 			yamlScroll: 0,
 			yamlCursor: 10,
 		}
 		m.ensureYAMLCursorVisible()
-		// maxLines = 3 (minimum), so scroll should be 10 - 3 + 1 = 8
-		assert.Equal(t, 8, m.yamlScroll)
+		maxLines := m.yamlViewportLines()
+		clampedSo := min(so, maxLines/2)
+		assert.Equal(t, 10-maxLines+clampedSo+1, m.yamlScroll)
 	})
 }
 

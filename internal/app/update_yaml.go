@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/janosmiko/lfk/internal/ui"
 )
 
 // yamlViewportLines returns the number of content lines available for the
@@ -804,14 +805,22 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// ensureYAMLCursorVisible adjusts yamlScroll so the cursor is within the viewport.
+// ensureYAMLCursorVisible adjusts yamlScroll so the cursor is within the viewport
+// with scrolloff margin.
 func (m *Model) ensureYAMLCursorVisible() {
 	maxLines := m.yamlViewportLines()
-	if m.yamlCursor < m.yamlScroll {
-		m.yamlScroll = m.yamlCursor
+	so := ui.ConfigScrollOff
+	if so > maxLines/2 {
+		so = maxLines / 2
 	}
-	if m.yamlCursor >= m.yamlScroll+maxLines {
-		m.yamlScroll = m.yamlCursor - maxLines + 1
+	if m.yamlCursor < m.yamlScroll+so {
+		m.yamlScroll = m.yamlCursor - so
+	}
+	if m.yamlCursor >= m.yamlScroll+maxLines-so {
+		m.yamlScroll = m.yamlCursor - maxLines + so + 1
+	}
+	if m.yamlScroll < 0 {
+		m.yamlScroll = 0
 	}
 }
 

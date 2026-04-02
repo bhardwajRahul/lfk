@@ -24,6 +24,7 @@ The configuration file is located at `~/.config/lfk/config.yaml`. All fields are
 | `tips` | bool | `true` | Show a random tip in the status bar on startup. Set to `false` to disable. |
 | `log_tail_lines` | int | `1000` | Number of log lines to load initially via `--tail`. Scrolling to the top loads older history. |
 | `confirm_on_exit` | bool | `true` | Show quit confirmation when pressing `ctrl+c` on the last tab. Set to `false` to exit immediately. |
+| `scrolloff` | int | `5` | Number of lines to keep visible above/below the cursor when scrolling. Used by all views with cursor-based navigation. |
 
 ## Monitoring
 

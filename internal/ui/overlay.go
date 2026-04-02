@@ -175,7 +175,7 @@ func RenderNamespaceOverlay(items []model.Item, filter string, cursor int, curre
 	}
 
 	maxVisible := min(15, len(items))
-	scrollOff := 3
+	scrollOff := ConfigScrollOff
 	// Disable or reduce scrolloff when all items fit the visible area.
 	if len(items) <= maxVisible {
 		scrollOff = 0
@@ -434,7 +434,7 @@ func RenderLogContainerSelectOverlay(items []model.Item, cursor int, selectedCon
 	}
 
 	maxVisible := min(15, len(items))
-	scrollOff := 3
+	scrollOff := ConfigScrollOff
 	if len(items) <= maxVisible {
 		scrollOff = 0
 	} else if maxSO := (maxVisible - 1) / 2; scrollOff > maxSO {
@@ -500,7 +500,7 @@ func RenderPodSelectOverlay(items []model.Item, cursor int, filter string, filte
 	}
 
 	maxVisible := min(15, len(items))
-	scrollOff := 3
+	scrollOff := ConfigScrollOff
 	if len(items) <= maxVisible {
 		scrollOff = 0
 	} else if maxSO := (maxVisible - 1) / 2; scrollOff > maxSO {
