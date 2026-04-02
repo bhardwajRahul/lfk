@@ -3,6 +3,8 @@ package ui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // DiffFoldRegion represents a contiguous run of unchanged lines that can be
@@ -137,7 +139,11 @@ func BuildVisibleDiffLines(diffLines []diffLine, regions []DiffFoldRegion, foldS
 
 // DiffFoldPlaceholderText returns the styled text for a fold placeholder.
 func DiffFoldPlaceholderText(hiddenCount int) string {
-	return DimStyle.Render(fmt.Sprintf("  --- %d unchanged lines ---", hiddenCount))
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorWarning)).
+		Background(SurfaceBg).
+		Bold(true)
+	return style.Render(fmt.Sprintf("--- %d unchanged lines ---", hiddenCount))
 }
 
 // FindDiffFoldRegionAt returns the fold region index containing the given

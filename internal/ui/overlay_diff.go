@@ -169,10 +169,18 @@ func RenderDiffView(left, right, leftName, rightName string, scroll, width, heig
 
 	rows := make([]string, 0, len(visible))
 	for ri, vl := range visible {
+		isCursorLine := ri+scroll == cursor
+		cursorIndicator := " "
+		if isCursorLine {
+			cursorIndicator = cursorStyle.Render(">")
+		}
+
 		if vl.IsFoldPlaceholder {
 			placeholder := DiffFoldPlaceholderText(vl.HiddenCount)
-			fullWidth := colWidth*2 + gutterWidth*2 + 3 // 3 for " | "
-			row := padToWidth(placeholder, fullWidth)
+			gutterPadL := strings.Repeat(" ", gutterWidth)
+			leftPlaceholder := padToWidth(placeholder, colWidth)
+			rightPlaceholder := padToWidth(placeholder, colWidth)
+			row := cursorIndicator + gutterPadL + leftPlaceholder + separatorStyle.Render(" | ") + gutterPadL + rightPlaceholder
 			rows = append(rows, row)
 			continue
 		}
@@ -218,12 +226,6 @@ func RenderDiffView(left, right, leftName, rightName string, scroll, width, heig
 				rightGutter = DimStyle.Render(fmt.Sprintf("%*d ", gutterWidth-1, rightNum))
 			}
 			rightNum++
-		}
-		// Cursor indicator: 1-char gutter prefix (> or space).
-		isCursorLine := ri+scroll == cursor
-		cursorIndicator := " "
-		if isCursorLine {
-			cursorIndicator = cursorStyle.Render(">")
 		}
 		row := cursorIndicator + leftGutter + padToWidth(leftCol, colWidth) + separatorStyle.Render(" | ") + rightGutter + padToWidth(rightCol, colWidth)
 		rows = append(rows, row)
