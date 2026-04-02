@@ -499,14 +499,7 @@ func (m Model) handleExplorerActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool
 		ret, cmd := m.directActionRefresh()
 		return ret, cmd, true
 	}
-	if key == kb.Restart {
-		ret, cmd := m.directActionRestart()
-		return ret, cmd, true
-	}
-	if key == kb.Exec {
-		ret, cmd := m.directActionExec()
-		return ret, cmd, true
-	}
+	// Restart (r) and Exec (s) are only accessible via the action menu (x).
 	if key == kb.Edit {
 		ret, cmd := m.directActionEdit()
 		return ret, cmd, true

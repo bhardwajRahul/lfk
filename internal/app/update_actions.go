@@ -181,36 +181,6 @@ func (m Model) directActionRefresh() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(m.refreshCurrentLevel(), scheduleStatusClear())
 }
 
-func (m Model) directActionRestart() (tea.Model, tea.Cmd) {
-	if m.hasSelection() {
-		return m.openBulkActionDirect("Restart")
-	}
-	kind := m.selectedResourceKind()
-	if !model.IsRestartableKind(kind) {
-		m.setStatusMessage("Restart not available for "+kind, true)
-		return m, scheduleStatusClear()
-	}
-	sel := m.selectedMiddleItem()
-	if sel == nil {
-		return m, nil
-	}
-	m.actionCtx = m.buildActionCtx(sel, kind)
-	return m.executeAction("Restart")
-}
-
-func (m Model) directActionExec() (tea.Model, tea.Cmd) {
-	kind := m.selectedResourceKind()
-	if kind == "" || kind == "__port_forwards__" {
-		return m, nil
-	}
-	sel := m.selectedMiddleItem()
-	if sel == nil {
-		return m, nil
-	}
-	m.actionCtx = m.buildActionCtx(sel, kind)
-	return m.executeAction("Exec")
-}
-
 func (m Model) directActionEdit() (tea.Model, tea.Cmd) {
 	kind := m.selectedResourceKind()
 	if kind == "" || kind == "__port_forwards__" {
