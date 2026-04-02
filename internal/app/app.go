@@ -443,6 +443,8 @@ type Model struct {
 	diffLeftName    string // name of first resource
 	diffRightName   string // name of second resource
 	diffScroll      int    // scroll position in diff view
+	diffCursor      int    // cursor line in visible-line space
+	diffCursorSide  int    // 0=left, 1=right (side-by-side only)
 	diffUnified     bool   // true = unified diff, false = side-by-side
 	diffLineNumbers bool   // show line numbers in diff view
 	diffLineInput   string // digit accumulator for jump-to-line (digits + G)

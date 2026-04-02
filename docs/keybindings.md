@@ -198,13 +198,15 @@ All other keys are forwarded to the PTY process. The PTY session continues runni
 
 | Key | Action |
 |---|---|
-| `j` / `k` | Scroll up/down |
+| `j` / `k` | Move cursor up/down |
+| `Tab` | Switch cursor side (side-by-side mode) |
 | `gg` / `G` | Jump to top / bottom |
+| `123G` | Jump to line number |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `/` | Search in diff |
 | `n` / `N` | Next / previous search match |
-| `Tab` / `z` | Toggle fold unchanged section |
+| `z` | Toggle fold unchanged section at cursor |
 | `Z` | Toggle all folds |
 | `#` | Toggle line numbers |
 | `123G` | Jump to line number |

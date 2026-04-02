@@ -166,6 +166,8 @@ func (m Model) handleDiffKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "esc":
 		m.mode = modeExplorer
 		m.diffScroll = 0
+		m.diffCursor = 0
+		m.diffCursorSide = 0
 		m.diffLineInput = ""
 		m.diffSearchQuery = ""
 		m.diffSearchText.Clear()
@@ -175,65 +177,64 @@ func (m Model) handleDiffKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "j", "down":
 		m.diffLineInput = ""
-		m.diffScroll++
-		if m.diffScroll > maxScroll {
-			m.diffScroll = maxScroll
+		maxCursor := max(totalLines-1, 0)
+		if m.diffCursor < maxCursor {
+			m.diffCursor++
 		}
+		m.ensureDiffCursorVisible(visibleLines, maxScroll)
 		return m, nil
 	case "k", "up":
 		m.diffLineInput = ""
-		if m.diffScroll > 0 {
-			m.diffScroll--
+		if m.diffCursor > 0 {
+			m.diffCursor--
 		}
+		m.ensureDiffCursorVisible(visibleLines, maxScroll)
 		return m, nil
 	case "g":
 		if m.pendingG {
 			m.pendingG = false
 			m.diffLineInput = ""
+			m.diffCursor = 0
 			m.diffScroll = 0
 			return m, nil
 		}
 		m.pendingG = true
 		return m, nil
 	case "G":
+		maxCursor := max(totalLines-1, 0)
 		if m.diffLineInput != "" {
 			lineNum, _ := strconv.Atoi(m.diffLineInput)
 			m.diffLineInput = ""
 			if lineNum > 0 {
 				lineNum-- // 0-indexed
 			}
-			m.diffScroll = min(lineNum, maxScroll)
+			m.diffCursor = min(lineNum, maxCursor)
 		} else {
-			m.diffScroll = maxScroll
+			m.diffCursor = maxCursor
 		}
+		m.ensureDiffCursorVisible(visibleLines, maxScroll)
 		return m, nil
 	case "ctrl+d":
 		m.diffLineInput = ""
-		m.diffScroll += m.height / 2
-		if m.diffScroll > maxScroll {
-			m.diffScroll = maxScroll
-		}
+		maxCursor := max(totalLines-1, 0)
+		m.diffCursor = min(m.diffCursor+m.height/2, maxCursor)
+		m.ensureDiffCursorVisible(visibleLines, maxScroll)
 		return m, nil
 	case "ctrl+u":
 		m.diffLineInput = ""
-		m.diffScroll -= m.height / 2
-		if m.diffScroll < 0 {
-			m.diffScroll = 0
-		}
+		m.diffCursor = max(m.diffCursor-m.height/2, 0)
+		m.ensureDiffCursorVisible(visibleLines, maxScroll)
 		return m, nil
 	case "ctrl+f":
 		m.diffLineInput = ""
-		m.diffScroll += m.height
-		if m.diffScroll > maxScroll {
-			m.diffScroll = maxScroll
-		}
+		maxCursor := max(totalLines-1, 0)
+		m.diffCursor = min(m.diffCursor+m.height, maxCursor)
+		m.ensureDiffCursorVisible(visibleLines, maxScroll)
 		return m, nil
 	case "ctrl+b":
 		m.diffLineInput = ""
-		m.diffScroll -= m.height
-		if m.diffScroll < 0 {
-			m.diffScroll = 0
-		}
+		m.diffCursor = max(m.diffCursor-m.height, 0)
+		m.ensureDiffCursorVisible(visibleLines, maxScroll)
 		return m, nil
 	case "u":
 		m.diffLineInput = ""
@@ -265,9 +266,15 @@ func (m Model) handleDiffKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.diffScrollToMatch(foldRegions, visibleLines)
 		}
 		return m, nil
-	case "tab", "z":
+	case "tab":
+		// Switch cursor side (left/right) in side-by-side mode.
+		if !m.diffUnified {
+			m.diffCursorSide = 1 - m.diffCursorSide
+		}
+		return m, nil
+	case "z":
 		m.diffLineInput = ""
-		m.toggleDiffFoldAtScroll(foldRegions)
+		m.toggleDiffFoldAtCursor(foldRegions)
 		return m, nil
 	case "Z":
 		m.diffLineInput = ""
@@ -294,6 +301,17 @@ func (m *Model) ensureDiffFoldState(regions []ui.DiffFoldRegion) {
 	}
 }
 
+// ensureDiffCursorVisible adjusts diffScroll so the cursor is within the viewport.
+func (m *Model) ensureDiffCursorVisible(viewportLines, maxScroll int) {
+	if m.diffCursor < m.diffScroll {
+		m.diffScroll = m.diffCursor
+	}
+	if m.diffCursor >= m.diffScroll+viewportLines {
+		m.diffScroll = m.diffCursor - viewportLines + 1
+	}
+	m.diffScroll = max(min(m.diffScroll, maxScroll), 0)
+}
+
 // diffScrollToMatch auto-expands the fold region containing the current match
 // and scrolls to center it in the viewport.
 func (m *Model) diffScrollToMatch(foldRegions []ui.DiffFoldRegion, viewportLines int) {
@@ -311,21 +329,20 @@ func (m *Model) diffScrollToMatch(foldRegions []ui.DiffFoldRegion, viewportLines
 		return
 	}
 
-	// Center in viewport.
+	// Move cursor and center in viewport.
+	m.diffCursor = visIdx
 	m.diffScroll = visIdx - viewportLines/2
 	if m.diffScroll < 0 {
 		m.diffScroll = 0
 	}
 }
 
-// toggleDiffFoldAtScroll toggles the fold on the unchanged section at or near
-// the current scroll position.
-func (m *Model) toggleDiffFoldAtScroll(foldRegions []ui.DiffFoldRegion) {
+// toggleDiffFoldAtCursor toggles the fold on the unchanged section at the cursor.
+func (m *Model) toggleDiffFoldAtCursor(foldRegions []ui.DiffFoldRegion) {
 	rawDiffLines := ui.ComputeDiffLines(m.diffLeft, m.diffRight)
 	visLines := ui.BuildVisibleDiffLines(rawDiffLines, foldRegions, m.diffFoldState)
 
-	// Find the visible line at the current scroll position.
-	idx := m.diffScroll
+	idx := m.diffCursor
 	if idx >= len(visLines) {
 		idx = len(visLines) - 1
 	}

@@ -239,18 +239,18 @@ func TestDiffKeyQuestionMarkOpensHelp(t *testing.T) {
 	assert.Equal(t, modeDiff, result.helpPreviousMode)
 }
 
-func TestDiffKeyJScrollsDown(t *testing.T) {
+func TestDiffKeyJMovesCursorDown(t *testing.T) {
 	m := Model{
 		mode:       modeDiff,
 		diffLeft:   strings.Repeat("line\n", 100),
-		diffScroll: 0,
+		diffCursor: 0,
 		tabs:       []TabState{{}},
 		width:      80,
 		height:     40,
 	}
 	ret, _ := m.handleDiffKey(runeKey('j'))
 	result := ret.(Model)
-	assert.Equal(t, 1, result.diffScroll)
+	assert.Equal(t, 1, result.diffCursor)
 }
 
 func TestDiffKeyUTogglesUnified(t *testing.T) {
@@ -310,6 +310,6 @@ func TestDiffKeyGWithDigitJumpsToLine(t *testing.T) {
 	}
 	ret, _ := m.handleDiffKey(runeKey('G'))
 	result := ret.(Model)
-	assert.Equal(t, 9, result.diffScroll) // 10 - 1 = 9 (0-indexed)
+	assert.Equal(t, 9, result.diffCursor) // 10 - 1 = 9 (0-indexed)
 	assert.Empty(t, result.diffLineInput)
 }
