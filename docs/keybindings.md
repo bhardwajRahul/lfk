@@ -38,7 +38,9 @@ Complete list of all keybindings in `lfk`. All keybindings can be overridden in 
 | `M` | Toggle resource relationship map view |
 | `w` | Toggle watch mode (auto-refresh every 2s) |
 | `,` | Column visibility toggle (show/hide and reorder columns) |
-| `>` / `<` | Next / previous sort mode (name / age / status) |
+| `>` / `<` | Sort by next / previous column |
+| `=` | Toggle sort direction (ascending/descending) |
+| `-` | Reset sort to default (Name ascending) |
 | `W` | Save resource to file / toggle warnings-only filter (Events view) |
 | `T` | Switch color scheme (live preview, not persisted) |
 | `Ctrl+G` | Finalizer search and remove |
@@ -69,10 +71,8 @@ Search supports abbreviated resource type names (e.g., `pvc`, `hpa`, `deploy`).
 | `e` | Secret/ConfigMap editor (inline key-value editing) | `secret_editor` |
 | `E` | Edit selected resource in $EDITOR | `edit` |
 | `R` | Refresh current view | `refresh` |
-| `r` | Restart resource | `restart` |
-| `s` | Exec into container | `exec` |
 | `v` | Describe selected resource | `describe` |
-| `D` | Delete resource (Force Finalize if already deleting) | `delete` |
+| `D` | Delete resource (force delete Pod/Job if already deleting, force finalize others) | `delete` |
 | `X` | Force delete with grace-period=0 (Pod/Job only) | `force_delete` |
 | `S` | Scale / Export resource YAML to file | `scale` / `save_resource` |
 | `Ctrl+O` | Open ingress host in browser | `open_browser` |
@@ -257,6 +257,26 @@ The title bar shows the namespace scope (`ns:...`) used for the permission check
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `q` / `Esc` | Close visualizer |
 
+## Error Log (`!`)
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Move cursor up/down |
+| `gg` / `G` | Jump to top / bottom |
+| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
+| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
+| `V` | Line visual selection |
+| `v` | Character visual selection |
+| `h` / `l` | Move cursor column left/right (in character visual mode) |
+| `0` / `$` | Move cursor to line start/end (in character visual mode) |
+| `y` | Copy selected lines (visual mode) or all entries (normal mode) |
+| `f` | Toggle fullscreen / overlay mode |
+| `d` | Toggle debug log visibility |
+| `Esc` | Cancel visual selection, or close overlay |
+| `q` | Close overlay |
+
+> **Fullscreen mode**: Press `f` to expand the error log to full terminal size. This removes the overlay border, so mouse text selection works cleanly without picking up background characters. Press `f` again to return to overlay mode.
+
 ## Tabs
 
 | Key | Action |
@@ -398,8 +418,10 @@ keybindings:
   secret_toggle: "ctrl+s" # Secret visibility
   error_log: "!"         # Error log
   column_toggle: ","     # Column visibility toggle
-  sort_next: ">"         # Next sort mode
-  sort_prev: "<"         # Previous sort mode
+  sort_next: ">"         # Sort by next column
+  sort_prev: "<"         # Sort by previous column
+  sort_flip: "="         # Toggle sort direction
+  sort_reset: "-"        # Reset sort to default
   filter_presets: "."    # Quick filter presets
   monitoring: "@"        # Monitoring dashboard
   quota_dashboard: "Q"   # Quota dashboard
@@ -410,8 +432,8 @@ keybindings:
   all_namespaces: "A"    # Toggle all-namespaces
   logs: "L"              # View logs
   refresh: "R"           # Refresh view
-  restart: "r"           # Restart resource
-  exec: "s"              # Exec into container
+  restart: "r"           # Restart resource (action menu only)
+  exec: "s"              # Exec into container (action menu only)
   edit: "E"              # Edit in $EDITOR
   describe: "v"          # Describe resource
   delete: "D"            # Delete resource

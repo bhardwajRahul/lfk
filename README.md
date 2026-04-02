@@ -259,7 +259,7 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `M` | Toggle resource relationship map |
 | `F` | Toggle fullscreen (middle column or dashboard) |
 | `.` | Quick filter presets |
-| `!` | Error log |
+| `!` | Error log (V/v select, y copy, f fullscreen) |
 | `Ctrl+S` | Toggle secret value visibility |
 | `Ctrl+G` | Finalizer search and remove |
 | `I` | API Explorer (browse resource structure interactively) |
@@ -268,7 +268,9 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `:` | Open command bar (kubectl/shell commands) |
 | `w` | Toggle watch mode (auto-refresh) |
 | `,` | Column visibility toggle (show/hide and reorder columns) |
-| `>` / `<` | Next / previous sort mode (name / age / status) |
+| `>` / `<` | Sort by next / previous column |
+| `=` | Toggle sort direction (ascending/descending) |
+| `-` | Reset sort to default (Name ascending) |
 | `W` | Save resource to file / toggle warnings-only (Events) |
 | `@` | Monitoring overview (active Prometheus alerts) |
 | `Q` | Namespace resource quota dashboard |
@@ -286,8 +288,8 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `a` | Create resource from template |
 | `R` | Refresh current view |
 | `v` | Describe selected resource |
-| `D` | Delete selected resource (with confirmation) |
-| `X` | Force destroy (remove finalizers + force delete) |
+| `D` | Delete resource (force delete Pod/Job if already deleting, force finalize others) |
+| `X` | Force delete with --grace-period=0 (Pod/Job only) |
 | `S` | Export resource YAML to file |
 | `Ctrl+O` | Open ingress host in browser |
 | `y` | Copy resource name to clipboard |
@@ -332,7 +334,11 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `j` / `k` | Scroll up/down |
 | `h` / `l` | Move cursor column left/right |
 | `0` / `$` | Move cursor to line start/end |
-| `w` / `b` | Move cursor to next/previous word |
+| `^` | Move cursor to first non-whitespace |
+| `w` / `b` | Move cursor to next/previous word start |
+| `W` / `B` | Move cursor to next/previous WORD start |
+| `e` | Move cursor to end of word |
+| `E` | Move cursor to end of WORD |
 | `g` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
@@ -341,36 +347,42 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `v` | Character visual selection (from cursor column) |
 | `V` | Visual line selection |
 | `Ctrl+V` | Block (column) visual selection |
+| `h` / `l` | Move selection column (in visual mode) |
 | `y` | Copy selected text (in visual mode) |
 | `Tab` / `z` | Toggle fold on section under cursor |
 | `Z` | Toggle all folds (collapse/expand all) |
-| `e` | Edit resource in `$EDITOR` |
+| `Ctrl+E` | Edit resource in `$EDITOR` |
 | `q` / `Esc` | Back to explorer |
 
 ### In Log Viewer
 
 | Key | Action |
 |---|---|
-| `j` / `k` | Scroll up/down |
-| `h` / `l` | Move cursor column left/right |
-| `$` | Move cursor to line end |
-| `e` / `b` | Move cursor to word end/previous word |
+| `j` / `k` | Move cursor up/down |
+| `h` / `l` / `Left` / `Right` | Move cursor column left/right |
+| `0` / `$` | Move cursor to line start/end |
+| `^` | Move cursor to first non-whitespace |
+| `w` / `b` | Move cursor to next/previous word start |
+| `W` / `B` | Move cursor to next/previous WORD start |
+| `e` | Move cursor to end of word |
+| `E` | Move cursor to end of WORD |
 | `g` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `f` | Toggle follow mode (auto-scroll) |
-| `w` | Toggle line wrapping |
+| `Tab` / `z` | Toggle line wrapping |
 | `#` | Toggle line numbers |
 | `/` | Search in logs |
 | `n` / `N` / `p` | Next / previous search match |
 | `123G` | Jump to line number |
 | `s` | Toggle timestamps |
 | `c` | Toggle previous container logs |
-| `W` | Save loaded logs to file |
-| `Ctrl+S` | Save all logs to file |
+| `S` | Save loaded logs to file |
+| `Ctrl+S` | Save all logs to file (full kubectl logs) |
 | `v` | Character visual selection (from cursor column) |
 | `V` | Visual line selection |
 | `Ctrl+V` | Block (column) visual selection |
+| `h` / `l` | Move selection column (in visual mode) |
 | `y` | Copy selected text (in visual mode) |
 | `\` | Switch pod / filter containers |
 | `q` / `Esc` | Close log viewer |
@@ -471,8 +483,8 @@ theme:
 keybindings:
   logs: "L"                # View logs (default: L)
   refresh: "R"             # Refresh view (default: R)
-  restart: "r"             # Restart resource (default: r)
-  exec: "s"                # Exec into pod (default: s)
+  restart: "r"             # Restart resource (action menu only)
+  exec: "s"                # Exec into pod (action menu only)
   describe: "v"            # Describe resource (default: v)
   delete: "D"              # Delete resource (default: D)
   force_delete: "X"        # Force delete resource (default: X)
@@ -594,15 +606,20 @@ All keybindings can be overridden in the config file. Only specify the keys you 
 |---|---|---|
 | `logs` | `L` | View logs for selected resource |
 | `refresh` | `R` | Refresh current view |
-| `restart` | `r` | Restart resource (deployments, statefulsets, daemonsets) |
-| `exec` | `s` | Exec into container |
 | `describe` | `v` | Describe selected resource |
-| `delete` | `D` | Delete selected resource (with confirmation) |
-| `force_delete` | `X` | Force destroy (remove finalizers + force delete) |
+| `delete` | `D` | Delete resource (force delete Pod/Job if already deleting) |
+| `force_delete` | `X` | Force delete with --grace-period=0 (Pod/Job only) |
 | `scale` | `S` | Scale resource (deployments, statefulsets, daemonsets) |
-| `column_toggle` | `,` | Column visibility toggle (show/hide and reorder columns) |
-| `sort_next` | `>` | Next sort mode (name / age / status) |
-| `sort_prev` | `<` | Previous sort mode |
+| `edit` | `E` | Edit selected resource in $EDITOR |
+| `label_editor` | `i` | Edit labels/annotations |
+| `secret_editor` | `e` | Secret/ConfigMap editor |
+| `column_toggle` | `,` | Column visibility toggle |
+| `sort_next` | `>` | Sort by next column |
+| `sort_prev` | `<` | Sort by previous column |
+| `sort_flip` | `=` | Toggle sort direction |
+| `sort_reset` | `-` | Reset sort to default |
+| `error_log` | `!` | Error log overlay |
+| `finalizer_search` | `ctrl+g` | Finalizer search and remove |
 
 ## Architecture
 

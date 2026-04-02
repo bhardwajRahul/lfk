@@ -129,15 +129,22 @@ All keybindings can be overridden. Only specify the keys you want to change -- d
 |---|---|---|
 | `logs` | `L` | View logs for selected resource |
 | `refresh` | `R` | Refresh current view |
-| `restart` | `r` | Restart resource (deployments, statefulsets, daemonsets) |
-| `exec` | `s` | Exec into container |
+| `restart` | `r` | Restart resource (action menu only) |
+| `exec` | `s` | Exec into container (action menu only) |
 | `describe` | `v` | Describe selected resource |
-| `delete` | `D` | Delete selected resource (with confirmation) |
-| `force_delete` | `X` | Force destroy (remove finalizers + force delete) |
+| `delete` | `D` | Delete resource (force delete Pod/Job if already deleting) |
+| `force_delete` | `X` | Force delete with --grace-period=0 (Pod/Job only) |
 | `scale` | `S` | Scale resource (deployments, statefulsets, daemonsets) |
-| `column_toggle` | `,` | Column visibility toggle (show/hide and reorder columns) |
-| `sort_next` | `>` | Next sort mode (name / age / status) |
-| `sort_prev` | `<` | Previous sort mode |
+| `edit` | `E` | Edit selected resource in $EDITOR |
+| `label_editor` | `i` | Edit labels/annotations |
+| `secret_editor` | `e` | Secret/ConfigMap editor |
+| `column_toggle` | `,` | Column visibility toggle |
+| `sort_next` | `>` | Sort by next column |
+| `sort_prev` | `<` | Sort by previous column |
+| `sort_flip` | `=` | Toggle sort direction |
+| `sort_reset` | `-` | Reset sort to default |
+| `error_log` | `!` | Error log overlay |
+| `finalizer_search` | `ctrl+g` | Finalizer search and remove |
 
 ## Resource Columns
 

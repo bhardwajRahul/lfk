@@ -97,7 +97,7 @@ func helpSections() []helpSection {
 				{kb.LabelEditor, "Edit labels/annotations for selected resource"},
 				{kb.Refresh, "Refresh current view"},
 				{kb.Describe, "Describe selected resource"},
-				{kb.Delete, "Delete resource (Force Finalize if already deleting)"},
+				{kb.Delete, "Delete (force delete Pod/Job if already deleting, force finalize others)"},
 				{kb.ForceDelete, "Force delete (grace-period=0, Pod/Job only)"},
 				{helpKeyDisplay(kb.FinalizerSearch), "Finalizer search and remove (scan, select, remove finalizers)"},
 				{kb.JumpOwner, "Jump to owner/controller of selected resource"},
