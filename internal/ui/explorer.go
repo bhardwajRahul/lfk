@@ -100,15 +100,14 @@ func VimScrollOff(scroll, cursor, numEntries, height, scrollOff int, displayLine
 		startEntry = cursor
 	}
 
-	// Bottom scrolloff: if cursor+scrollOff < numEntries, ensure those entries fit.
-	if cursor+scrollOff < numEntries {
-		for startEntry < numEntries-1 {
-			dl := displayLines(startEntry, cursor+scrollOff+1)
-			if dl <= height {
-				break
-			}
-			startEntry++
+	// Bottom scrolloff: ensure entries after cursor up to scrollOff fit in viewport.
+	bottomTarget := min(cursor+scrollOff, numEntries-1)
+	for startEntry < numEntries-1 {
+		dl := displayLines(startEntry, bottomTarget+1)
+		if dl <= height {
+			break
 		}
+		startEntry++
 	}
 
 	// Top scrolloff: ensure cursor is at least scrollOff entries from the top.

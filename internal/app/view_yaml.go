@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/janosmiko/lfk/internal/model"
 	"github.com/janosmiko/lfk/internal/ui"
@@ -185,12 +186,19 @@ func (m Model) viewYAML() string {
 		highlightedLines = append(highlightedLines, "")
 	}
 
-	bodyContent := strings.Join(highlightedLines, "\n")
-	// Fill background so ANSI resets from styled segments don't leave gaps.
+	// Truncate lines that exceed the content area width to prevent lipgloss
+	// from wrapping them internally, which would push the bottom border off screen.
 	contentWidth := m.width - 4 // border (2) + padding (2)
 	if contentWidth < 10 {
 		contentWidth = 10
 	}
+	for i, line := range highlightedLines {
+		if lipgloss.Width(line) > contentWidth {
+			highlightedLines[i] = ansi.Truncate(line, contentWidth, "")
+		}
+	}
+	bodyContent := strings.Join(highlightedLines, "\n")
+	// Fill background so ANSI resets from styled segments don't leave gaps.
 	bodyContent = ui.FillLinesBg(bodyContent, contentWidth, ui.BaseBg)
 	borderStyle := ui.FullscreenBorderStyle(m.width, maxLines)
 	body := borderStyle.Render(bodyContent)
