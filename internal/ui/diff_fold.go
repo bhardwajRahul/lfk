@@ -39,8 +39,8 @@ func ComputeDiffFoldRegions(left, right string) []DiffFoldRegion {
 
 func computeDiffFoldRegionsFromLines(diffLines []diffLine) []DiffFoldRegion {
 	var regions []DiffFoldRegion
-	const minRun = 7 // minimum unchanged run to make foldable
-	const ctx = 3    // context lines at each end
+	const minRun = 4 // minimum unchanged run to make foldable
+	const ctx = 1    // context lines at each end
 
 	i := 0
 	for i < len(diffLines) {

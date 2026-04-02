@@ -9,8 +9,8 @@ import (
 
 func TestComputeDiffFoldRegions(t *testing.T) {
 	t.Run("no foldable regions for short unchanged runs", func(t *testing.T) {
-		left := "a\nb\nc\nd"
-		right := "a\nb\nc\nd"
+		left := "a\nb\nc"
+		right := "a\nb\nc"
 		regions := ComputeDiffFoldRegions(left, right)
 		assert.Empty(t, regions)
 	})
@@ -25,9 +25,9 @@ func TestComputeDiffFoldRegions(t *testing.T) {
 		assert.Len(t, regions, 1)
 		assert.Equal(t, 0, regions[0].Start)
 		assert.Equal(t, 9, regions[0].End)
-		assert.Equal(t, 3, regions[0].ContextBefore)
-		assert.Equal(t, 3, regions[0].ContextAfter)
-		assert.Equal(t, 4, regions[0].HiddenCount())
+		assert.Equal(t, 1, regions[0].ContextBefore)
+		assert.Equal(t, 1, regions[0].ContextAfter)
+		assert.Equal(t, 8, regions[0].HiddenCount())
 	})
 
 	t.Run("no region when all lines differ", func(t *testing.T) {
