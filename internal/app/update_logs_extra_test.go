@@ -198,6 +198,27 @@ func TestLogKeyPTogglesPrefixes(t *testing.T) {
 	assert.False(t, result2.logHidePrefixes)
 }
 
+func TestLogSearchJumpsCursorColumn(t *testing.T) {
+	m := Model{
+		mode:            modeLogs,
+		logLines:        []string{"start middle_error end", "no match", "another error_here"},
+		logSearchQuery:  "error",
+		logCursor:       0,
+		logVisualCurCol: 0,
+		tabs:            []TabState{{}},
+		width:           80,
+		height:          40,
+	}
+	// Forward search: should jump to line 0 col 13 ("error" starts at byte 13 in "start middle_error end").
+	// Actually line 0 contains "error" at position 13. But since cursor is already on line 0,
+	// forward search skips to the next match on line 2.
+	ret, _ := m.handleLogKey(runeKey('n'))
+	result := ret.(Model)
+	assert.Equal(t, 2, result.logCursor)
+	// "error" in "another error_here" starts at column 8.
+	assert.Equal(t, 8, result.logVisualCurCol)
+}
+
 func TestLogKeyGGGoesToTop(t *testing.T) {
 	m := Model{
 		mode:      modeLogs,

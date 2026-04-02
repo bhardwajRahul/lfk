@@ -790,39 +790,43 @@ func (m *Model) findNextLogMatch(forward bool) {
 	if start < 0 {
 		start = m.logScroll
 	}
+
+	jumpToMatch := func(lineIdx int) {
+		m.logCursor = lineIdx
+		// Move cursor column to the match position within the line.
+		col := strings.Index(strings.ToLower(m.logLines[lineIdx]), query)
+		if col >= 0 {
+			m.logVisualCurCol = len([]rune(m.logLines[lineIdx][:col]))
+		}
+		m.logFollow = false
+		m.ensureLogCursorVisible()
+	}
+
 	if forward {
 		for i := start + 1; i < len(m.logLines); i++ {
 			if strings.Contains(strings.ToLower(m.logLines[i]), query) {
-				m.logCursor = i
-				m.logFollow = false
-				m.ensureLogCursorVisible()
+				jumpToMatch(i)
 				return
 			}
 		}
 		// Wrap around.
 		for i := 0; i <= start; i++ {
 			if strings.Contains(strings.ToLower(m.logLines[i]), query) {
-				m.logCursor = i
-				m.logFollow = false
-				m.ensureLogCursorVisible()
+				jumpToMatch(i)
 				return
 			}
 		}
 	} else {
 		for i := start - 1; i >= 0; i-- {
 			if strings.Contains(strings.ToLower(m.logLines[i]), query) {
-				m.logCursor = i
-				m.logFollow = false
-				m.ensureLogCursorVisible()
+				jumpToMatch(i)
 				return
 			}
 		}
 		// Wrap around.
 		for i := len(m.logLines) - 1; i >= start; i-- {
 			if strings.Contains(strings.ToLower(m.logLines[i]), query) {
-				m.logCursor = i
-				m.logFollow = false
-				m.ensureLogCursorVisible()
+				jumpToMatch(i)
 				return
 			}
 		}
