@@ -251,6 +251,7 @@ type Model struct {
 	yamlContent    string
 	yamlScroll     int
 	yamlCursor     int       // cursor line in visible-line space
+	yamlLineInput  string    // digit buffer for 123G jump-to-line
 	yamlSearchMode bool      // true when typing in the search bar
 	yamlSearchText TextInput // current search query
 	yamlMatchLines []int     // line indices matching the search

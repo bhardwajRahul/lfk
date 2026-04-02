@@ -130,6 +130,7 @@ When items are selected, press `x` to open the bulk action menu (delete, force d
 | `e` | Move cursor to end of word |
 | `E` | Move cursor to end of WORD (whitespace-delimited) |
 | `gg` / `G` | Jump to top / bottom |
+| `123G` | Jump to line number |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `/` | Search in YAML |

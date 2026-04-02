@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -235,6 +236,7 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "g":
 			if m.pendingG {
 				m.pendingG = false
+				m.yamlLineInput = ""
 				m.yamlCursor = 0
 				m.yamlScroll = 0
 				return m, nil
@@ -242,11 +244,24 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.pendingG = true
 			return m, nil
 		case "G":
-			m.yamlCursor = totalVisible - 1
-			if m.yamlCursor < 0 {
-				m.yamlCursor = 0
+			if m.yamlLineInput != "" {
+				lineNum, _ := strconv.Atoi(m.yamlLineInput)
+				m.yamlLineInput = ""
+				if lineNum > 0 {
+					lineNum-- // 0-indexed
+				}
+				m.yamlCursor = min(lineNum, totalVisible-1)
+				if m.yamlCursor < 0 {
+					m.yamlCursor = 0
+				}
+				m.ensureYAMLCursorVisible()
+			} else {
+				m.yamlCursor = totalVisible - 1
+				if m.yamlCursor < 0 {
+					m.yamlCursor = 0
+				}
+				m.yamlScroll = maxScroll
 			}
-			m.yamlScroll = maxScroll
 			return m, nil
 		case "ctrl+d":
 			m.yamlCursor += m.height / 2
@@ -571,8 +586,16 @@ func (m Model) handleYAMLKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.yamlVisualCurCol++
 		return m, nil
 	case "0":
-		// Move cursor to beginning of line.
-		m.yamlVisualCurCol = yamlFoldPrefixLen
+		// If digits are pending, append 0 (e.g. 10G, 20G).
+		// Otherwise move cursor to beginning of line.
+		if m.yamlLineInput != "" {
+			m.yamlLineInput += "0"
+		} else {
+			m.yamlVisualCurCol = yamlFoldPrefixLen
+		}
+		return m, nil
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		m.yamlLineInput += msg.String()
 		return m, nil
 	case "$":
 		// Move cursor to end of current line.

@@ -103,7 +103,12 @@ func (m Model) handleEventTimelineOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	case "k", "up":
 		m.eventTimelineScroll = clampOverlayCursor(m.eventTimelineScroll, -1, maxScroll)
 	case "g":
-		m.eventTimelineScroll = 0
+		if m.pendingG {
+			m.pendingG = false
+			m.eventTimelineScroll = 0
+		} else {
+			m.pendingG = true
+		}
 	case "G":
 		m.eventTimelineScroll = maxScroll
 	case "ctrl+d":
@@ -131,7 +136,12 @@ func (m Model) handleNetworkPolicyOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 			m.netpolScroll--
 		}
 	case "g":
-		m.netpolScroll = 0
+		if m.pendingG {
+			m.pendingG = false
+			m.netpolScroll = 0
+		} else {
+			m.pendingG = true
+		}
 	case "G":
 		// Jump to bottom: will be clamped during rendering.
 		m.netpolScroll = 9999

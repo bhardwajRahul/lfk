@@ -105,7 +105,6 @@ func TestEventTimelineOverlayKeyNavigation(t *testing.T) {
 		{name: "j scrolls down", key: runeKey('j'), startScroll: 0, expectedScroll: 1},
 		{name: "k scrolls up", key: runeKey('k'), startScroll: 5, expectedScroll: 4},
 		{name: "k at zero stays", key: runeKey('k'), startScroll: 0, expectedScroll: 0},
-		{name: "g jumps to top", key: runeKey('g'), startScroll: 10, expectedScroll: 0},
 		{name: "G jumps to bottom", key: runeKey('G'), startScroll: 0, expectedScroll: 19},
 	}
 	for _, tt := range tests {
@@ -127,6 +126,25 @@ func TestEventTimelineOverlayKeyNavigation(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("gg jumps to top", func(t *testing.T) {
+		m := Model{
+			overlay:             overlayEventTimeline,
+			eventTimelineData:   events,
+			eventTimelineScroll: 10,
+			tabs:                []TabState{{}},
+			width:               80,
+			height:              40,
+		}
+		ret, _ := m.handleEventTimelineOverlayKey(runeKey('g'))
+		result := ret.(Model)
+		assert.True(t, result.pendingG)
+
+		ret2, _ := result.handleEventTimelineOverlayKey(runeKey('g'))
+		result2 := ret2.(Model)
+		assert.False(t, result2.pendingG)
+		assert.Equal(t, 0, result2.eventTimelineScroll)
+	})
 }
 
 func TestEventTimelineCtrlDScrollsHalfPage(t *testing.T) {
@@ -220,7 +238,6 @@ func TestNetworkPolicyOverlayKeyNavigation(t *testing.T) {
 		{name: "j scrolls down", key: runeKey('j'), startScroll: 0, height: 40, expectedScroll: 1},
 		{name: "k scrolls up", key: runeKey('k'), startScroll: 5, height: 40, expectedScroll: 4},
 		{name: "k at zero stays", key: runeKey('k'), startScroll: 0, height: 40, expectedScroll: 0},
-		{name: "g jumps to top", key: runeKey('g'), startScroll: 10, height: 40, expectedScroll: 0},
 		{name: "G jumps to bottom", key: runeKey('G'), startScroll: 0, height: 40, expectedScroll: 9999},
 		{name: "ctrl+d half page down", key: tea.KeyMsg{Type: tea.KeyCtrlD}, startScroll: 0, height: 40, expectedScroll: 20},
 		{name: "ctrl+u half page up", key: tea.KeyMsg{Type: tea.KeyCtrlU}, startScroll: 30, height: 40, expectedScroll: 10},
@@ -248,6 +265,25 @@ func TestNetworkPolicyOverlayKeyNavigation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNetworkPolicyGGJumpsToTop(t *testing.T) {
+	m := Model{
+		overlay:      overlayNetworkPolicy,
+		netpolScroll: 10,
+		tabs:         []TabState{{}},
+		width:        80,
+		height:       40,
+	}
+	ret, _ := m.handleNetworkPolicyOverlayKey(runeKey('g'))
+	result := ret.(Model)
+	assert.True(t, result.pendingG)
+	assert.Equal(t, 10, result.netpolScroll) // not yet jumped
+
+	ret2, _ := result.handleNetworkPolicyOverlayKey(runeKey('g'))
+	result2 := ret2.(Model)
+	assert.False(t, result2.pendingG)
+	assert.Equal(t, 0, result2.netpolScroll)
 }
 
 // --- handleErrorLogOverlayKey ---

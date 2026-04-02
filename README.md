@@ -340,7 +340,8 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `W` / `B` | Move cursor to next/previous WORD start |
 | `e` | Move cursor to end of word |
 | `E` | Move cursor to end of WORD |
-| `g` / `G` | Jump to top / bottom |
+| `gg` / `G` | Jump to top / bottom |
+| `123G` | Jump to line number |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `/` | Search in YAML |
@@ -367,7 +368,7 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `W` / `B` | Move cursor to next/previous WORD start |
 | `e` | Move cursor to end of word |
 | `E` | Move cursor to end of WORD |
-| `g` / `G` | Jump to top / bottom |
+| `gg` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
 | `f` | Toggle follow mode (auto-scroll) |
