@@ -564,9 +564,10 @@ func UnifiedDiffViewTotalLines(left, right string, foldRegions []DiffFoldRegion,
 	return len(visLines) + 2
 }
 
-// UpdateDiffSearchMatches finds all diff line indices where the left or right
-// content matches the query (case-insensitive).
-func UpdateDiffSearchMatches(left, right, query string) []int {
+// UpdateDiffSearchMatches finds all diff line indices where the content on the
+// specified side matches the query (case-insensitive).
+// side: 0=left, 1=right. unified=true searches both sides.
+func UpdateDiffSearchMatches(left, right, query string, side int, unified bool) []int {
 	if query == "" {
 		return nil
 	}
@@ -574,12 +575,36 @@ func UpdateDiffSearchMatches(left, right, query string) []int {
 	queryLower := strings.ToLower(query)
 	var matches []int
 	for i, dl := range diffLines {
-		if strings.Contains(strings.ToLower(dl.left), queryLower) ||
-			strings.Contains(strings.ToLower(dl.right), queryLower) {
+		var text string
+		if unified {
+			// In unified mode, search whichever side has content.
+			text = dl.left
+			if text == "" {
+				text = dl.right
+			}
+		} else if side == 0 {
+			text = dl.left
+		} else {
+			text = dl.right
+		}
+		if strings.Contains(strings.ToLower(text), queryLower) {
 			matches = append(matches, i)
 		}
 	}
 	return matches
+}
+
+// DiffSearchColumnInLine returns the rune column of the first match of query
+// in the given diff line text, or -1 if not found.
+func DiffSearchColumnInLine(lineText, query string) int {
+	if query == "" || lineText == "" {
+		return -1
+	}
+	col := strings.Index(strings.ToLower(lineText), strings.ToLower(query))
+	if col < 0 {
+		return -1
+	}
+	return len([]rune(lineText[:col]))
 }
 
 // DiffVisibleIndexForOriginal finds the visible line index corresponding to

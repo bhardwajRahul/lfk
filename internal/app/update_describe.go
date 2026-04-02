@@ -110,7 +110,7 @@ func (m Model) handleDiffKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			m.diffSearchMode = false
 			m.diffSearchQuery = m.diffSearchText.Value
-			m.diffMatchLines = ui.UpdateDiffSearchMatches(m.diffLeft, m.diffRight, m.diffSearchQuery)
+			m.diffMatchLines = ui.UpdateDiffSearchMatches(m.diffLeft, m.diffRight, m.diffSearchQuery, m.diffCursorSide, m.diffUnified)
 			if len(m.diffMatchLines) > 0 {
 				m.diffMatchIdx = 0
 				m.diffScrollToMatch(foldRegions, visibleLines)
@@ -679,8 +679,8 @@ func (m *Model) ensureDiffCursorVisible(viewportLines, maxScroll int) {
 	m.diffScroll = max(min(m.diffScroll, maxScroll), 0)
 }
 
-// diffScrollToMatch auto-expands the fold region containing the current match
-// and scrolls to center it in the viewport.
+// diffScrollToMatch auto-expands the fold region containing the current match,
+// scrolls to center it in the viewport, and moves the cursor column to the match.
 func (m *Model) diffScrollToMatch(foldRegions []ui.DiffFoldRegion, viewportLines int) {
 	if len(m.diffMatchLines) == 0 || m.diffMatchIdx < 0 || m.diffMatchIdx >= len(m.diffMatchLines) {
 		return
@@ -696,11 +696,18 @@ func (m *Model) diffScrollToMatch(foldRegions []ui.DiffFoldRegion, viewportLines
 		return
 	}
 
-	// Move cursor and center in viewport.
+	// Move cursor line and center in viewport.
 	m.diffCursor = visIdx
 	m.diffScroll = visIdx - viewportLines/2
 	if m.diffScroll < 0 {
 		m.diffScroll = 0
+	}
+
+	// Move cursor column to the match position on the active side.
+	lineText := m.diffCurrentLineText(foldRegions)
+	col := ui.DiffSearchColumnInLine(lineText, m.diffSearchQuery)
+	if col >= 0 {
+		m.diffVisualCurCol = col
 	}
 }
 

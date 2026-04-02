@@ -166,25 +166,42 @@ func TestHighlightDiffSearchInLine(t *testing.T) {
 
 func TestUpdateDiffSearchMatches(t *testing.T) {
 	t.Run("empty query returns nil", func(t *testing.T) {
-		matches := UpdateDiffSearchMatches("a\nb", "a\nb", "")
+		matches := UpdateDiffSearchMatches("a\nb", "a\nb", "", 0, false)
 		assert.Nil(t, matches)
 	})
 
-	t.Run("finds matches in unchanged lines", func(t *testing.T) {
-		matches := UpdateDiffSearchMatches("name: test\nvalue: hello", "name: test\nvalue: hello", "test")
+	t.Run("finds matches in unchanged lines on left side", func(t *testing.T) {
+		matches := UpdateDiffSearchMatches("name: test\nvalue: hello", "name: test\nvalue: hello", "test", 0, false)
 		assert.Len(t, matches, 1)
 		assert.Equal(t, 0, matches[0])
 	})
 
-	t.Run("finds matches in both sides", func(t *testing.T) {
-		matches := UpdateDiffSearchMatches("name: test", "name: other", "name")
+	t.Run("left side only searches left", func(t *testing.T) {
+		matches := UpdateDiffSearchMatches("name: left", "name: right", "right", 0, false)
+		assert.Empty(t, matches)
+	})
+
+	t.Run("right side only searches right", func(t *testing.T) {
+		matches := UpdateDiffSearchMatches("name: left", "name: right", "right", 1, false)
+		assert.Greater(t, len(matches), 0)
+	})
+
+	t.Run("unified searches both sides", func(t *testing.T) {
+		matches := UpdateDiffSearchMatches("name: test", "name: other", "name", 0, true)
 		assert.Greater(t, len(matches), 0)
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
-		matches := UpdateDiffSearchMatches("Name: Test", "Name: Test", "name")
+		matches := UpdateDiffSearchMatches("Name: Test", "Name: Test", "name", 0, false)
 		assert.Len(t, matches, 1)
 	})
+}
+
+func TestDiffSearchColumnInLine(t *testing.T) {
+	assert.Equal(t, 6, DiffSearchColumnInLine("name: test value", "test"))
+	assert.Equal(t, 0, DiffSearchColumnInLine("test at start", "test"))
+	assert.Equal(t, -1, DiffSearchColumnInLine("no match", "xyz"))
+	assert.Equal(t, -1, DiffSearchColumnInLine("", "test"))
 }
 
 func TestDiffVisibleIndexForOriginal(t *testing.T) {
