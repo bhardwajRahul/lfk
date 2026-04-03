@@ -270,10 +270,12 @@ func TestParseThemeFile(t *testing.T) {
 
 	t.Run("missing background", func(t *testing.T) {
 		dir := t.TempDir()
-		content := "foreground = #c0caf5\n"
+		var b strings.Builder
+		b.WriteString("foreground = #c0caf5\n")
 		for i := range 16 {
-			content += paletteEntry(i, fullPalette()[i])
+			b.WriteString(paletteEntry(i, fullPalette()[i]))
 		}
+		content := b.String()
 		path := filepath.Join(dir, "bad-theme")
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
@@ -284,10 +286,12 @@ func TestParseThemeFile(t *testing.T) {
 
 	t.Run("missing foreground", func(t *testing.T) {
 		dir := t.TempDir()
-		content := "background = #1a1b26\n"
+		var b strings.Builder
+		b.WriteString("background = #1a1b26\n")
 		for i := range 16 {
-			content += paletteEntry(i, fullPalette()[i])
+			b.WriteString(paletteEntry(i, fullPalette()[i]))
 		}
+		content := b.String()
 		path := filepath.Join(dir, "no-fg")
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
@@ -298,11 +302,13 @@ func TestParseThemeFile(t *testing.T) {
 
 	t.Run("incomplete palette", func(t *testing.T) {
 		dir := t.TempDir()
-		content := "background = #1a1b26\nforeground = #c0caf5\n"
+		var b strings.Builder
+		b.WriteString("background = #1a1b26\nforeground = #c0caf5\n")
 		// Only 4 palette entries (need at least 8).
 		for i := range 4 {
-			content += paletteEntry(i, fullPalette()[i])
+			b.WriteString(paletteEntry(i, fullPalette()[i]))
 		}
+		content := b.String()
 		path := filepath.Join(dir, "short-palette")
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
@@ -314,11 +320,13 @@ func TestParseThemeFile(t *testing.T) {
 	t.Run("fills missing palette entries", func(t *testing.T) {
 		dir := t.TempDir()
 		// Provide only palette 0-7 (8 entries), missing 8-15.
-		content := "background = #1a1b26\nforeground = #c0caf5\n"
+		var b strings.Builder
+		b.WriteString("background = #1a1b26\nforeground = #c0caf5\n")
 		pal := fullPalette()
 		for i := range 8 {
-			content += paletteEntry(i, pal[i])
+			b.WriteString(paletteEntry(i, pal[i]))
 		}
+		content := b.String()
 		path := filepath.Join(dir, "half-palette")
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
@@ -350,14 +358,16 @@ func TestParseThemeFile(t *testing.T) {
 
 	t.Run("invalid palette index is ignored", func(t *testing.T) {
 		dir := t.TempDir()
-		content := "background = #1a1b26\nforeground = #c0caf5\n"
+		var b strings.Builder
+		b.WriteString("background = #1a1b26\nforeground = #c0caf5\n")
 		pal := fullPalette()
 		for i := range 16 {
-			content += paletteEntry(i, pal[i])
+			b.WriteString(paletteEntry(i, pal[i]))
 		}
-		content += "palette = 99=#ffffff\n"  // out of range
-		content += "palette = abc=#ffffff\n" // non-numeric
-		content += "palette = badformat\n"   // missing =
+		b.WriteString("palette = 99=#ffffff\n")  // out of range
+		b.WriteString("palette = abc=#ffffff\n") // non-numeric
+		b.WriteString("palette = badformat\n")   // missing =
+		content := b.String()
 		path := filepath.Join(dir, "bad-palette-idx")
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 

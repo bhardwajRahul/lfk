@@ -34,7 +34,7 @@ func main() {
 func run(inputDir, output, skipList string) error {
 	skip := make(map[string]bool)
 	if skipList != "" {
-		for _, s := range strings.Split(skipList, ",") {
+		for s := range strings.SplitSeq(skipList, ",") {
 			skip[strings.TrimSpace(s)] = true
 		}
 	}
