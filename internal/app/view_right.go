@@ -205,114 +205,113 @@ func (m Model) renderDetailsOnly(width, height int) string {
 }
 
 func (m Model) renderRightColumnContent(width, height int) string {
-	contentHeight := height
-
 	// Resource map view: show relationship tree.
 	if m.mapView && m.nav.Level >= model.LevelResources {
 		if m.resourceTree == nil {
 			return ui.DimStyle.Render("Loading resource tree...")
 		}
-		return ui.RenderResourceTree(m.resourceTree, width, contentHeight)
+		return ui.RenderResourceTree(m.resourceTree, width, height)
 	}
 
 	// Full YAML preview mode (Shift+P): show only YAML, no children.
-	// Only enabled on actual resources (level 2+), not on cluster/resource-type lists.
-	// Exception: container level always shows container details.
 	if m.fullYAMLPreview && m.nav.Level >= model.LevelResources && m.nav.Level != model.LevelContainers {
-		yaml := m.previewYAML
-		if yaml == "" {
-			yaml = m.yamlContent
-		}
-		if yaml == "" {
-			return ui.DimStyle.Render("Loading YAML...")
-		}
-		return ui.RenderYAMLContent(m.maskYAMLIfSecret(yaml), width, contentHeight)
+		return m.renderFullYAMLPreview(width, height)
 	}
 
-	// Default mode: show details summary (no YAML).
-
-	// Resource types level with Cluster Dashboard or Monitoring selected: show dashboard in preview.
-	if m.nav.Level == model.LevelResourceTypes {
-		sel := m.selectedMiddleItem()
-		if sel != nil && sel.Extra == "__overview__" {
-			if m.dashboardPreview == "" {
-				return ui.DimStyle.Render(m.spinner.View() + " Loading cluster dashboard...")
-			}
-			return m.dashboardPreview
-		}
-		if sel != nil && sel.Extra == "__monitoring__" {
-			if m.monitoringPreview == "" {
-				return ui.DimStyle.Render(m.spinner.View() + " Loading monitoring dashboard...")
-			}
-			return m.monitoringPreview
+	switch m.nav.Level {
+	case model.LevelResourceTypes:
+		return m.renderRightResourceTypes(width, height)
+	case model.LevelClusters:
+		return m.renderRightClusters(width, height)
+	case model.LevelResources:
+		return m.renderRightResources(width, height)
+	case model.LevelOwned:
+		return m.renderRightOwned(width, height)
+	case model.LevelContainers:
+		if sel := m.selectedMiddleItem(); sel != nil {
+			return ui.RenderContainerDetail(sel, width, height)
 		}
 	}
 
-	// Clusters level: show resource types with category grouping in right column.
-	if m.nav.Level == model.LevelClusters {
-		if len(m.rightItems) == 0 {
-			if m.loading {
-				return ui.DimStyle.Render(m.spinner.View() + " Loading...")
-			}
-			return ui.DimStyle.Render("No resource types found")
-		}
-		return ui.RenderColumn("RESOURCE TYPE", m.rightItems, -1, width, contentHeight, false, m.loading, m.spinner.View(), "")
-	}
+	return m.renderRightDefault(width, height)
+}
 
-	// Resources with children (Deployment, StatefulSet, etc.) or Pods: split view.
-	if m.nav.Level == model.LevelResources && (m.resourceTypeHasChildren() || m.nav.ResourceType.Kind == "Pod") {
-		if len(m.rightItems) > 0 {
-			return m.renderSplitPreview(width, contentHeight)
-		}
-		// Fall through to show right items as list.
+func (m Model) renderFullYAMLPreview(width, height int) string {
+	yaml := m.previewYAML
+	if yaml == "" {
+		yaml = m.yamlContent
 	}
-
-	// Resources without children (ConfigMap, Secret, etc.): details summary only.
-	if m.nav.Level == model.LevelResources && !m.resourceTypeHasChildren() && m.nav.ResourceType.Kind != "Pod" {
-		sel := m.selectedMiddleItem()
-		if sel != nil && len(sel.Columns) > 0 {
-			return ui.RenderResourceSummary(sel, "", width, contentHeight)
-		}
-		// Fall back to YAML if no detail columns are available.
-		return m.renderFallbackYAML(width, contentHeight)
+	if yaml == "" {
+		return ui.DimStyle.Render("Loading YAML...")
 	}
+	return ui.RenderYAMLContent(m.maskYAMLIfSecret(yaml), width, height)
+}
 
-	// Owned level: pods get split view, non-pods get details summary.
-	if m.nav.Level == model.LevelOwned {
-		sel := m.selectedMiddleItem()
-		if sel != nil {
-			if sel.Kind == "Pod" {
-				if len(m.rightItems) > 0 {
-					return m.renderSplitPreview(width, contentHeight)
-				}
-				// Fall through to show right items (containers) as list.
-			} else {
-				// Non-pod (e.g., Job): details summary only.
-				if len(sel.Columns) > 0 {
-					return ui.RenderResourceSummary(sel, "", width, contentHeight)
-				}
-				// Fall back to YAML if no detail columns are available.
-				return m.renderFallbackYAML(width, contentHeight)
-			}
+func (m Model) renderRightResourceTypes(width, height int) string {
+	sel := m.selectedMiddleItem()
+	if sel != nil && sel.Extra == "__overview__" {
+		if m.dashboardPreview == "" {
+			return ui.DimStyle.Render(m.spinner.View() + " Loading cluster dashboard...")
 		}
+		return m.dashboardPreview
 	}
-
-	// Container level: show container details.
-	if m.nav.Level == model.LevelContainers {
-		sel := m.selectedMiddleItem()
-		if sel != nil {
-			return ui.RenderContainerDetail(sel, width, contentHeight)
+	if sel != nil && sel.Extra == "__monitoring__" {
+		if m.monitoringPreview == "" {
+			return ui.DimStyle.Render(m.spinner.View() + " Loading monitoring dashboard...")
 		}
+		return m.monitoringPreview
 	}
+	return m.renderRightDefault(width, height)
+}
 
-	// Otherwise, show right items as a list.
+func (m Model) renderRightClusters(width, height int) string {
+	if len(m.rightItems) == 0 {
+		if m.loading {
+			return ui.DimStyle.Render(m.spinner.View() + " Loading...")
+		}
+		return ui.DimStyle.Render("No resource types found")
+	}
+	return ui.RenderColumn("RESOURCE TYPE", m.rightItems, -1, width, height, false, m.loading, m.spinner.View(), "")
+}
+
+func (m Model) renderRightResources(width, height int) string {
+	if (m.resourceTypeHasChildren() || m.nav.ResourceType.Kind == "Pod") && len(m.rightItems) > 0 {
+		return m.renderSplitPreview(width, height)
+	}
+	if !m.resourceTypeHasChildren() && m.nav.ResourceType.Kind != "Pod" {
+		if sel := m.selectedMiddleItem(); sel != nil && len(sel.Columns) > 0 {
+			return ui.RenderResourceSummary(sel, "", width, height)
+		}
+		return m.renderFallbackYAML(width, height)
+	}
+	return m.renderRightDefault(width, height)
+}
+
+func (m Model) renderRightOwned(width, height int) string {
+	sel := m.selectedMiddleItem()
+	if sel == nil {
+		return m.renderRightDefault(width, height)
+	}
+	if sel.Kind == "Pod" && len(m.rightItems) > 0 {
+		return m.renderSplitPreview(width, height)
+	}
+	if sel.Kind != "Pod" {
+		if len(sel.Columns) > 0 {
+			return ui.RenderResourceSummary(sel, "", width, height)
+		}
+		return m.renderFallbackYAML(width, height)
+	}
+	return m.renderRightDefault(width, height)
+}
+
+func (m Model) renderRightDefault(width, height int) string {
 	if len(m.rightItems) == 0 {
 		if m.loading {
 			return ui.DimStyle.Render(m.spinner.View() + " Loading...")
 		}
 		return ui.DimStyle.Render("No resources found")
 	}
-	return ui.RenderTable(strings.ToUpper(m.ownedChildKindLabel()), m.rightItems, -1, width, contentHeight, m.loading, m.spinner.View(), "", false)
+	return ui.RenderTable(strings.ToUpper(m.ownedChildKindLabel()), m.rightItems, -1, width, height, m.loading, m.spinner.View(), "", false)
 }
 
 // renderSplitPreview renders the right column as a split: top children table, bottom details.

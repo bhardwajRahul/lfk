@@ -24,28 +24,7 @@ func (m Model) viewLogs() string {
 }
 
 func (m Model) viewDescribe() string {
-	// Build title with mode indicators.
-	titleText := m.describeTitle
-	var indicators []string
-	if m.describeWrap {
-		indicators = append(indicators, "WRAP")
-	}
-	if m.describeVisualMode != 0 {
-		switch m.describeVisualMode {
-		case 'v':
-			indicators = append(indicators, "VISUAL")
-		case 'V':
-			indicators = append(indicators, "VISUAL LINE")
-		case 'B':
-			indicators = append(indicators, "VISUAL BLOCK")
-		}
-	}
-	if m.describeSearchQuery != "" {
-		indicators = append(indicators, "/"+m.describeSearchQuery)
-	}
-	if len(indicators) > 0 {
-		titleText += " [" + strings.Join(indicators, " | ") + "]"
-	}
+	titleText := m.describeTitle + viewModeIndicators(m.describeWrap, rune(m.describeVisualMode), m.describeSearchQuery)
 	title := ui.TitleStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(titleText)
 
 	// Build hint bar or search bar.
@@ -545,74 +524,19 @@ func vt10xColorToLipgloss(c vt10x.Color) lipgloss.TerminalColor {
 
 // viewEventViewer renders the fullscreen event viewer mode.
 func (m Model) viewEventViewer() string {
-	// Title with indicators.
 	titleText := "Event Timeline"
 	if m.actionCtx.name != "" {
 		titleText += " - " + m.actionCtx.name
 	}
-	var indicators []string
-	if m.eventTimelineWrap {
-		indicators = append(indicators, "WRAP")
-	}
-	if m.eventTimelineVisualMode != 0 {
-		switch m.eventTimelineVisualMode {
-		case 'v':
-			indicators = append(indicators, "VISUAL")
-		case 'V':
-			indicators = append(indicators, "VISUAL LINE")
-		case 'B':
-			indicators = append(indicators, "VISUAL BLOCK")
-		}
-	}
-	if m.eventTimelineSearchQuery != "" {
-		indicators = append(indicators, "/"+m.eventTimelineSearchQuery)
-	}
-	if len(indicators) > 0 {
-		titleText += " [" + strings.Join(indicators, " | ") + "]"
-	}
+	titleText += viewModeIndicators(m.eventTimelineWrap, rune(m.eventTimelineVisualMode), m.eventTimelineSearchQuery)
 	title := ui.TitleStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(titleText)
 
-	// Hint bar.
-	var hint string
-	if m.eventTimelineSearchActive {
-		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.eventTimelineSearchInput.CursorLeft()) + ui.BarDimStyle.Render("\u2588") + ui.BarNormalStyle.Render(m.eventTimelineSearchInput.CursorRight())
-		hint = ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(searchBar)
-	} else if m.eventTimelineVisualMode != 0 {
-		hints := []ui.HintEntry{
-			{Key: "j/k", Desc: "extend"},
-			{Key: "h/l", Desc: "column"},
-			{Key: "y", Desc: "copy"},
-			{Key: "v/V", Desc: "switch mode"},
-			{Key: "esc", Desc: "cancel"},
-		}
-		hint = ui.RenderHintBar(hints, m.width)
-	} else {
-		hints := []ui.HintEntry{
-			{Key: "j/k", Desc: "navigate"},
-			{Key: "h/l", Desc: "column"},
-			{Key: "v/V", Desc: "visual"},
-			{Key: "y", Desc: "copy"},
-			{Key: "/", Desc: "search"},
-			{Key: ">", Desc: "wrap"},
-			{Key: "f", Desc: "minimize"},
-			{Key: "q/esc", Desc: "back"},
-		}
-		hint = ui.RenderHintBar(hints, m.width)
-	}
+	hint := m.eventViewerHintBar()
 
 	lines := m.eventTimelineLines
-	maxLines := m.height - 4
-	if maxLines < 3 {
-		maxLines = 3
-	}
-	contentWidth := m.width - 4
-	if contentWidth < 10 {
-		contentWidth = 10
-	}
-	lineContentWidth := contentWidth - 1
-	if lineContentWidth < 10 {
-		lineContentWidth = 10
-	}
+	maxLines := max(m.height-4, 3)
+	contentWidth := max(m.width-4, 10)
+	lineContentWidth := max(contentWidth-1, 10)
 
 	scroll := m.eventTimelineScroll
 	if scroll > len(lines) {
@@ -622,76 +546,7 @@ func (m Model) viewEventViewer() string {
 		scroll = 0
 	}
 
-	selStart := min(m.eventTimelineVisualStart, m.eventTimelineCursor)
-	selEnd := max(m.eventTimelineVisualStart, m.eventTimelineCursor)
-	colStart := min(m.eventTimelineVisualCol, m.eventTimelineCursorCol)
-	colEnd := max(m.eventTimelineVisualCol, m.eventTimelineCursorCol)
-
-	lowerQuery := strings.ToLower(m.eventTimelineSearchQuery)
-
-	wrapStyle := lipgloss.NewStyle().Width(lineContentWidth)
-
-	var visible []string
-	if m.eventTimelineWrap {
-		for i := scroll; i < len(lines) && len(visible) < maxLines; i++ {
-			line := lines[i]
-			isCursor := i == m.eventTimelineCursor
-			wrapped := wrapStyle.Render(line)
-			subLines := strings.Split(wrapped, "\n")
-			for si, sub := range subLines {
-				if len(visible) >= maxLines {
-					break
-				}
-				if isCursor && si == 0 {
-					visible = append(visible, ui.YamlCursorIndicatorStyle.Render("\u258e")+sub)
-				} else {
-					visible = append(visible, " "+sub)
-				}
-			}
-		}
-	} else {
-		end := scroll + maxLines
-		if end > len(lines) {
-			end = len(lines)
-		}
-		for i := scroll; i < end; i++ {
-			line := lines[i]
-			isCursor := i == m.eventTimelineCursor
-			inSel := m.eventTimelineVisualMode != 0 && i >= selStart && i <= selEnd
-
-			truncLine := line
-			if len([]rune(truncLine)) > lineContentWidth {
-				truncLine = string([]rune(truncLine)[:lineContentWidth])
-			}
-
-			if inSel {
-				rendered := ui.RenderVisualSelection(
-					truncLine, rune(m.eventTimelineVisualMode),
-					i, selStart, selEnd,
-					m.eventTimelineVisualStart, m.eventTimelineVisualCol, m.eventTimelineCursorCol,
-					colStart, colEnd,
-				)
-				if isCursor {
-					visible = append(visible, ui.YamlCursorIndicatorStyle.Render("\u258e")+rendered)
-				} else {
-					visible = append(visible, " "+rendered)
-				}
-			} else if isCursor {
-				displayLine := truncLine
-				if lowerQuery != "" {
-					displayLine = highlightDescribeSearchLine(displayLine, lowerQuery)
-				}
-				cursorLine := ui.RenderCursorAtCol(displayLine, truncLine, m.eventTimelineCursorCol)
-				visible = append(visible, ui.YamlCursorIndicatorStyle.Render("\u258e")+cursorLine)
-			} else {
-				displayLine := truncLine
-				if lowerQuery != "" {
-					displayLine = highlightDescribeSearchLine(displayLine, lowerQuery)
-				}
-				visible = append(visible, " "+displayLine)
-			}
-		}
-	}
+	visible := m.renderEventViewerLines(lines, scroll, maxLines, lineContentWidth)
 
 	for len(visible) < maxLines {
 		visible = append(visible, "")
@@ -702,4 +557,124 @@ func (m Model) viewEventViewer() string {
 	body := borderStyle.Render(bodyContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, body, hint)
+}
+
+// viewModeIndicators builds the bracket-enclosed mode indicators string.
+func viewModeIndicators(wrap bool, visualMode rune, searchQuery string) string {
+	var indicators []string
+	if wrap {
+		indicators = append(indicators, "WRAP")
+	}
+	switch visualMode {
+	case 'v':
+		indicators = append(indicators, "VISUAL")
+	case 'V':
+		indicators = append(indicators, "VISUAL LINE")
+	case 'B':
+		indicators = append(indicators, "VISUAL BLOCK")
+	}
+	if searchQuery != "" {
+		indicators = append(indicators, "/"+searchQuery)
+	}
+	if len(indicators) > 0 {
+		return " [" + strings.Join(indicators, " | ") + "]"
+	}
+	return ""
+}
+
+// eventViewerHintBar returns the hint bar for the event viewer.
+func (m Model) eventViewerHintBar() string {
+	if m.eventTimelineSearchActive {
+		searchBar := ui.HelpKeyStyle.Render("/") + ui.BarNormalStyle.Render(m.eventTimelineSearchInput.CursorLeft()) + ui.BarDimStyle.Render("\u2588") + ui.BarNormalStyle.Render(m.eventTimelineSearchInput.CursorRight())
+		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(searchBar)
+	}
+	if m.eventTimelineVisualMode != 0 {
+		return ui.RenderHintBar([]ui.HintEntry{
+			{Key: "j/k", Desc: "extend"},
+			{Key: "h/l", Desc: "column"},
+			{Key: "y", Desc: "copy"},
+			{Key: "v/V", Desc: "switch mode"},
+			{Key: "esc", Desc: "cancel"},
+		}, m.width)
+	}
+	return ui.RenderHintBar([]ui.HintEntry{
+		{Key: "j/k", Desc: "navigate"},
+		{Key: "h/l", Desc: "column"},
+		{Key: "v/V", Desc: "visual"},
+		{Key: "y", Desc: "copy"},
+		{Key: "/", Desc: "search"},
+		{Key: ">", Desc: "wrap"},
+		{Key: "f", Desc: "minimize"},
+		{Key: "q/esc", Desc: "back"},
+	}, m.width)
+}
+
+// renderEventViewerLines renders the visible event lines.
+func (m Model) renderEventViewerLines(lines []string, scroll, maxLines, lineContentWidth int) []string {
+	selStart := min(m.eventTimelineVisualStart, m.eventTimelineCursor)
+	selEnd := max(m.eventTimelineVisualStart, m.eventTimelineCursor)
+	colStart := min(m.eventTimelineVisualCol, m.eventTimelineCursorCol)
+	colEnd := max(m.eventTimelineVisualCol, m.eventTimelineCursorCol)
+	lowerQuery := strings.ToLower(m.eventTimelineSearchQuery)
+
+	if m.eventTimelineWrap {
+		return m.renderEventViewerLinesWrapped(lines, scroll, maxLines, lineContentWidth)
+	}
+
+	var visible []string
+	end := min(scroll+maxLines, len(lines))
+	for i := scroll; i < end; i++ {
+		line := lines[i]
+		truncLine := line
+		if len([]rune(truncLine)) > lineContentWidth {
+			truncLine = string([]rune(truncLine)[:lineContentWidth])
+		}
+		isCursor := i == m.eventTimelineCursor
+		inSel := m.eventTimelineVisualMode != 0 && i >= selStart && i <= selEnd
+
+		if inSel {
+			rendered := ui.RenderVisualSelection(truncLine, rune(m.eventTimelineVisualMode), i, selStart, selEnd,
+				m.eventTimelineVisualStart, m.eventTimelineVisualCol, m.eventTimelineCursorCol, colStart, colEnd)
+			if isCursor {
+				visible = append(visible, ui.YamlCursorIndicatorStyle.Render("\u258e")+rendered)
+			} else {
+				visible = append(visible, " "+rendered)
+			}
+		} else if isCursor {
+			displayLine := truncLine
+			if lowerQuery != "" {
+				displayLine = highlightDescribeSearchLine(displayLine, lowerQuery)
+			}
+			visible = append(visible, ui.YamlCursorIndicatorStyle.Render("\u258e")+ui.RenderCursorAtCol(displayLine, truncLine, m.eventTimelineCursorCol))
+		} else {
+			displayLine := truncLine
+			if lowerQuery != "" {
+				displayLine = highlightDescribeSearchLine(displayLine, lowerQuery)
+			}
+			visible = append(visible, " "+displayLine)
+		}
+	}
+	return visible
+}
+
+// renderEventViewerLinesWrapped renders wrapped event viewer lines.
+func (m Model) renderEventViewerLinesWrapped(lines []string, scroll, maxLines, lineContentWidth int) []string {
+	wrapStyle := lipgloss.NewStyle().Width(lineContentWidth)
+	var visible []string
+	for i := scroll; i < len(lines) && len(visible) < maxLines; i++ {
+		isCursor := i == m.eventTimelineCursor
+		wrapped := wrapStyle.Render(lines[i])
+		subLines := strings.Split(wrapped, "\n")
+		for si, sub := range subLines {
+			if len(visible) >= maxLines {
+				break
+			}
+			if isCursor && si == 0 {
+				visible = append(visible, ui.YamlCursorIndicatorStyle.Render("\u258e")+sub)
+			} else {
+				visible = append(visible, " "+sub)
+			}
+		}
+	}
+	return visible
 }

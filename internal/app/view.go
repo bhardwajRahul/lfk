@@ -235,164 +235,11 @@ func (m Model) viewExplorer() string {
 	var columns string
 	switch {
 	case m.fullscreenDashboard:
-		// Fullscreen dashboard: render cluster/monitoring dashboard using full width.
-		var dashContent string
-		sel := m.selectedMiddleItem()
-		isMonitoring := sel != nil && sel.Extra == "__monitoring__"
-		if isMonitoring {
-			dashContent = m.monitoringPreview
-			if dashContent == "" {
-				dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading monitoring dashboard...")
-			}
-		} else {
-			dashContent = m.dashboardPreview
-			if dashContent == "" {
-				dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading cluster dashboard...")
-			}
-		}
-
-		// Two-column layout: charts on left, events on right (cluster dashboard only).
-		fullW := m.width - 2
-		if !isMonitoring && m.dashboardEventsPreview != "" {
-			// Size left column to fit its content, give remaining space to events.
-			leftW := fullW / 2
-			// Measure actual content width (widest line in the dashboard).
-			for _, line := range strings.Split(dashContent, "\n") {
-				if w := lipgloss.Width(line); w+2 > leftW {
-					leftW = w + 2
-				}
-			}
-			// Cap left column at 60% so events always get reasonable space.
-			maxLeft := fullW * 60 / 100
-			if leftW > maxLeft {
-				leftW = maxLeft
-			}
-			rightW := fullW - leftW - 1 // 1 for vertical separator
-
-			// Strip the "RECENT WARNING EVENTS" section from the left column
-			// since events are shown in the right column.
-			leftContent := dashContent
-			if idx := strings.Index(leftContent, "RECENT WARNING EVENTS"); idx > 0 {
-				// Find the start of the line containing the header.
-				lineStart := strings.LastIndex(leftContent[:idx], "\n")
-				if lineStart > 0 {
-					leftContent = leftContent[:lineStart]
-				}
-			}
-			rightContent := m.dashboardEventsPreview
-
-			// Apply preview scroll to both columns.
-			if m.previewScroll > 0 {
-				leftLines := strings.Split(leftContent, "\n")
-				if m.previewScroll >= len(leftLines) {
-					m.previewScroll = len(leftLines) - 1
-				}
-				if m.previewScroll > 0 {
-					leftLines = leftLines[m.previewScroll:]
-				}
-				leftContent = strings.Join(leftLines, "\n")
-
-				rightLines := strings.Split(rightContent, "\n")
-				if m.previewScroll < len(rightLines) {
-					rightLines = rightLines[m.previewScroll:]
-				} else {
-					rightLines = nil
-				}
-				rightContent = strings.Join(rightLines, "\n")
-			}
-
-			// Build left and right line arrays.
-			leftLines := strings.Split(leftContent, "\n")
-			rightRawLines := strings.Split(rightContent, "\n")
-
-			// Word-wrap right column with left padding for readability.
-			// Reserve space for padding on both sides.
-			pad := "  "               // 2-space left padding
-			maxContentW := rightW - 4 // 2 padding left + 2 right margin
-			if maxContentW < 10 {
-				maxContentW = 10
-			}
-			wrapStyle := lipgloss.NewStyle().Width(maxContentW)
-			rightLines := make([]string, 0, len(rightRawLines))
-			for _, line := range rightRawLines {
-				if lipgloss.Width(line) == 0 {
-					rightLines = append(rightLines, "")
-				} else if lipgloss.Width(line) <= maxContentW {
-					rightLines = append(rightLines, pad+line)
-				} else {
-					wrapped := wrapStyle.Render(line)
-					for _, wl := range strings.Split(wrapped, "\n") {
-						rightLines = append(rightLines, pad+wl)
-					}
-				}
-			}
-
-			// Pad both to contentHeight.
-			for len(leftLines) < contentHeight {
-				leftLines = append(leftLines, "")
-			}
-			for len(rightLines) < contentHeight {
-				rightLines = append(rightLines, "")
-			}
-
-			// Build aligned rows: left (fixed width) | separator | right (fixed width).
-			// Use Width + MaxWidth to both pad short lines and clip long ones.
-			leftStyle := lipgloss.NewStyle().Width(leftW).MaxWidth(leftW)
-			rightStyle := lipgloss.NewStyle().Width(rightW).MaxWidth(rightW)
-			sep := ui.DimStyle.Render("\u2502")
-			rows := make([]string, contentHeight)
-			for i := range contentHeight {
-				l := ""
-				if i < len(leftLines) {
-					l = leftLines[i]
-				}
-				r := ""
-				if i < len(rightLines) {
-					r = rightLines[i]
-				}
-				rows[i] = leftStyle.Render(l) + sep + rightStyle.Render(r)
-			}
-			dashCol := strings.Join(rows, "\n")
-			columns = ui.ActiveColumnStyle.Width(fullW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(dashCol)
-		} else {
-			// Single column (monitoring dashboard or no events available).
-			if m.previewScroll > 0 {
-				lines := strings.Split(dashContent, "\n")
-				if m.previewScroll >= len(lines) {
-					m.previewScroll = len(lines) - 1
-				}
-				if m.previewScroll > 0 {
-					lines = lines[m.previewScroll:]
-				}
-				dashContent = strings.Join(lines, "\n")
-			}
-			dashCol := ui.PadToHeight(dashContent, contentHeight)
-			dashCol = ui.FillLinesBg(dashCol, m.width-4, ui.BaseBg)
-			columns = ui.ActiveColumnStyle.Width(fullW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(dashCol)
-		}
+		columns = m.viewExplorerDashboard(contentHeight)
 	case m.fullscreenMiddle:
 		columns = middle
 	default:
-		leftCol := ui.RenderColumn(m.leftColumnHeader(), m.leftItems, m.parentIndex(), leftInner, contentHeight, false, m.loading, m.spinner.View(), "")
-		// Clear highlight query for preview/right column — search only applies to the focus pane.
-		savedHighlight := ui.ActiveHighlightQuery
-		ui.ActiveHighlightQuery = ""
-		// Disable vim-style scroll for right column (it has its own preview scroll).
-		savedMiddleScroll := ui.ActiveMiddleScroll
-		savedLeftScroll := ui.ActiveLeftScroll
-		ui.ActiveMiddleScroll = -1
-		ui.ActiveLeftScroll = -1
-		rightCol := m.renderRightColumn(rightInner, contentHeight)
-		ui.ActiveMiddleScroll = savedMiddleScroll
-		ui.ActiveLeftScroll = savedLeftScroll
-		ui.ActiveHighlightQuery = savedHighlight
-		leftCol = ui.PadToHeight(leftCol, contentHeight)
-		rightCol = ui.PadToHeight(rightCol, contentHeight)
-		leftCol = ui.FillLinesBg(leftCol, leftInner, ui.BaseBg)
-		rightCol = ui.FillLinesBg(rightCol, rightInner, ui.BaseBg)
-		left := ui.InactiveColumnStyle.Width(leftW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(leftCol)
-		right := ui.InactiveColumnStyle.Width(rightW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(rightCol)
-		columns = lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
+		columns = m.viewExplorerThreeCol(middle, leftW, leftInner, rightW, rightInner, contentHeight)
 	}
 
 	// Title bar with namespace indicator on the right.
@@ -474,4 +321,160 @@ func (m Model) renderTitleBar() string {
 
 	barContent := bc + watchIndicator + ui.BarDimStyle.Render(strings.Repeat(" ", gap)) + nsLabel + versionLabel
 	return ui.TitleBarStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(barContent)
+}
+
+// viewExplorerDashboard renders the fullscreen dashboard view.
+func (m Model) viewExplorerDashboard(contentHeight int) string {
+	sel := m.selectedMiddleItem()
+	isMonitoring := sel != nil && sel.Extra == "__monitoring__"
+
+	var dashContent string
+	if isMonitoring {
+		dashContent = m.monitoringPreview
+		if dashContent == "" {
+			dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading monitoring dashboard...")
+		}
+	} else {
+		dashContent = m.dashboardPreview
+		if dashContent == "" {
+			dashContent = ui.DimStyle.Render(m.spinner.View() + " Loading cluster dashboard...")
+		}
+	}
+
+	fullW := m.width - 2
+	if !isMonitoring && m.dashboardEventsPreview != "" {
+		return m.viewExplorerDashboardTwoCol(dashContent, fullW, contentHeight)
+	}
+	return m.viewExplorerDashboardSingleCol(dashContent, fullW, contentHeight)
+}
+
+// viewExplorerDashboardSingleCol renders a single-column fullscreen dashboard.
+func (m Model) viewExplorerDashboardSingleCol(dashContent string, fullW, contentHeight int) string {
+	if m.previewScroll > 0 {
+		lines := strings.Split(dashContent, "\n")
+		if m.previewScroll >= len(lines) {
+			m.previewScroll = len(lines) - 1
+		}
+		if m.previewScroll > 0 {
+			lines = lines[m.previewScroll:]
+		}
+		dashContent = strings.Join(lines, "\n")
+	}
+	dashCol := ui.PadToHeight(dashContent, contentHeight)
+	dashCol = ui.FillLinesBg(dashCol, m.width-4, ui.BaseBg)
+	return ui.ActiveColumnStyle.Width(fullW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(dashCol)
+}
+
+// viewExplorerDashboardTwoCol renders a two-column fullscreen dashboard.
+func (m Model) viewExplorerDashboardTwoCol(dashContent string, fullW, contentHeight int) string {
+	leftW := fullW / 2
+	for _, line := range strings.Split(dashContent, "\n") {
+		if w := lipgloss.Width(line); w+2 > leftW {
+			leftW = w + 2
+		}
+	}
+	maxLeft := fullW * 60 / 100
+	if leftW > maxLeft {
+		leftW = maxLeft
+	}
+	rightW := fullW - leftW - 1
+
+	leftContent := dashContent
+	if idx := strings.Index(leftContent, "RECENT WARNING EVENTS"); idx > 0 {
+		lineStart := strings.LastIndex(leftContent[:idx], "\n")
+		if lineStart > 0 {
+			leftContent = leftContent[:lineStart]
+		}
+	}
+	rightContent := m.dashboardEventsPreview
+
+	if m.previewScroll > 0 {
+		leftContent = scrollContent(leftContent, m.previewScroll)
+		rightContent = scrollContent(rightContent, m.previewScroll)
+	}
+
+	leftLines := strings.Split(leftContent, "\n")
+	rightLines := wrapEventsColumn(strings.Split(rightContent, "\n"), rightW)
+
+	for len(leftLines) < contentHeight {
+		leftLines = append(leftLines, "")
+	}
+	for len(rightLines) < contentHeight {
+		rightLines = append(rightLines, "")
+	}
+
+	leftStyle := lipgloss.NewStyle().Width(leftW).MaxWidth(leftW)
+	rightStyle := lipgloss.NewStyle().Width(rightW).MaxWidth(rightW)
+	sep := ui.DimStyle.Render("\u2502")
+	rows := make([]string, contentHeight)
+	for i := range contentHeight {
+		l, r := "", ""
+		if i < len(leftLines) {
+			l = leftLines[i]
+		}
+		if i < len(rightLines) {
+			r = rightLines[i]
+		}
+		rows[i] = leftStyle.Render(l) + sep + rightStyle.Render(r)
+	}
+	dashCol := strings.Join(rows, "\n")
+	return ui.ActiveColumnStyle.Width(fullW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(dashCol)
+}
+
+// scrollContent applies scroll offset to a newline-separated content string.
+func scrollContent(content string, scroll int) string {
+	lines := strings.Split(content, "\n")
+	if scroll >= len(lines) {
+		return ""
+	}
+	if scroll > 0 {
+		lines = lines[scroll:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// wrapEventsColumn word-wraps event lines to fit the right column width.
+func wrapEventsColumn(rawLines []string, rightW int) []string {
+	pad := "  "
+	maxContentW := rightW - 4
+	if maxContentW < 10 {
+		maxContentW = 10
+	}
+	wrapStyle := lipgloss.NewStyle().Width(maxContentW)
+	result := make([]string, 0, len(rawLines))
+	for _, line := range rawLines {
+		if lipgloss.Width(line) == 0 {
+			result = append(result, "")
+		} else if lipgloss.Width(line) <= maxContentW {
+			result = append(result, pad+line)
+		} else {
+			wrapped := wrapStyle.Render(line)
+			for _, wl := range strings.Split(wrapped, "\n") {
+				result = append(result, pad+wl)
+			}
+		}
+	}
+	return result
+}
+
+// viewExplorerThreeCol renders the standard three-column explorer layout.
+func (m Model) viewExplorerThreeCol(middle string, leftW, leftInner, rightW, rightInner, contentHeight int) string {
+	leftCol := ui.RenderColumn(m.leftColumnHeader(), m.leftItems, m.parentIndex(), leftInner, contentHeight, false, m.loading, m.spinner.View(), "")
+	savedHighlight := ui.ActiveHighlightQuery
+	ui.ActiveHighlightQuery = ""
+	savedMiddleScroll := ui.ActiveMiddleScroll
+	savedLeftScroll := ui.ActiveLeftScroll
+	ui.ActiveMiddleScroll = -1
+	ui.ActiveLeftScroll = -1
+	rightCol := m.renderRightColumn(rightInner, contentHeight)
+	ui.ActiveMiddleScroll = savedMiddleScroll
+	ui.ActiveLeftScroll = savedLeftScroll
+	ui.ActiveHighlightQuery = savedHighlight
+	leftCol = ui.PadToHeight(leftCol, contentHeight)
+	rightCol = ui.PadToHeight(rightCol, contentHeight)
+	leftCol = ui.FillLinesBg(leftCol, leftInner, ui.BaseBg)
+	rightCol = ui.FillLinesBg(rightCol, rightInner, ui.BaseBg)
+	left := ui.InactiveColumnStyle.Width(leftW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(leftCol)
+	right := ui.InactiveColumnStyle.Width(rightW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(rightCol)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
 }

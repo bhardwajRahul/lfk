@@ -110,163 +110,46 @@ func (m Model) handleExplainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "?", "f1":
 		return m.handleExplainKeyQuestion()
-
 	case "q":
 		return m.handleExplainKeyQ()
-
 	case "esc":
 		return m.handleExplainKeyEsc()
-
 	case "/":
 		return m.handleExplainKeySlash()
-
 	case "n":
 		return m.handleExplainKeyN()
-
 	case "N":
 		return m.handleExplainKeyN2()
-
 	case "r":
 		return m.handleExplainKeyR()
-
 	case "j", "down":
-		m.explainLineInput = ""
-		if m.explainCursor < fieldCount-1 {
-			m.explainCursor++
-			// Scroll down if cursor goes below visible area.
-			if m.explainCursor >= m.explainScroll+visibleLines {
-				m.explainScroll = m.explainCursor - visibleLines + 1
-			}
-		}
-		return m, nil
-
+		return m.handleExplainKeyJ(fieldCount, visibleLines)
 	case "k", "up":
 		return m.handleExplainKeyK()
-
 	case "g":
 		return m.handleExplainKeyG()
-
 	case "G":
-		if m.explainLineInput != "" {
-			lineNum, _ := strconv.Atoi(m.explainLineInput)
-			m.explainLineInput = ""
-			if lineNum > 0 {
-				lineNum--
-			}
-			if fieldCount > 0 {
-				m.explainCursor = min(lineNum, fieldCount-1)
-			}
-			// Adjust scroll to keep cursor visible.
-			if m.explainCursor < m.explainScroll {
-				m.explainScroll = m.explainCursor
-			} else if m.explainCursor >= m.explainScroll+visibleLines {
-				m.explainScroll = m.explainCursor - visibleLines + 1
-			}
-			return m, nil
-		}
-		if fieldCount > 0 {
-			m.explainCursor = fieldCount - 1
-			maxScroll := fieldCount - visibleLines
-			if maxScroll < 0 {
-				maxScroll = 0
-			}
-			m.explainScroll = maxScroll
-		}
-		return m, nil
-
+		return m.handleExplainKeyG2(fieldCount, visibleLines)
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		m.explainLineInput += msg.String()
 		return m, nil
-
 	case "0":
 		return m.handleExplainKeyZero()
-
 	case "ctrl+d":
-		m.explainLineInput = ""
-		halfPage := visibleLines / 2
-		m.explainCursor += halfPage
-		if m.explainCursor >= fieldCount {
-			m.explainCursor = fieldCount - 1
-		}
-		if m.explainCursor < 0 {
-			m.explainCursor = 0
-		}
-		m.explainScroll += halfPage
-		maxScroll := fieldCount - visibleLines
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
-		if m.explainScroll > maxScroll {
-			m.explainScroll = maxScroll
-		}
-		return m, nil
-
+		return m.handleExplainPageMove(visibleLines/2, fieldCount, visibleLines)
 	case "ctrl+u":
-		m.explainLineInput = ""
-		halfPage := visibleLines / 2
-		m.explainCursor -= halfPage
-		if m.explainCursor < 0 {
-			m.explainCursor = 0
-		}
-		m.explainScroll -= halfPage
-		if m.explainScroll < 0 {
-			m.explainScroll = 0
-		}
-		return m, nil
-
+		return m.handleExplainPageMove(-visibleLines/2, fieldCount, visibleLines)
 	case "ctrl+f":
-		m.explainLineInput = ""
-		m.explainCursor += visibleLines
-		if m.explainCursor >= fieldCount {
-			m.explainCursor = fieldCount - 1
-		}
-		if m.explainCursor < 0 {
-			m.explainCursor = 0
-		}
-		m.explainScroll += visibleLines
-		maxScroll := fieldCount - visibleLines
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
-		if m.explainScroll > maxScroll {
-			m.explainScroll = maxScroll
-		}
-		return m, nil
-
+		return m.handleExplainPageMove(visibleLines, fieldCount, visibleLines)
 	case "ctrl+b":
-		m.explainLineInput = ""
-		m.explainCursor -= visibleLines
-		if m.explainCursor < 0 {
-			m.explainCursor = 0
-		}
-		m.explainScroll -= visibleLines
-		if m.explainScroll < 0 {
-			m.explainScroll = 0
-		}
-		return m, nil
-
+		return m.handleExplainPageMove(-visibleLines, fieldCount, visibleLines)
 	case "l", "right", "enter":
-		m.explainLineInput = ""
-		// Drill into the selected field if it has an object/array type.
-		if m.explainCursor >= 0 && m.explainCursor < fieldCount {
-			f := m.explainFields[m.explainCursor]
-			if ui.IsDrillableType(f.Type) {
-				m.loading = true
-				m.setStatusMessage("Loading field...", false)
-				return m, m.execKubectlExplain(m.explainResource, m.explainAPIVersion, f.Path)
-			}
-			m.setStatusMessage("This field is a primitive type and cannot be drilled into", true)
-			return m, scheduleStatusClear()
-		}
-		return m, nil
-
+		return m.handleExplainKeyDrill(fieldCount)
 	case "h", "left", "backspace":
 		return m.handleExplainKeyH()
-
 	case "ctrl+c":
 		m.explainLineInput = ""
 		return m.closeTabOrQuit()
-
 	default:
 		m.explainLineInput = ""
 	}
@@ -510,6 +393,65 @@ func (m Model) handleExplainSearchOverlayFilterKey(msg tea.KeyMsg) (tea.Model, t
 		}
 		return m, nil
 	}
+}
+
+func (m Model) handleExplainKeyJ(fieldCount, visibleLines int) (tea.Model, tea.Cmd) {
+	m.explainLineInput = ""
+	if m.explainCursor < fieldCount-1 {
+		m.explainCursor++
+		if m.explainCursor >= m.explainScroll+visibleLines {
+			m.explainScroll = m.explainCursor - visibleLines + 1
+		}
+	}
+	return m, nil
+}
+
+func (m Model) handleExplainKeyG2(fieldCount, visibleLines int) (tea.Model, tea.Cmd) {
+	if m.explainLineInput != "" {
+		lineNum, _ := strconv.Atoi(m.explainLineInput)
+		m.explainLineInput = ""
+		if lineNum > 0 {
+			lineNum--
+		}
+		if fieldCount > 0 {
+			m.explainCursor = min(lineNum, fieldCount-1)
+		}
+		if m.explainCursor < m.explainScroll {
+			m.explainScroll = m.explainCursor
+		} else if m.explainCursor >= m.explainScroll+visibleLines {
+			m.explainScroll = m.explainCursor - visibleLines + 1
+		}
+		return m, nil
+	}
+	if fieldCount > 0 {
+		m.explainCursor = fieldCount - 1
+		m.explainScroll = max(fieldCount-visibleLines, 0)
+	}
+	return m, nil
+}
+
+func (m Model) handleExplainPageMove(delta, fieldCount, visibleLines int) (tea.Model, tea.Cmd) {
+	m.explainLineInput = ""
+	m.explainCursor += delta
+	m.explainCursor = max(min(m.explainCursor, fieldCount-1), 0)
+	m.explainScroll += delta
+	m.explainScroll = max(min(m.explainScroll, max(fieldCount-visibleLines, 0)), 0)
+	return m, nil
+}
+
+func (m Model) handleExplainKeyDrill(fieldCount int) (tea.Model, tea.Cmd) {
+	m.explainLineInput = ""
+	if m.explainCursor >= 0 && m.explainCursor < fieldCount {
+		f := m.explainFields[m.explainCursor]
+		if ui.IsDrillableType(f.Type) {
+			m.loading = true
+			m.setStatusMessage("Loading field...", false)
+			return m, m.execKubectlExplain(m.explainResource, m.explainAPIVersion, f.Path)
+		}
+		m.setStatusMessage("This field is a primitive type and cannot be drilled into", true)
+		return m, scheduleStatusClear()
+	}
+	return m, nil
 }
 
 func (m Model) handleExplainKeyQuestion() (tea.Model, tea.Cmd) {

@@ -301,39 +301,7 @@ func (m *Model) searchAllItems(queries []string, startIdx int, forward bool) {
 		}
 	}
 
-	// Search through all items in the specified direction.
-	matchIdx := -1
-	if forward {
-		for i := fullStart; i < len(allItems); i++ {
-			if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
-				matchIdx = i
-				break
-			}
-		}
-		if matchIdx < 0 {
-			for i := 0; i < fullStart && i < len(allItems); i++ {
-				if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
-					matchIdx = i
-					break
-				}
-			}
-		}
-	} else {
-		for i := fullStart; i >= 0; i-- {
-			if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
-				matchIdx = i
-				break
-			}
-		}
-		if matchIdx < 0 {
-			for i := len(allItems) - 1; i > fullStart; i-- {
-				if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
-					matchIdx = i
-					break
-				}
-			}
-		}
-	}
+	matchIdx := m.searchAllItemsFind(allItems, queries, fullStart, forward)
 
 	if matchIdx < 0 {
 		return
@@ -354,6 +322,34 @@ func (m *Model) searchAllItems(queries []string, startIdx int, forward bool) {
 			return
 		}
 	}
+}
+
+// searchAllItemsFind finds the matching item index in forward or backward direction.
+func (m *Model) searchAllItemsFind(allItems []model.Item, queries []string, start int, forward bool) int {
+	if forward {
+		for i := start; i < len(allItems); i++ {
+			if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
+				return i
+			}
+		}
+		for i := 0; i < start && i < len(allItems); i++ {
+			if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
+				return i
+			}
+		}
+	} else {
+		for i := start; i >= 0; i-- {
+			if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
+				return i
+			}
+		}
+		for i := len(allItems) - 1; i > start; i-- {
+			if allItems[i].Kind != "__collapsed_group__" && m.searchMatchesItem(allItems[i], queries) {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 // handleCommandBarKey processes key events when the command bar is active.
@@ -558,54 +554,7 @@ func (m Model) commandBarGenerateSuggestions() []string {
 		return m.filterSuggestions(kubectlFlagSuggestions(), prefix)
 	}
 
-	var candidates []string
-	switch pos {
-	case 0:
-		// First word: kubectl subcommands + built-in commands.
-		candidates = kubectlSubcommands()
-	case 1:
-		// Second word: depends on the subcommand.
-		subCmd := ""
-		if len(words) > 0 {
-			subCmd = strings.ToLower(words[0])
-		}
-		switch subCmd {
-		case "get", "describe", "delete", "edit", "patch", "label", "annotate", "scale", "autoscale":
-			candidates = m.resourceTypeSuggestions()
-		case "logs", "exec", "port-forward", "attach", "cp":
-			// These operate on pods - suggest resource names if we have pods loaded.
-			candidates = m.resourceNameSuggestions()
-		case "apply", "create":
-			candidates = []string{"-f", "-k", "--dry-run=client", "--dry-run=server"}
-		case "rollout":
-			candidates = []string{"status", "history", "undo", "restart", "pause", "resume"}
-		case "config":
-			candidates = []string{"view", "use-context", "get-contexts", "current-context", "set-context"}
-		case "top":
-			candidates = []string{"pods", "nodes"}
-		case "cordon", "uncordon", "drain", "taint":
-			candidates = m.resourceNameSuggestions()
-		default:
-			candidates = m.resourceTypeSuggestions()
-		}
-	default:
-		// Third+ word: suggest resource names from the current view context.
-		subCmd := ""
-		if len(words) > 0 {
-			subCmd = strings.ToLower(words[0])
-		}
-		switch subCmd {
-		case "rollout":
-			if pos == 2 {
-				// After "rollout status/restart/etc", suggest resource types.
-				candidates = m.resourceTypeSuggestions()
-			} else {
-				candidates = m.resourceNameSuggestions()
-			}
-		default:
-			candidates = m.resourceNameSuggestions()
-		}
-	}
+	candidates := m.suggestionsForPosition(pos, words)
 
 	if prefix == "" {
 		// Limit visible suggestions when there's no prefix filter.
@@ -630,6 +579,51 @@ func (m Model) commandBarGenerateSuggestions() []string {
 	}
 
 	return filtered
+}
+
+// suggestionsForPosition returns completion candidates based on cursor position in the input.
+func (m Model) suggestionsForPosition(pos int, words []string) []string {
+	switch pos {
+	case 0:
+		return kubectlSubcommands()
+	case 1:
+		return m.suggestionsForSecondWord(words)
+	default:
+		subCmd := ""
+		if len(words) > 0 {
+			subCmd = strings.ToLower(words[0])
+		}
+		if subCmd == "rollout" && pos == 2 {
+			return m.resourceTypeSuggestions()
+		}
+		return m.resourceNameSuggestions()
+	}
+}
+
+// suggestionsForSecondWord returns candidates for the second word based on the subcommand.
+func (m Model) suggestionsForSecondWord(words []string) []string {
+	subCmd := ""
+	if len(words) > 0 {
+		subCmd = strings.ToLower(words[0])
+	}
+	switch subCmd {
+	case "get", "describe", "delete", "edit", "patch", "label", "annotate", "scale", "autoscale":
+		return m.resourceTypeSuggestions()
+	case "logs", "exec", "port-forward", "attach", "cp":
+		return m.resourceNameSuggestions()
+	case "apply", "create":
+		return []string{"-f", "-k", "--dry-run=client", "--dry-run=server"}
+	case "rollout":
+		return []string{"status", "history", "undo", "restart", "pause", "resume"}
+	case "config":
+		return []string{"view", "use-context", "get-contexts", "current-context", "set-context"}
+	case "top":
+		return []string{"pods", "nodes"}
+	case "cordon", "uncordon", "drain", "taint":
+		return m.resourceNameSuggestions()
+	default:
+		return m.resourceTypeSuggestions()
+	}
 }
 
 // kubectlSubcommands returns common kubectl subcommands for autocompletion.

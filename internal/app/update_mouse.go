@@ -123,179 +123,172 @@ func (m Model) handleMouseClick(x, y int) (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleHeaderClick sorts the table by the column that was clicked in the header row.
-// relX is the click position relative to the start of the middle column content area.
-func (m Model) handleHeaderClick(relX int) (tea.Model, tea.Cmd) {
-	items := m.visibleMiddleItems()
-	if len(items) == 0 {
-		return m, nil
-	}
+// headerColumnWidths holds computed column widths for header click detection.
+type headerColumnWidths struct {
+	nsW, readyW, restartsW, ageW, statusW           int
+	hasNs, hasReady, hasRestarts, hasAge, hasStatus bool
+}
 
-	// Replicate column width calculation from RenderTable.
-	// The table receives middleInner = middleW - colPad as its width.
-	usable := m.width - 6
-	middleW := max(10, usable*51/100)
-	if m.fullscreenMiddle {
-		middleW = m.width - 2
-	}
-	width := middleW - 2 // subtract colPad to match middleInner passed to RenderTable
-
-	// Detect which detail columns have data.
-	hasNs, hasReady, hasRestarts, hasAge, hasStatus := false, false, false, false, false
+// detectHeaderColumns scans items to determine which columns are present and their widths.
+func detectHeaderColumns(items []model.Item) headerColumnWidths {
+	var h headerColumnWidths
 	for _, item := range items {
 		if item.Namespace != "" {
-			hasNs = true
+			h.hasNs = true
 		}
 		if item.Ready != "" {
-			hasReady = true
+			h.hasReady = true
 		}
 		if item.Restarts != "" {
-			hasRestarts = true
+			h.hasRestarts = true
 		}
 		if item.Age != "" {
-			hasAge = true
+			h.hasAge = true
 		}
 		if item.Status != "" {
-			hasStatus = true
+			h.hasStatus = true
 		}
 	}
 
-	// Calculate column widths (must match RenderTable logic).
-	nsW, readyW, restartsW, ageW, statusW := 0, 0, 0, 0, 0
-	if hasNs {
-		nsW = len("NAMESPACE")
+	if h.hasNs {
+		h.nsW = len("NAMESPACE")
 		for _, item := range items {
-			if w := len(item.Namespace); w > nsW {
-				nsW = w
+			if w := len(item.Namespace); w > h.nsW {
+				h.nsW = w
 			}
 		}
-		nsW++
-		if nsW > 30 {
-			nsW = 30
-		}
+		h.nsW = min(h.nsW+1, 30)
 	}
-	if hasReady {
-		readyW = len("READY")
+	if h.hasReady {
+		h.readyW = len("READY")
 		for _, item := range items {
-			if w := len(item.Ready); w > readyW {
-				readyW = w
+			if w := len(item.Ready); w > h.readyW {
+				h.readyW = w
 			}
 		}
-		readyW++
+		h.readyW++
 	}
-	if hasRestarts {
-		restartsW = len("RS") + 1
+	if h.hasRestarts {
+		h.restartsW = len("RS") + 1
 		for _, item := range items {
-			if w := len(item.Restarts); w >= restartsW {
-				restartsW = w + 1
+			if w := len(item.Restarts); w >= h.restartsW {
+				h.restartsW = w + 1
 			}
 		}
 	}
-	if hasAge {
-		ageW = len("AGE") + 1
+	if h.hasAge {
+		h.ageW = len("AGE") + 1
 		for _, item := range items {
-			if w := len(item.Age); w >= ageW {
-				ageW = w + 1
+			if w := len(item.Age); w >= h.ageW {
+				h.ageW = w + 1
 			}
 		}
-		if ageW > 10 {
-			ageW = 10
-		}
+		h.ageW = min(h.ageW, 10)
 	}
-	if hasStatus {
-		statusW = len("STATUS")
+	if h.hasStatus {
+		h.statusW = len("STATUS")
 		for _, item := range items {
-			if w := len(item.Status); w > statusW {
-				statusW = w
+			if w := len(item.Status); w > h.statusW {
+				h.statusW = w
 			}
 		}
-		statusW++
-		if statusW > 20 {
-			statusW = 20
-		}
+		h.statusW = min(h.statusW+1, 20)
 	}
+	return h
+}
 
+// findSortableCol returns the index of name in ActiveSortableColumns, or -1.
+func findSortableCol(name string) int {
+	for i, c := range ui.ActiveSortableColumns {
+		if c == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// colRegion maps a screen position to a sortable column index.
+type colRegion struct {
+	end   int
+	index int
+}
+
+// buildHeaderRegions builds the click regions for header columns.
+func buildHeaderRegions(h headerColumnWidths, nameW int, extraCols []ui.ExtraColumnInfo) []colRegion {
 	markerColW := 2
-
-	// Collect extra column widths to match RenderTable layout.
-	tableKind := ""
-	if len(items) > 0 {
-		tableKind = items[0].Kind
-	}
-	extraCols := ui.CollectExtraColumns(items, width, nsW+readyW+restartsW+ageW+statusW+markerColW, tableKind)
-	extraTotalW := 0
-	for _, ec := range extraCols {
-		extraTotalW += ec.Width
-	}
-
-	nameW := width - nsW - readyW - restartsW - ageW - statusW - markerColW - extraTotalW
-	if nameW < 10 {
-		nameW = 10
-	}
-
-	// Build column regions: each entry is (endPos, sortableColumnIndex).
-	// Column visual order: marker | namespace | NAME | READY | RS | STATUS | extra... | AGE
-	cols := ui.ActiveSortableColumns
-	if len(cols) == 0 {
-		return m, nil
-	}
-
-	type colRegion struct {
-		end   int
-		index int // index into ActiveSortableColumns
-	}
 	var regions []colRegion
 
-	findCol := func(name string) int {
-		for i, c := range cols {
-			if c == name {
-				return i
-			}
-		}
-		return -1
-	}
-
 	pos := markerColW
-	if hasNs {
-		pos += nsW
-		if idx := findCol("Namespace"); idx >= 0 {
+	if h.hasNs {
+		pos += h.nsW
+		if idx := findSortableCol("Namespace"); idx >= 0 {
 			regions = append(regions, colRegion{pos, idx})
 		}
 	}
 	pos += nameW
-	if idx := findCol("Name"); idx >= 0 {
+	if idx := findSortableCol("Name"); idx >= 0 {
 		regions = append(regions, colRegion{pos, idx})
 	}
-	if hasReady {
-		pos += readyW
-		if idx := findCol("Ready"); idx >= 0 {
+	if h.hasReady {
+		pos += h.readyW
+		if idx := findSortableCol("Ready"); idx >= 0 {
 			regions = append(regions, colRegion{pos, idx})
 		}
 	}
-	if hasRestarts {
-		pos += restartsW
-		if idx := findCol("Restarts"); idx >= 0 {
+	if h.hasRestarts {
+		pos += h.restartsW
+		if idx := findSortableCol("Restarts"); idx >= 0 {
 			regions = append(regions, colRegion{pos, idx})
 		}
 	}
-	if hasStatus {
-		pos += statusW
-		if idx := findCol("Status"); idx >= 0 {
+	if h.hasStatus {
+		pos += h.statusW
+		if idx := findSortableCol("Status"); idx >= 0 {
 			regions = append(regions, colRegion{pos, idx})
 		}
 	}
 	for _, ec := range extraCols {
 		pos += ec.Width
-		if idx := findCol(ec.Key); idx >= 0 {
+		if idx := findSortableCol(ec.Key); idx >= 0 {
 			regions = append(regions, colRegion{pos, idx})
 		}
 	}
-	if hasAge {
-		pos += ageW
-		if idx := findCol("Age"); idx >= 0 {
+	if h.hasAge {
+		pos += h.ageW
+		if idx := findSortableCol("Age"); idx >= 0 {
 			regions = append(regions, colRegion{pos, idx})
 		}
 	}
+	return regions
+}
+
+// handleHeaderClick sorts the table by the column that was clicked in the header row.
+// relX is the click position relative to the start of the middle column content area.
+func (m Model) handleHeaderClick(relX int) (tea.Model, tea.Cmd) {
+	items := m.visibleMiddleItems()
+	if len(items) == 0 || len(ui.ActiveSortableColumns) == 0 {
+		return m, nil
+	}
+
+	usable := m.width - 6
+	middleW := max(10, usable*51/100)
+	if m.fullscreenMiddle {
+		middleW = m.width - 2
+	}
+	width := middleW - 2
+	markerColW := 2
+
+	h := detectHeaderColumns(items)
+	tableKind := items[0].Kind
+	extraCols := ui.CollectExtraColumns(items, width, h.nsW+h.readyW+h.restartsW+h.ageW+h.statusW+markerColW, tableKind)
+
+	extraTotalW := 0
+	for _, ec := range extraCols {
+		extraTotalW += ec.Width
+	}
+	nameW := max(width-h.nsW-h.readyW-h.restartsW-h.ageW-h.statusW-markerColW-extraTotalW, 10)
+
+	regions := buildHeaderRegions(h, nameW, extraCols)
 
 	// Find which region the click falls into.
 	clickedIdx := -1
@@ -312,7 +305,6 @@ func (m Model) handleHeaderClick(relX int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// If clicking the already-sorted column, toggle direction; otherwise sort ascending.
 	clickedName := ui.ActiveSortableColumns[clickedIdx]
 	if m.sortColumnName == clickedName {
 		m.sortAscending = !m.sortAscending

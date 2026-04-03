@@ -202,85 +202,54 @@ func startExecPTYReader(ptmx *os.File, term vt10x.Terminal, cmd *exec.Cmd, mu *s
 	}()
 }
 
+// keyBytesMap maps tea.KeyType to raw terminal byte sequences.
+var keyBytesMap = map[tea.KeyType][]byte{
+	tea.KeyEnter:     {'\r'},
+	tea.KeyTab:       {'\t'},
+	tea.KeyBackspace: {'\x7f'},
+	tea.KeyDelete:    {'\x1b', '[', '3', '~'},
+	tea.KeySpace:     {' '},
+	tea.KeyEscape:    {'\x1b'},
+	tea.KeyUp:        {'\x1b', '[', 'A'},
+	tea.KeyDown:      {'\x1b', '[', 'B'},
+	tea.KeyRight:     {'\x1b', '[', 'C'},
+	tea.KeyLeft:      {'\x1b', '[', 'D'},
+	tea.KeyHome:      {'\x1b', '[', 'H'},
+	tea.KeyEnd:       {'\x1b', '[', 'F'},
+	tea.KeyPgUp:      {'\x1b', '[', '5', '~'},
+	tea.KeyPgDown:    {'\x1b', '[', '6', '~'},
+	tea.KeyCtrlA:     {'\x01'},
+	tea.KeyCtrlB:     {'\x02'},
+	tea.KeyCtrlC:     {'\x03'},
+	tea.KeyCtrlD:     {'\x04'},
+	tea.KeyCtrlE:     {'\x05'},
+	tea.KeyCtrlF:     {'\x06'},
+	tea.KeyCtrlG:     {'\x07'},
+	tea.KeyCtrlH:     {'\x08'},
+	tea.KeyCtrlK:     {'\x0b'},
+	tea.KeyCtrlL:     {'\x0c'},
+	tea.KeyCtrlN:     {'\x0e'},
+	tea.KeyCtrlO:     {'\x0f'},
+	tea.KeyCtrlP:     {'\x10'},
+	tea.KeyCtrlQ:     {'\x11'},
+	tea.KeyCtrlR:     {'\x12'},
+	tea.KeyCtrlS:     {'\x13'},
+	tea.KeyCtrlT:     {'\x14'},
+	tea.KeyCtrlU:     {'\x15'},
+	tea.KeyCtrlV:     {'\x16'},
+	tea.KeyCtrlW:     {'\x17'},
+	tea.KeyCtrlX:     {'\x18'},
+	tea.KeyCtrlY:     {'\x19'},
+	tea.KeyCtrlZ:     {'\x1a'},
+}
+
 // keyToBytes converts a Bubbletea key message to raw terminal bytes.
 func keyToBytes(msg tea.KeyMsg) []byte {
-	switch msg.Type {
-	case tea.KeyRunes:
+	if msg.Type == tea.KeyRunes {
 		return []byte(string(msg.Runes))
-	case tea.KeyEnter:
-		return []byte{'\r'}
-	case tea.KeyTab:
-		return []byte{'\t'}
-	case tea.KeyBackspace:
-		return []byte{'\x7f'}
-	case tea.KeyDelete:
-		return []byte{'\x1b', '[', '3', '~'}
-	case tea.KeySpace:
-		return []byte{' '}
-	case tea.KeyEscape:
-		return []byte{'\x1b'}
-	case tea.KeyUp:
-		return []byte{'\x1b', '[', 'A'}
-	case tea.KeyDown:
-		return []byte{'\x1b', '[', 'B'}
-	case tea.KeyRight:
-		return []byte{'\x1b', '[', 'C'}
-	case tea.KeyLeft:
-		return []byte{'\x1b', '[', 'D'}
-	case tea.KeyHome:
-		return []byte{'\x1b', '[', 'H'}
-	case tea.KeyEnd:
-		return []byte{'\x1b', '[', 'F'}
-	case tea.KeyPgUp:
-		return []byte{'\x1b', '[', '5', '~'}
-	case tea.KeyPgDown:
-		return []byte{'\x1b', '[', '6', '~'}
-	case tea.KeyCtrlA:
-		return []byte{'\x01'}
-	case tea.KeyCtrlB:
-		return []byte{'\x02'}
-	case tea.KeyCtrlC:
-		return []byte{'\x03'}
-	case tea.KeyCtrlD:
-		return []byte{'\x04'}
-	case tea.KeyCtrlE:
-		return []byte{'\x05'}
-	case tea.KeyCtrlF:
-		return []byte{'\x06'}
-	case tea.KeyCtrlG:
-		return []byte{'\x07'}
-	case tea.KeyCtrlH:
-		return []byte{'\x08'}
-	case tea.KeyCtrlK:
-		return []byte{'\x0b'}
-	case tea.KeyCtrlL:
-		return []byte{'\x0c'}
-	case tea.KeyCtrlN:
-		return []byte{'\x0e'}
-	case tea.KeyCtrlO:
-		return []byte{'\x0f'}
-	case tea.KeyCtrlP:
-		return []byte{'\x10'}
-	case tea.KeyCtrlQ:
-		return []byte{'\x11'}
-	case tea.KeyCtrlR:
-		return []byte{'\x12'}
-	case tea.KeyCtrlS:
-		return []byte{'\x13'}
-	case tea.KeyCtrlT:
-		return []byte{'\x14'}
-	case tea.KeyCtrlU:
-		return []byte{'\x15'}
-	case tea.KeyCtrlV:
-		return []byte{'\x16'}
-	case tea.KeyCtrlW:
-		return []byte{'\x17'}
-	case tea.KeyCtrlX:
-		return []byte{'\x18'}
-	case tea.KeyCtrlY:
-		return []byte{'\x19'}
-	case tea.KeyCtrlZ:
-		return []byte{'\x1a'}
+	}
+	if b, ok := keyBytesMap[msg.Type]; ok {
+		return b
 	}
 	// Fallback: try the raw string representation.
 	s := msg.String()

@@ -16,168 +16,131 @@ import (
 // Returns (model, cmd, handled) where handled indicates whether the key
 // was consumed. If not handled, the caller should fall through.
 func (m Model) handleExplorerActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	// Try navigation/scroll keybindings first.
+	if ret, cmd, handled := m.handleExplorerNavKeys(msg); handled {
+		return ret, cmd, true
+	}
+	// Try tool/editor keybindings.
+	if ret, cmd, handled := m.handleExplorerToolKeys(msg); handled {
+		return ret, cmd, true
+	}
+	// Try direct action keybindings.
+	return m.handleExplorerDirectActionKeys(msg)
+}
+
+// handleExplorerNavKeys handles navigation and scroll keybindings.
+func (m Model) handleExplorerNavKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	kb := ui.ActiveKeybindings
 	switch msg.String() {
 	case kb.AllNamespaces:
 		return m.handleExplorerActionKeyAllNamespaces()
-
 	case kb.QuotaDashboard:
 		return m.handleExplorerActionKeyQuotaDashboard()
-
 	case kb.PageDown:
 		return m.handleExplorerActionKeyPageDown()
-
 	case kb.PageUp:
 		return m.handleExplorerActionKeyPageUp()
-
 	case kb.PageForward:
 		return m.handleExplorerActionKeyPageForward()
-
 	case kb.PageBack:
 		return m.handleExplorerActionKeyPageBack()
-
 	case kb.LevelCluster:
-		// Jump to clusters level.
 		return m.handleExplorerActionKeyLevelCluster()
-
 	case kb.LevelTypes:
-		// Jump to resource types level.
 		return m.handleExplorerActionKeyLevelTypes()
-
 	case kb.LevelResources:
-		// Jump to resources level.
 		return m.handleExplorerActionKeyLevelResources()
-
 	case kb.SaveResource:
 		return m.handleExplorerActionKeySaveResource()
-
 	case kb.PreviewDown:
-		// Scroll preview pane down, clamped to content length.
 		return m.handleExplorerActionKeyPreviewDown()
-
 	case kb.PreviewUp:
-		// Scroll preview pane up.
 		return m.handleExplorerActionKeyPreviewUp()
-
 	case kb.JumpOwner:
-		// Navigate to owner/controller.
 		return m.handleExplorerActionKeyJumpOwner()
-
 	case kb.SortNext:
 		return m.handleExplorerActionKeySortNext()
-
 	case kb.SortPrev:
 		return m.handleExplorerActionKeySortPrev()
-
 	case kb.SortFlip:
 		return m.handleExplorerActionKeySortFlip()
-
 	case kb.SortReset:
 		return m.handleExplorerActionKeySortReset()
-
-	case kb.OpenBrowser:
-		// Open ingress host in browser (works when viewing an Ingress resource).
-		return m.handleExplorerActionKeyOpenBrowser()
-
-	case kb.CopyName:
-		// Copy resource name to clipboard.
-		return m.handleExplorerActionKeyCopyName()
-
-	case kb.CopyYAML:
-		// Copy resource YAML to clipboard.
-		return m.handleExplorerActionKeyCopyYAML()
-
-	case kb.PasteApply:
-		return m, m.applyFromClipboard(), true
-
-	case kb.NewTab:
-		// Create new tab (clone current state, max 9).
-		return m.handleExplorerActionKeyNewTab()
-
-	case kb.NextTab:
-		// Next tab.
-		return m.handleExplorerActionKeyNextTab()
-
-	case kb.PrevTab:
-		// Previous tab.
-		return m.handleExplorerActionKeyPrevTab()
-
-	case kb.CreateTemplate:
-		// Open template creation overlay.
-		// Sort templates so the one matching the current resource kind appears first.
-		return m.handleExplorerActionKeyCreateTemplate()
-
-	case kb.SecretEditor:
-		// Open secret editor when a Secret resource is selected.
-		return m.handleExplorerActionKeySecretEditor()
-
-	case kb.APIExplorer:
-		// Open API explain browser (resource structure).
-		ret, cmd := m.openExplainBrowser()
-		return ret, cmd, true
-
-	case kb.RBACBrowser:
-		// Open RBAC permissions browser (can-i).
-		ret, cmd := m.openCanIBrowser()
-		return ret, cmd, true
-
-	case kb.LabelEditor:
-		// Open label/annotation editor for any resource (not port forwards).
-		return m.handleExplorerActionKeyLabelEditor()
-
-	case kb.FilterPresets:
-		// Quick filter presets: toggle or open overlay.
-		return m.handleExplorerActionKeyFilterPresets()
-
-	case kb.Diff:
-		// Diff two selected resources side by side.
-		return m.handleExplorerActionKeyDiff()
-
-	case kb.ErrorLog:
-		// Open the error log overlay.
-		return m.handleExplorerActionKeyErrorLog()
-
-	case kb.TerminalToggle:
-		// Toggle between PTY (embedded) and exec (takes over terminal) mode.
-		return m.handleExplorerActionKeyTerminalToggle()
-
 	case kb.Monitoring:
-		// Navigate to the Monitoring dashboard item.
 		return m.handleExplorerActionKeyMonitoring()
 	}
+	return m, nil, false
+}
 
-	// Configurable direct action keybindings.
+// handleExplorerToolKeys handles tool/editor keybindings.
+func (m Model) handleExplorerToolKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	kb := ui.ActiveKeybindings
+	switch msg.String() {
+	case kb.OpenBrowser:
+		return m.handleExplorerActionKeyOpenBrowser()
+	case kb.CopyName:
+		return m.handleExplorerActionKeyCopyName()
+	case kb.CopyYAML:
+		return m.handleExplorerActionKeyCopyYAML()
+	case kb.PasteApply:
+		return m, m.applyFromClipboard(), true
+	case kb.NewTab:
+		return m.handleExplorerActionKeyNewTab()
+	case kb.NextTab:
+		return m.handleExplorerActionKeyNextTab()
+	case kb.PrevTab:
+		return m.handleExplorerActionKeyPrevTab()
+	case kb.CreateTemplate:
+		return m.handleExplorerActionKeyCreateTemplate()
+	case kb.SecretEditor:
+		return m.handleExplorerActionKeySecretEditor()
+	case kb.APIExplorer:
+		ret, cmd := m.openExplainBrowser()
+		return ret, cmd, true
+	case kb.RBACBrowser:
+		ret, cmd := m.openCanIBrowser()
+		return ret, cmd, true
+	case kb.LabelEditor:
+		return m.handleExplorerActionKeyLabelEditor()
+	case kb.FilterPresets:
+		return m.handleExplorerActionKeyFilterPresets()
+	case kb.Diff:
+		return m.handleExplorerActionKeyDiff()
+	case kb.ErrorLog:
+		return m.handleExplorerActionKeyErrorLog()
+	case kb.TerminalToggle:
+		return m.handleExplorerActionKeyTerminalToggle()
+	}
+	return m, nil, false
+}
+
+// handleExplorerDirectActionKeys handles configurable direct action keybindings.
+func (m Model) handleExplorerDirectActionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	kb := ui.ActiveKeybindings
 	key := msg.String()
-	if key == kb.Logs {
+	switch key {
+	case kb.Logs:
 		ret, cmd := m.directActionLogs()
 		return ret, cmd, true
-	}
-	if key == kb.Refresh {
+	case kb.Refresh:
 		ret, cmd := m.directActionRefresh()
 		return ret, cmd, true
-	}
-	// Restart (r) and Exec (s) are only accessible via the action menu (x).
-	if key == kb.Edit {
+	case kb.Edit:
 		ret, cmd := m.directActionEdit()
 		return ret, cmd, true
-	}
-	if key == kb.Describe {
+	case kb.Describe:
 		ret, cmd := m.directActionDescribe()
 		return ret, cmd, true
-	}
-	if key == kb.Delete {
+	case kb.Delete:
 		ret, cmd := m.directActionDelete()
 		return ret, cmd, true
-	}
-	if key == kb.ForceDelete {
+	case kb.ForceDelete:
 		ret, cmd := m.directActionForceDelete()
 		return ret, cmd, true
-	}
-	if key == kb.Scale {
+	case kb.Scale:
 		ret, cmd := m.directActionScale()
 		return ret, cmd, true
 	}
-
 	return m, nil, false
 }
 

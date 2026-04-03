@@ -21,110 +21,115 @@ func (m Model) loadPreview() tea.Cmd {
 		return nil
 	}
 
-	var cmds []tea.Cmd
-
 	switch m.nav.Level {
 	case model.LevelClusters:
 		return m.loadResourceTypes()
 	case model.LevelResourceTypes:
-		sel := m.selectedMiddleItem()
-		if sel != nil && sel.Extra == "__overview__" {
-			if ui.ConfigDashboard {
-				return m.loadDashboard()
-			}
-			return nil
-		}
-		if sel != nil && sel.Extra == "__monitoring__" {
-			return m.loadMonitoringDashboard()
-		}
-		// Collapsed group placeholder: no preview to load.
-		if sel != nil && sel.Kind == "__collapsed_group__" {
-			return nil
-		}
-		// Port forwards: show active port forwards in preview.
-		if sel != nil && sel.Kind == "__port_forwards__" {
-			items := m.portForwardItems()
-			return func() tea.Msg {
-				return resourcesLoadedMsg{items: items, forPreview: true}
-			}
-		}
-		return m.loadResources(true)
+		return m.loadPreviewResourceTypes(sel)
 	case model.LevelResources:
-		// Port forwards list: no sub-resources to load.
-		if m.nav.ResourceType.Kind == "__port_forwards__" {
-			return nil
-		}
-		switch {
-		case m.mapView && m.resourceTypeHasChildren():
-			cmds = append(cmds, m.loadResourceTree())
-		case m.resourceTypeHasChildren():
-			cmds = append(cmds, m.loadOwned(true))
-		case m.nav.ResourceType.Kind == "Pod":
-			cmds = append(cmds, m.loadContainers(true))
-		}
-		if m.fullYAMLPreview {
-			cmds = append(cmds, m.loadPreviewYAML())
-		}
-		// Load metrics for pods and workload controllers.
-		kind := m.nav.ResourceType.Kind
-		if kind == "Pod" || kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" {
-			if metricsCmd := m.loadMetrics(); metricsCmd != nil {
-				cmds = append(cmds, metricsCmd)
-			}
-		}
-		// Load events for the preview pane.
-		if eventsCmd := m.loadPreviewEvents(); eventsCmd != nil {
-			cmds = append(cmds, eventsCmd)
-		}
-		if len(cmds) == 0 {
-			return nil
-		}
-		return tea.Batch(cmds...)
+		return m.loadPreviewResources()
 	case model.LevelOwned:
-		if sel.Kind == "Pod" {
-			cmds = append(cmds, m.loadContainers(true))
-			if m.fullYAMLPreview {
-				cmds = append(cmds, m.loadPreviewYAML())
-			}
-			if metricsCmd := m.loadMetrics(); metricsCmd != nil {
-				cmds = append(cmds, metricsCmd)
-			}
-			if eventsCmd := m.loadPreviewEvents(); eventsCmd != nil {
-				cmds = append(cmds, eventsCmd)
-			}
-			return tea.Batch(cmds...)
-		}
-		// Items with owned children show those children in the right
-		// column on navigation; skip loading a YAML preview so it
-		// doesn't appear when popping back via ownedParentStack.
-		if kindHasOwnedChildren(sel.Kind) {
-			return nil
-		}
-		if m.fullYAMLPreview {
-			cmds = append(cmds, m.loadPreviewYAML())
-			return tea.Batch(cmds...)
-		}
-		name := sel.Name
-		kctx := m.nav.Context
-		ns := m.namespace
-		if sel.Namespace != "" {
-			ns = sel.Namespace
-		}
-		reqCtx := m.reqCtx
-		rt, ok := m.resolveOwnedResourceType(sel)
-		if !ok {
-			return func() tea.Msg {
-				return yamlLoadedMsg{err: fmt.Errorf("unknown resource type: %s", sel.Kind)}
-			}
-		}
-		return func() tea.Msg {
-			content, err := m.client.GetResourceYAML(reqCtx, kctx, ns, rt, name)
-			return yamlLoadedMsg{content: content, err: err}
-		}
+		return m.loadPreviewOwned(sel)
 	case model.LevelContainers:
 		return nil
 	}
 	return nil
+}
+
+// loadPreviewResourceTypes handles preview loading at the resource types level.
+func (m Model) loadPreviewResourceTypes(sel *model.Item) tea.Cmd {
+	if sel.Extra == "__overview__" {
+		if ui.ConfigDashboard {
+			return m.loadDashboard()
+		}
+		return nil
+	}
+	if sel.Extra == "__monitoring__" {
+		return m.loadMonitoringDashboard()
+	}
+	if sel.Kind == "__collapsed_group__" {
+		return nil
+	}
+	if sel.Kind == "__port_forwards__" {
+		items := m.portForwardItems()
+		return func() tea.Msg {
+			return resourcesLoadedMsg{items: items, forPreview: true}
+		}
+	}
+	return m.loadResources(true)
+}
+
+// loadPreviewResources handles preview loading at the resources level.
+func (m Model) loadPreviewResources() tea.Cmd {
+	if m.nav.ResourceType.Kind == "__port_forwards__" {
+		return nil
+	}
+	var cmds []tea.Cmd
+	switch {
+	case m.mapView && m.resourceTypeHasChildren():
+		cmds = append(cmds, m.loadResourceTree())
+	case m.resourceTypeHasChildren():
+		cmds = append(cmds, m.loadOwned(true))
+	case m.nav.ResourceType.Kind == "Pod":
+		cmds = append(cmds, m.loadContainers(true))
+	}
+	if m.fullYAMLPreview {
+		cmds = append(cmds, m.loadPreviewYAML())
+	}
+	kind := m.nav.ResourceType.Kind
+	if kind == "Pod" || kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" {
+		if metricsCmd := m.loadMetrics(); metricsCmd != nil {
+			cmds = append(cmds, metricsCmd)
+		}
+	}
+	if eventsCmd := m.loadPreviewEvents(); eventsCmd != nil {
+		cmds = append(cmds, eventsCmd)
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Batch(cmds...)
+}
+
+// loadPreviewOwned handles preview loading at the owned level.
+func (m Model) loadPreviewOwned(sel *model.Item) tea.Cmd {
+	if sel.Kind == "Pod" {
+		var cmds []tea.Cmd
+		cmds = append(cmds, m.loadContainers(true))
+		if m.fullYAMLPreview {
+			cmds = append(cmds, m.loadPreviewYAML())
+		}
+		if metricsCmd := m.loadMetrics(); metricsCmd != nil {
+			cmds = append(cmds, metricsCmd)
+		}
+		if eventsCmd := m.loadPreviewEvents(); eventsCmd != nil {
+			cmds = append(cmds, eventsCmd)
+		}
+		return tea.Batch(cmds...)
+	}
+	if kindHasOwnedChildren(sel.Kind) {
+		return nil
+	}
+	if m.fullYAMLPreview {
+		return m.loadPreviewYAML()
+	}
+	name := sel.Name
+	kctx := m.nav.Context
+	ns := m.namespace
+	if sel.Namespace != "" {
+		ns = sel.Namespace
+	}
+	reqCtx := m.reqCtx
+	rt, ok := m.resolveOwnedResourceType(sel)
+	if !ok {
+		return func() tea.Msg {
+			return yamlLoadedMsg{err: fmt.Errorf("unknown resource type: %s", sel.Kind)}
+		}
+	}
+	return func() tea.Msg {
+		content, err := m.client.GetResourceYAML(reqCtx, kctx, ns, rt, name)
+		return yamlLoadedMsg{content: content, err: err}
+	}
 }
 
 // loadPreviewYAML loads the YAML for the currently selected middle item into previewYAML.

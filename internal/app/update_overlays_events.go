@@ -154,75 +154,114 @@ func (m Model) handleEventTimelineOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		return m.handleEventTimelineVisualKey(msg)
 	}
 
+	// Try movement keys.
+	if ret, cmd, ok := m.handleEventTimelineMovementKey(msg); ok {
+		return ret, cmd
+	}
+	// Try action keys.
 	key := msg.String()
-	maxIdx := max(len(m.eventTimelineLines)-1, 0)
-
 	switch key {
 	case "esc":
 		return m.handleEventTimelineOverlayKeyEsc()
 	case "q":
 		return m.handleEventTimelineOverlayKeyQ()
+	case "v":
+		return m.handleEventTimelineOverlayKeyV()
+	case "V":
+		return m.handleEventTimelineOverlayKeyV2()
+	case "ctrl+v":
+		return m.handleEventTimelineOverlayKeyCtrlV()
+	case "y":
+		return m.handleEventTimelineOverlayKeyY()
+	case "/":
+		return m.handleEventTimelineOverlayKeySlash()
+	case "n":
+		m.eventTimelineLineInput = ""
+		m.findNextEventMatch(true)
+	case "N":
+		m.eventTimelineLineInput = ""
+		m.findNextEventMatch(false)
+	case "f":
+		return m.handleEventTimelineOverlayKeyF()
+	case "tab", "z", ">":
+		m.eventTimelineLineInput = ""
+		m.eventTimelineWrap = !m.eventTimelineWrap
+	case "ctrl+c":
+		return m.closeTabOrQuit()
+	default:
+		m.eventTimelineLineInput = ""
+	}
+	return m, nil
+}
 
-	// Cursor movement.
+// handleEventTimelineMovementKey handles cursor/scroll movement keys.
+func (m Model) handleEventTimelineMovementKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	key := msg.String()
+	maxIdx := max(len(m.eventTimelineLines)-1, 0)
+	switch key {
 	case "j", "down":
 		m.eventTimelineLineInput = ""
 		if m.eventTimelineCursor < maxIdx {
 			m.eventTimelineCursor++
 		}
 		m.ensureEventCursorVisible()
+		return m, nil, true
 	case "k", "up":
-		return m.handleEventTimelineOverlayKeyK()
+		ret, cmd := m.handleEventTimelineOverlayKeyK()
+		return ret, cmd, true
 	case "h", "left":
-		return m.handleEventTimelineOverlayKeyH()
+		ret, cmd := m.handleEventTimelineOverlayKeyH()
+		return ret, cmd, true
 	case "l", "right":
 		m.eventTimelineLineInput = ""
 		m.eventTimelineCursorCol++
-
-	// Line navigation.
+		return m, nil, true
 	case "0":
-		return m.handleEventTimelineOverlayKeyZero()
+		ret, cmd := m.handleEventTimelineOverlayKeyZero()
+		return ret, cmd, true
 	case "$":
-		return m.handleEventTimelineOverlayKeyDollar()
+		ret, cmd := m.handleEventTimelineOverlayKeyDollar()
+		return ret, cmd, true
 	case "^":
-		return m.handleEventTimelineOverlayKeyCaret()
-
-	// Word motions.
+		ret, cmd := m.handleEventTimelineOverlayKeyCaret()
+		return ret, cmd, true
 	case "w":
-		return m.handleEventTimelineOverlayKeyW()
+		ret, cmd := m.handleEventTimelineOverlayKeyW()
+		return ret, cmd, true
 	case "W":
-		return m.handleEventTimelineOverlayKeyW2()
+		ret, cmd := m.handleEventTimelineOverlayKeyW2()
+		return ret, cmd, true
 	case "b":
-		return m.handleEventTimelineOverlayKeyB()
+		ret, cmd := m.handleEventTimelineOverlayKeyB()
+		return ret, cmd, true
 	case "B":
-		return m.handleEventTimelineOverlayKeyB2()
+		ret, cmd := m.handleEventTimelineOverlayKeyB2()
+		return ret, cmd, true
 	case "e":
-		return m.handleEventTimelineOverlayKeyE()
+		ret, cmd := m.handleEventTimelineOverlayKeyE()
+		return ret, cmd, true
 	case "E":
-		return m.handleEventTimelineOverlayKeyE2()
-
-	// Page movement.
+		ret, cmd := m.handleEventTimelineOverlayKeyE2()
+		return ret, cmd, true
 	case "ctrl+d":
 		m.eventTimelineLineInput = ""
-		m.eventTimelineCursor += m.eventContentHeight() / 2
-		if m.eventTimelineCursor > maxIdx {
-			m.eventTimelineCursor = maxIdx
-		}
+		m.eventTimelineCursor = min(m.eventTimelineCursor+m.eventContentHeight()/2, maxIdx)
 		m.ensureEventCursorVisible()
+		return m, nil, true
 	case "ctrl+u":
-		return m.handleEventTimelineOverlayKeyCtrlU()
+		ret, cmd := m.handleEventTimelineOverlayKeyCtrlU()
+		return ret, cmd, true
 	case "ctrl+f":
 		m.eventTimelineLineInput = ""
-		m.eventTimelineCursor += m.eventContentHeight()
-		if m.eventTimelineCursor > maxIdx {
-			m.eventTimelineCursor = maxIdx
-		}
+		m.eventTimelineCursor = min(m.eventTimelineCursor+m.eventContentHeight(), maxIdx)
 		m.ensureEventCursorVisible()
+		return m, nil, true
 	case "ctrl+b":
-		return m.handleEventTimelineOverlayKeyCtrlB()
-
-	// Jump to top/bottom.
+		ret, cmd := m.handleEventTimelineOverlayKeyCtrlB()
+		return ret, cmd, true
 	case "g":
-		return m.handleEventTimelineOverlayKeyG()
+		ret, cmd := m.handleEventTimelineOverlayKeyG()
+		return ret, cmd, true
 	case "G":
 		if m.eventTimelineLineInput != "" {
 			lineNum, _ := strconv.Atoi(m.eventTimelineLineInput)
@@ -235,50 +274,12 @@ func (m Model) handleEventTimelineOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 			m.eventTimelineCursor = maxIdx
 		}
 		m.ensureEventCursorVisible()
-
-	// Digit buffer for 123G.
+		return m, nil, true
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		m.eventTimelineLineInput += key
-		return m, nil
-
-	// Visual modes.
-	case "v":
-		return m.handleEventTimelineOverlayKeyV()
-	case "V":
-		return m.handleEventTimelineOverlayKeyV2()
-	case "ctrl+v":
-		return m.handleEventTimelineOverlayKeyCtrlV()
-
-	// Copy current line (yy).
-	case "y":
-		return m.handleEventTimelineOverlayKeyY()
-
-	// Search.
-	case "/":
-		return m.handleEventTimelineOverlayKeySlash()
-	case "n":
-		m.eventTimelineLineInput = ""
-		m.findNextEventMatch(true)
-	case "N":
-		m.eventTimelineLineInput = ""
-		m.findNextEventMatch(false)
-
-	// Fullscreen: switch to dedicated mode (preserves title/tab/hint bars).
-	case "f":
-		return m.handleEventTimelineOverlayKeyF()
-
-	// Word wrap toggle.
-	case "tab", "z", ">":
-		m.eventTimelineLineInput = ""
-		m.eventTimelineWrap = !m.eventTimelineWrap
-
-	case "ctrl+c":
-		return m.closeTabOrQuit()
-
-	default:
-		m.eventTimelineLineInput = ""
+		return m, nil, true
 	}
-	return m, nil
+	return m, nil, false
 }
 
 // handleEventTimelineVisualKey handles keys while visual mode is active
@@ -287,6 +288,7 @@ func (m Model) handleEventTimelineVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	key := msg.String()
 	maxIdx := max(len(m.eventTimelineLines)-1, 0)
 
+	// Mode switches.
 	switch key {
 	case "esc":
 		m.eventTimelineVisualMode = 0
@@ -297,71 +299,92 @@ func (m Model) handleEventTimelineVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		return m.handleEventTimelineVisualKeyV2()
 	case "ctrl+v":
 		return m.handleEventTimelineVisualKeyCtrlV()
+	case "y":
+		return m.handleEventTimelineVisualKeyY()
+	case "ctrl+c":
+		return m.closeTabOrQuit()
+	}
 
-	// Movement extends selection.
+	// Movement keys that extend selection.
+	m.handleEventTimelineVisualMovement(key, maxIdx)
+	return m, nil
+}
+
+// handleEventTimelineVisualMovement handles cursor movement in visual mode.
+func (m *Model) handleEventTimelineVisualMovement(key string, maxIdx int) {
+	switch key {
 	case "j", "down":
-		if m.eventTimelineCursor < maxIdx {
-			m.eventTimelineCursor++
-		}
+		m.eventTimelineCursor = min(m.eventTimelineCursor+1, maxIdx)
 		m.ensureEventCursorVisible()
 	case "k", "up":
-		return m.handleEventTimelineVisualKeyK()
+		m.eventTimelineCursor = max(m.eventTimelineCursor-1, 0)
+		m.ensureEventCursorVisible()
 	case "h", "left":
-		if m.eventTimelineCursorCol > 0 {
-			m.eventTimelineCursorCol--
-		}
+		m.eventTimelineCursorCol = max(m.eventTimelineCursorCol-1, 0)
 	case "l", "right":
 		m.eventTimelineCursorCol++
 	case "0":
 		m.eventTimelineCursorCol = 0
-	case "$":
-		return m.handleEventTimelineVisualKeyDollar()
-	case "^":
-		if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-			m.eventTimelineCursorCol = firstNonWhitespace(m.eventTimelineLines[m.eventTimelineCursor])
-		}
-	case "w":
-		if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-			m.eventTimelineCursorCol = nextWordStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
-		}
-	case "W":
-		if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-			m.eventTimelineCursorCol = nextWORDStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
-		}
-	case "b":
-		return m.handleEventTimelineVisualKeyB()
-	case "B":
-		return m.handleEventTimelineVisualKeyB2()
-	case "e":
-		if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-			m.eventTimelineCursorCol = wordEnd(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
-		}
-	case "E":
-		if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-			m.eventTimelineCursorCol = WORDEnd(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
-		}
 	case "G":
 		m.eventTimelineCursor = maxIdx
 		m.ensureEventCursorVisible()
 	case "g":
-		return m.handleEventTimelineVisualKeyG()
-	case "ctrl+d":
-		m.eventTimelineCursor += m.eventContentHeight() / 2
-		if m.eventTimelineCursor > maxIdx {
-			m.eventTimelineCursor = maxIdx
+		if m.pendingG {
+			m.pendingG = false
+			m.eventTimelineCursor = 0
+			m.ensureEventCursorVisible()
+		} else {
+			m.pendingG = true
 		}
+	case "ctrl+d":
+		m.eventTimelineCursor = min(m.eventTimelineCursor+m.eventContentHeight()/2, maxIdx)
 		m.ensureEventCursorVisible()
 	case "ctrl+u":
-		return m.handleEventTimelineVisualKeyCtrlU()
-
-	// Copy selected text.
-	case "y":
-		return m.handleEventTimelineVisualKeyY()
-
-	case "ctrl+c":
-		return m.closeTabOrQuit()
+		m.eventTimelineCursor = max(m.eventTimelineCursor-m.eventContentHeight()/2, 0)
+		m.ensureEventCursorVisible()
+	default:
+		m.handleEventTimelineVisualWordMotion(key)
 	}
-	return m, nil
+}
+
+// handleEventTimelineVisualWordMotion handles word/char motions in visual mode.
+func (m *Model) handleEventTimelineVisualWordMotion(key string) {
+	line := m.eventTimelineCurrentLine()
+	if line == "" {
+		return
+	}
+	switch key {
+	case "$":
+		if lineLen := len([]rune(line)); lineLen > 0 {
+			m.eventTimelineCursorCol = lineLen - 1
+		}
+	case "^":
+		m.eventTimelineCursorCol = firstNonWhitespace(line)
+	case "w":
+		m.eventTimelineCursorCol = nextWordStart(line, m.eventTimelineCursorCol)
+	case "W":
+		m.eventTimelineCursorCol = nextWORDStart(line, m.eventTimelineCursorCol)
+	case "b":
+		if nc := prevWordStart(line, m.eventTimelineCursorCol); nc >= 0 {
+			m.eventTimelineCursorCol = nc
+		}
+	case "B":
+		if nc := prevWORDStart(line, m.eventTimelineCursorCol); nc >= 0 {
+			m.eventTimelineCursorCol = nc
+		}
+	case "e":
+		m.eventTimelineCursorCol = wordEnd(line, m.eventTimelineCursorCol)
+	case "E":
+		m.eventTimelineCursorCol = WORDEnd(line, m.eventTimelineCursorCol)
+	}
+}
+
+// eventTimelineCurrentLine returns the current line under the cursor, or empty.
+func (m *Model) eventTimelineCurrentLine() string {
+	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
+		return m.eventTimelineLines[m.eventTimelineCursor]
+	}
+	return ""
 }
 
 // handleEventTimelineSearchKey handles keyboard input during event timeline search.

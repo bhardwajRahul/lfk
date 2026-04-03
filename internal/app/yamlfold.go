@@ -16,6 +16,48 @@ type yamlSection struct {
 	listItem  bool   // true for foldable list items (e.g., "- name: nginx" with children)
 }
 
+// isBlockScalar returns true if the string after a colon indicates a block
+// scalar or empty value (i.e., the line is a section header, not a key-value pair).
+func isBlockScalar(afterColon string) bool {
+	switch afterColon {
+	case "", "|", ">", "|-", ">-", "|+", ">+":
+		return true
+	}
+	return false
+}
+
+// nextContentLineInfo finds the first non-empty, non-comment line after startLine
+// and returns its indent level and trimmed content. Returns (-1, "") if none found.
+func nextContentLineInfo(lines []string, startLine int) (int, string) {
+	for j := startLine + 1; j < len(lines); j++ {
+		trimmed := strings.TrimSpace(lines[j])
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		return countIndent(lines[j]), trimmed
+	}
+	return -1, ""
+}
+
+// hasIndentedChildren checks if the next non-empty line after startLine has
+// indent greater than parentIndent, or is a list item at the same indent.
+func hasIndentedChildren(lines []string, startLine, parentIndent int) bool {
+	nextIndent, nextTrimmed := nextContentLineInfo(lines, startLine)
+	if nextIndent < 0 {
+		return false
+	}
+	if nextIndent > parentIndent {
+		return true
+	}
+	return nextIndent == parentIndent && strings.HasPrefix(nextTrimmed, "- ")
+}
+
+// hasDeeperContent checks if the next content line is at or deeper than minIndent.
+func hasDeeperContent(lines []string, startLine, minIndent int) bool {
+	nextIndent, _ := nextContentLineInfo(lines, startLine)
+	return nextIndent >= minIndent
+}
+
 // parseYAMLSections identifies hierarchical YAML sections and their line ranges.
 // A section is any line containing "key:" with no inline value (or a block scalar
 // indicator like | or >) that has indented content on subsequent lines.
@@ -34,18 +76,8 @@ func parseYAMLSections(content string) []yamlSection {
 			continue
 		}
 
-		// Calculate indent level.
-		indent := 0
-		for _, ch := range line {
-			if ch == ' ' {
-				indent++
-			} else {
-				break
-			}
-		}
+		indent := countIndent(line)
 
-		// Check if this line is a section header (key: with no inline value).
-		// Strip list item prefix "- " for detection purposes.
 		keyLine := trimmed
 		isList := strings.HasPrefix(keyLine, "- ")
 		if isList {
@@ -58,205 +90,57 @@ func parseYAMLSections(content string) []yamlSection {
 		}
 
 		afterColon := strings.TrimSpace(keyLine[colonIdx+1:])
-		// It's a section header if nothing meaningful comes after the colon
-		// (empty, or block scalar indicator like | or >).
-		isBlockHeader := afterColon == "" || afterColon == "|" || afterColon == ">" ||
-			afterColon == "|-" || afterColon == ">-" ||
-			afterColon == "|+" || afterColon == ">+"
+		isBlockHeader := isBlockScalar(afterColon)
 
 		if !isBlockHeader {
-			// Not a section header, but could be a foldable list item.
-			// A list item like "- name: nginx" with continuation lines at deeper indent is foldable.
-			if isList {
-				contentIndent := indent + 2 // content after "- " starts 2 chars deeper
-				hasListChildren := false
-				for j := i + 1; j < len(lines); j++ {
-					nextTrimmed := strings.TrimSpace(lines[j])
-					if nextTrimmed == "" || strings.HasPrefix(nextTrimmed, "#") {
-						continue
-					}
-					nextIndent := 0
-					for _, ch := range lines[j] {
-						if ch == ' ' {
-							nextIndent++
-						} else {
-							break
-						}
-					}
-					if nextIndent >= contentIndent {
-						hasListChildren = true
-					}
-					break
-				}
-				if hasListChildren {
-					listKey := "#" + strconv.Itoa(i)
-					dotPath := buildDotPath(lines, i, indent+1, listKey)
-					sections = append(sections, yamlSection{
-						key:       dotPath,
-						indent:    indent,
-						startLine: i,
-						listItem:  true,
-					})
-				}
+			if isList && hasDeeperContent(lines, i, indent+2) {
+				listKey := "#" + strconv.Itoa(i)
+				dotPath := buildDotPath(lines, i, indent+1, listKey)
+				sections = append(sections, yamlSection{
+					key: dotPath, indent: indent, startLine: i, listItem: true,
+				})
 			}
 			continue
 		}
 
 		key := keyLine[:colonIdx]
 
-		// Check that the next non-empty line is MORE indented (confirming children).
-		// Also treat a YAML list item at the same indent as a child
-		// (e.g., "containers:" followed by "- name:" at the same indent).
-		hasChildren := false
-		for j := i + 1; j < len(lines); j++ {
-			nextTrimmed := strings.TrimSpace(lines[j])
-			if nextTrimmed == "" || strings.HasPrefix(nextTrimmed, "#") {
-				continue
-			}
-			nextIndent := 0
-			for _, ch := range lines[j] {
-				if ch == ' ' {
-					nextIndent++
-				} else {
-					break
-				}
-			}
-			if nextIndent > indent {
-				hasChildren = true
-			} else if nextIndent == indent && strings.HasPrefix(nextTrimmed, "- ") {
-				hasChildren = true
-			}
-			break
-		}
-
-		if !hasChildren {
+		if !hasIndentedChildren(lines, i, indent) {
 			continue
 		}
 
-		// If this line is BOTH a list item and a block header (e.g., "- args:"),
-		// create a listItem section first (for folding the entire list element),
-		// then the regular section (for folding just the block header's content).
 		if isList {
 			listKey := "#" + strconv.Itoa(i)
 			listDotPath := buildDotPath(lines, i, indent+1, listKey)
 			sections = append(sections, yamlSection{
-				key:       listDotPath,
-				indent:    indent,
-				startLine: i,
-				listItem:  true,
+				key: listDotPath, indent: indent, startLine: i, listItem: true,
 			})
 		}
 
-		// Build the dot-path key by finding ancestors.
 		dotPath := buildDotPath(lines, i, indent, key)
-
 		sections = append(sections, yamlSection{
-			key:       dotPath,
-			indent:    indent,
-			startLine: i,
+			key: dotPath, indent: indent, startLine: i,
 		})
 	}
 
-	// Calculate endLine for each section. A section ends when we encounter
-	// a non-blank, non-comment line at the same or lesser indent level.
-	// Exception: list items ("- ...") at the same indent are children of the
-	// section (e.g., "containers:" followed by "- name: nginx" at the same indent).
+	calculateSectionEndLines(lines, sections)
+	return sections
+}
+
+// calculateSectionEndLines computes the endLine for each section.
+func calculateSectionEndLines(lines []string, sections []yamlSection) {
 	for idx := range sections {
 		sec := &sections[idx]
 		sec.endLine = len(lines) - 1
 
 		if sec.listItem {
-			// List item: ends at any line with indent < contentIndent.
-			// This correctly handles sibling list items (at same indent < contentIndent).
-			contentIndent := sec.indent + 2
-			for j := sec.startLine + 1; j < len(lines); j++ {
-				jTrimmed := strings.TrimSpace(lines[j])
-				if jTrimmed == "" || strings.HasPrefix(jTrimmed, "#") {
-					continue
-				}
-				jIndent := 0
-				for _, ch := range lines[j] {
-					if ch == ' ' {
-						jIndent++
-					} else {
-						break
-					}
-				}
-				if jIndent < contentIndent {
-					sec.endLine = j - 1
-					break
-				}
-			}
+			sec.endLine = findListItemEnd(lines, sec.startLine, sec.indent+2, len(lines)-1)
 		} else {
-			// Regular section.
 			headerTrimmed := strings.TrimSpace(lines[sec.startLine])
-			headerIsList := strings.HasPrefix(headerTrimmed, "- ")
-
-			if headerIsList {
-				// Section header is a list item (e.g., "- args:", "- backend:").
-				// The key's content lives at indent+2 (after "- ").
-				// Sibling list items at the same indent end the section.
-				// Non-list lines at contentIndent are sibling keys within
-				// the list item (e.g., "name:" next to "args:"), not children.
-				contentIndent := sec.indent + 2
-				for j := sec.startLine + 1; j < len(lines); j++ {
-					jTrimmed := strings.TrimSpace(lines[j])
-					if jTrimmed == "" || strings.HasPrefix(jTrimmed, "#") {
-						continue
-					}
-					jIndent := 0
-					for _, ch := range lines[j] {
-						if ch == ' ' {
-							jIndent++
-						} else {
-							break
-						}
-					}
-					if jIndent < contentIndent {
-						sec.endLine = j - 1
-						break
-					}
-					// Line at contentIndent that isn't a list child is a
-					// sibling key in the same list item.
-					if jIndent == contentIndent && !strings.HasPrefix(jTrimmed, "- ") {
-						sec.endLine = j - 1
-						break
-					}
-				}
+			if strings.HasPrefix(headerTrimmed, "- ") {
+				sec.endLine = findListHeaderEnd(lines, sec.startLine, sec.indent+2, len(lines)-1)
 			} else {
-				// Plain section (e.g., "containers:", "metadata:").
-				// "- " lines at the same indent ARE children (kubectl raw format).
-				seenListChild := false
-				for j := sec.startLine + 1; j < len(lines); j++ {
-					jTrimmed := strings.TrimSpace(lines[j])
-					if jTrimmed == "" || strings.HasPrefix(jTrimmed, "#") {
-						continue
-					}
-					jIndent := 0
-					for _, ch := range lines[j] {
-						if ch == ' ' {
-							jIndent++
-						} else {
-							break
-						}
-					}
-					if jIndent < sec.indent {
-						sec.endLine = j - 1
-						break
-					}
-					if jIndent == sec.indent {
-						if strings.HasPrefix(jTrimmed, "- ") {
-							seenListChild = true
-							continue
-						}
-						if seenListChild {
-							sec.endLine = j - 1
-							break
-						}
-						sec.endLine = j - 1
-						break
-					}
-				}
+				sec.endLine = findPlainSectionEnd(lines, sec.startLine, sec.indent, len(lines)-1)
 			}
 		}
 		// Trim trailing blank lines from the section.
@@ -264,8 +148,64 @@ func parseYAMLSections(content string) []yamlSection {
 			sec.endLine--
 		}
 	}
+}
 
-	return sections
+// findListItemEnd finds where a list item section ends (line with indent < contentIndent).
+func findListItemEnd(lines []string, startLine, contentIndent, defaultEnd int) int {
+	for j := startLine + 1; j < len(lines); j++ {
+		jTrimmed := strings.TrimSpace(lines[j])
+		if jTrimmed == "" || strings.HasPrefix(jTrimmed, "#") {
+			continue
+		}
+		if countIndent(lines[j]) < contentIndent {
+			return j - 1
+		}
+	}
+	return defaultEnd
+}
+
+// findListHeaderEnd finds where a list-item block header section ends.
+func findListHeaderEnd(lines []string, startLine, contentIndent, defaultEnd int) int {
+	for j := startLine + 1; j < len(lines); j++ {
+		jTrimmed := strings.TrimSpace(lines[j])
+		if jTrimmed == "" || strings.HasPrefix(jTrimmed, "#") {
+			continue
+		}
+		jIndent := countIndent(lines[j])
+		if jIndent < contentIndent {
+			return j - 1
+		}
+		if jIndent == contentIndent && !strings.HasPrefix(jTrimmed, "- ") {
+			return j - 1
+		}
+	}
+	return defaultEnd
+}
+
+// findPlainSectionEnd finds where a plain section (e.g., "metadata:") ends.
+func findPlainSectionEnd(lines []string, startLine, sectionIndent, defaultEnd int) int {
+	seenListChild := false
+	for j := startLine + 1; j < len(lines); j++ {
+		jTrimmed := strings.TrimSpace(lines[j])
+		if jTrimmed == "" || strings.HasPrefix(jTrimmed, "#") {
+			continue
+		}
+		jIndent := countIndent(lines[j])
+		if jIndent < sectionIndent {
+			return j - 1
+		}
+		if jIndent == sectionIndent {
+			if strings.HasPrefix(jTrimmed, "- ") {
+				seenListChild = true
+				continue
+			}
+			if seenListChild {
+				return j - 1
+			}
+			return j - 1
+		}
+	}
+	return defaultEnd
 }
 
 // buildDotPath constructs the dot-separated path for a section key

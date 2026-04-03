@@ -20,105 +20,144 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLogVisualKey(msg)
 	}
 
+	// Try movement keys.
+	if ret, cmd, ok := m.handleLogMovementKey(msg); ok {
+		return ret, cmd
+	}
+	// Try action/mode keys.
+	if ret, cmd, ok := m.handleLogActionKey(msg); ok {
+		return ret, cmd
+	}
+	m.logLineInput = ""
+	return m, nil
+}
+
+// handleLogMovementKey handles cursor/scroll movement keys in the log viewer.
+func (m Model) handleLogMovementKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
-	case "?", "f1":
-		return m.handleLogKeyQuestion()
-	case "q", "esc":
-		return m.handleLogKeyQ()
 	case "j", "down":
-		return m.handleLogKeyJ()
+		ret, cmd := m.handleLogKeyJ()
+		return ret, cmd, true
 	case "k", "up":
-		return m.handleLogKeyK()
+		ret, cmd := m.handleLogKeyK()
+		return ret, cmd, true
 	case "ctrl+d":
-		return m.handleLogKeyCtrlD()
+		ret, cmd := m.handleLogKeyCtrlD()
+		return ret, cmd, true
 	case "ctrl+u":
-		return m.handleLogKeyCtrlU()
+		ret, cmd := m.handleLogKeyCtrlU()
+		return ret, cmd, true
 	case "ctrl+f":
-		return m.handleLogKeyCtrlF()
+		ret, cmd := m.handleLogKeyCtrlF()
+		return ret, cmd, true
 	case "ctrl+b":
-		return m.handleLogKeyCtrlB()
+		ret, cmd := m.handleLogKeyCtrlB()
+		return ret, cmd, true
 	case "G":
-		return m.handleLogKeyG()
+		ret, cmd := m.handleLogKeyG()
+		return ret, cmd, true
 	case "g":
-		return m.handleLogKeyG2()
+		ret, cmd := m.handleLogKeyG2()
+		return ret, cmd, true
 	case "h", "left":
-		// Move cursor column left.
-		return m.handleLogKeyH()
+		ret, cmd := m.handleLogKeyH()
+		return ret, cmd, true
 	case "l", "right":
-		// Move cursor column right.
-		return m.handleLogKeyL()
+		ret, cmd := m.handleLogKeyL()
+		return ret, cmd, true
 	case "$":
-		// Move cursor to end of current line.
-		return m.handleLogKeyDollar()
+		ret, cmd := m.handleLogKeyDollar()
+		return ret, cmd, true
 	case "e":
-		// Move cursor to end of current/next word; jump to next line at end of line.
-		return m.handleLogKeyE()
+		ret, cmd := m.handleLogKeyE()
+		return ret, cmd, true
 	case "b":
-		// Move cursor to previous word start; jump to previous line at start of line.
-		return m.handleLogKeyB()
-	case "V":
-		return m.handleLogKeyV()
-	case "v":
-		return m.handleLogKeyV2()
-	case "ctrl+v":
-		return m.handleLogKeyCtrlV()
-	case "f":
-		return m.handleLogKeyF()
-	case "tab", "z", ">":
-		return m.handleLogKeyTab()
+		ret, cmd := m.handleLogKeyB()
+		return ret, cmd, true
 	case "w":
-		// Move cursor to next word start; jump to next line at end of line.
-		return m.handleLogKeyW()
+		ret, cmd := m.handleLogKeyW()
+		return ret, cmd, true
 	case "W":
-		// Move cursor to next WORD start; jump to next line at end of line.
-		return m.handleLogKeyW2()
+		ret, cmd := m.handleLogKeyW2()
+		return ret, cmd, true
 	case "E":
-		// Move cursor to end of current/next WORD; jump to next line at end of line.
-		return m.handleLogKeyE2()
+		ret, cmd := m.handleLogKeyE2()
+		return ret, cmd, true
 	case "B":
-		// Move cursor to previous WORD start; jump to previous line at start of line.
-		return m.handleLogKeyB2()
+		ret, cmd := m.handleLogKeyB2()
+		return ret, cmd, true
 	case "^":
-		// Move cursor to first non-whitespace character.
-		return m.handleLogKeyCaret()
-	case "/":
-		return m.handleLogKeySlash()
-	case "n":
-		return m.handleLogKeyN()
-	case "N":
-		return m.handleLogKeyN2()
-	case "p":
-		// Toggle pod/container prefix visibility.
-		return m.handleLogKeyP()
-	case "#":
-		return m.handleLogKeyHash()
-	case "s":
-		// Toggle timestamp visibility (no stream restart — timestamps are always streamed).
-		return m.handleLogKeyS()
-	case "S":
-		// Save loaded logs to file.
-		return m.handleLogKeyS2()
-	case "ctrl+s":
-		// Save all logs (full kubectl logs without --tail) to file.
-		return m.handleLogKeyCtrlS()
-	case "c":
-		return m.handleLogKeyC()
+		ret, cmd := m.handleLogKeyCaret()
+		return ret, cmd, true
 	case "0":
-		// If digits are pending, append 0 to the digit buffer (e.g. 10G, 20G).
-		// If no digits pending, move cursor to beginning of line (vim 0 motion).
-		return m.handleLogKeyZero()
+		ret, cmd := m.handleLogKeyZero()
+		return ret, cmd, true
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		m.logLineInput += msg.String()
-		return m, nil
-	case "\\":
-		// Pod selector for group resources, container selector for single pods.
-		return m.handleLogKeyOther()
-	case "ctrl+c":
-		return m.handleLogKeyCtrlC()
-	default:
-		m.logLineInput = ""
+		return m, nil, true
 	}
-	return m, nil
+	return m, nil, false
+}
+
+// handleLogActionKey handles action/mode keys in the log viewer.
+func (m Model) handleLogActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	switch msg.String() {
+	case "?", "f1":
+		ret, cmd := m.handleLogKeyQuestion()
+		return ret, cmd, true
+	case "q", "esc":
+		ret, cmd := m.handleLogKeyQ()
+		return ret, cmd, true
+	case "V":
+		ret, cmd := m.handleLogKeyV()
+		return ret, cmd, true
+	case "v":
+		ret, cmd := m.handleLogKeyV2()
+		return ret, cmd, true
+	case "ctrl+v":
+		ret, cmd := m.handleLogKeyCtrlV()
+		return ret, cmd, true
+	case "f":
+		ret, cmd := m.handleLogKeyF()
+		return ret, cmd, true
+	case "tab", "z", ">":
+		ret, cmd := m.handleLogKeyTab()
+		return ret, cmd, true
+	case "/":
+		ret, cmd := m.handleLogKeySlash()
+		return ret, cmd, true
+	case "n":
+		ret, cmd := m.handleLogKeyN()
+		return ret, cmd, true
+	case "N":
+		ret, cmd := m.handleLogKeyN2()
+		return ret, cmd, true
+	case "p":
+		ret, cmd := m.handleLogKeyP()
+		return ret, cmd, true
+	case "#":
+		ret, cmd := m.handleLogKeyHash()
+		return ret, cmd, true
+	case "s":
+		ret, cmd := m.handleLogKeyS()
+		return ret, cmd, true
+	case "S":
+		ret, cmd := m.handleLogKeyS2()
+		return ret, cmd, true
+	case "ctrl+s":
+		ret, cmd := m.handleLogKeyCtrlS()
+		return ret, cmd, true
+	case "c":
+		ret, cmd := m.handleLogKeyC()
+		return ret, cmd, true
+	case "\\":
+		ret, cmd := m.handleLogKeyOther()
+		return ret, cmd, true
+	case "ctrl+c":
+		ret, cmd := m.handleLogKeyCtrlC()
+		return ret, cmd, true
+	}
+	return m, nil, false
 }
 
 func (m Model) handleLogVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -219,6 +258,67 @@ func (m Model) handleLogSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// logDisplayLine returns the log line as shown on screen (timestamps/prefixes stripped).
+func (m *Model) logDisplayLine(lineIdx int) string {
+	line := m.logLines[lineIdx]
+	if !m.logTimestamps {
+		line = ui.StripTimestamp(line)
+	}
+	if m.logHidePrefixes {
+		line = ui.StripPodPrefix(line)
+	}
+	return line
+}
+
+// logJumpToCol sets the cursor to the given line and rune column.
+func (m *Model) logJumpToCol(lineIdx, runeCol int) {
+	m.logCursor = lineIdx
+	m.logVisualCurCol = runeCol
+	m.logFollow = false
+	m.ensureLogCursorVisible()
+}
+
+// logFindFirstMatch finds the first match in a line and jumps to it.
+func (m *Model) logFindFirstMatch(lineIdx int, query string) bool {
+	dl := m.logDisplayLine(lineIdx)
+	col := ui.FindColumnInLine(dl, query)
+	if col < 0 {
+		return false
+	}
+	m.logJumpToCol(lineIdx, col)
+	return true
+}
+
+// logFindLastMatch finds the last (rightmost) match in a line and jumps to it.
+func (m *Model) logFindLastMatch(lineIdx int, query string) bool {
+	dl := m.logDisplayLine(lineIdx)
+	if !ui.MatchLine(dl, query) {
+		return false
+	}
+	lastCol := -1
+	remaining := dl
+	offset := 0
+	for {
+		col := ui.FindColumnInLine(remaining, query)
+		if col < 0 {
+			break
+		}
+		lastCol = offset + col
+		advanceRunes := col + 1
+		runes := []rune(remaining)
+		if advanceRunes >= len(runes) {
+			break
+		}
+		remaining = string(runes[advanceRunes:])
+		offset += advanceRunes
+	}
+	if lastCol < 0 {
+		return false
+	}
+	m.logJumpToCol(lineIdx, lastCol)
+	return true
+}
+
 func (m *Model) findNextLogMatch(forward bool) {
 	if m.logSearchQuery == "" {
 		return
@@ -229,149 +329,83 @@ func (m *Model) findNextLogMatch(forward bool) {
 		start = m.logScroll
 	}
 
-	// displayLine returns the line as shown on screen (timestamps/prefixes stripped).
-	displayLine := func(lineIdx int) string {
-		line := m.logLines[lineIdx]
-		if !m.logTimestamps {
-			line = ui.StripTimestamp(line)
-		}
-		if m.logHidePrefixes {
-			line = ui.StripPodPrefix(line)
-		}
-		return line
-	}
-
-	// jumpToCol sets the cursor to the given line and rune column.
-	jumpToCol := func(lineIdx, runeCol int) {
-		m.logCursor = lineIdx
-		m.logVisualCurCol = runeCol
-		m.logFollow = false
-		m.ensureLogCursorVisible()
-	}
-
-	// findFirstMatch finds the first match in a line and jumps to it.
-	findFirstMatch := func(lineIdx int) bool {
-		dl := displayLine(lineIdx)
-		col := ui.FindColumnInLine(dl, rawQuery)
-		if col < 0 {
-			return false
-		}
-		jumpToCol(lineIdx, col)
-		return true
-	}
-
-	// findLastMatch finds the last match in a line and jumps to it.
-	// Iterates to find the rightmost match.
-	findLastMatch := func(lineIdx int) bool {
-		dl := displayLine(lineIdx)
-		if !ui.MatchLine(dl, rawQuery) {
-			return false
-		}
-		// Find the last match by iterating forward.
-		lastCol := -1
-		remaining := dl
-		offset := 0
-		for {
-			col := ui.FindColumnInLine(remaining, rawQuery)
-			if col < 0 {
-				break
-			}
-			lastCol = offset + col
-			advanceRunes := col + 1
-			runes := []rune(remaining)
-			if advanceRunes >= len(runes) {
-				break
-			}
-			remaining = string(runes[advanceRunes:])
-			offset += advanceRunes
-		}
-		if lastCol < 0 {
-			return false
-		}
-		jumpToCol(lineIdx, lastCol)
-		return true
-	}
-
 	if forward {
-		// First: check for another match on the current line after the cursor.
-		if start >= 0 && start < len(m.logLines) {
-			dl := displayLine(start)
-			// Search after current cursor column position.
-			curBytePos := len(string([]rune(dl)[:m.logVisualCurCol+1]))
-			if curBytePos < len(dl) {
-				remainder := dl[curBytePos:]
-				col := ui.FindColumnInLine(remainder, rawQuery)
-				if col >= 0 {
-					runeCol := m.logVisualCurCol + 1 + col
-					jumpToCol(start, runeCol)
-					return
-				}
-			}
-		}
-		// Then: search subsequent lines.
-		for i := start + 1; i < len(m.logLines); i++ {
-			if findFirstMatch(i) {
-				return
-			}
-		}
-		// Wrap around.
-		for i := 0; i <= start; i++ {
-			if i == start {
-				if findFirstMatch(i) {
-					return
-				}
-			} else if findFirstMatch(i) {
-				return
-			}
-		}
+		m.findNextLogMatchForward(rawQuery, start)
 	} else {
-		// First: check for a match on the current line before the cursor.
-		if start >= 0 && start < len(m.logLines) {
-			dl := displayLine(start)
-			curBytePos := len(string([]rune(dl)[:m.logVisualCurCol]))
-			if curBytePos > 0 {
-				prefix := dl[:curBytePos]
-				// Find last match in prefix.
-				lastCol := -1
-				remaining := prefix
-				offset := 0
-				for {
-					col := ui.FindColumnInLine(remaining, rawQuery)
-					if col < 0 {
-						break
-					}
-					lastCol = offset + col
-					advanceRunes := col + 1
-					runes := []rune(remaining)
-					if advanceRunes >= len(runes) {
-						break
-					}
-					remaining = string(runes[advanceRunes:])
-					offset += advanceRunes
-				}
-				if lastCol >= 0 {
-					jumpToCol(start, lastCol)
-					return
-				}
-			}
-		}
-		// Then: search preceding lines.
-		for i := start - 1; i >= 0; i-- {
-			if findLastMatch(i) {
-				return
-			}
-		}
-		// Wrap around.
-		for i := len(m.logLines) - 1; i >= start; i-- {
-			if i == start {
-				if findLastMatch(i) {
-					return
-				}
-			} else if findLastMatch(i) {
+		m.findNextLogMatchBackward(rawQuery, start)
+	}
+}
+
+func (m *Model) findNextLogMatchForward(rawQuery string, start int) {
+	// Check for another match on the current line after the cursor.
+	if start >= 0 && start < len(m.logLines) {
+		dl := m.logDisplayLine(start)
+		curBytePos := len(string([]rune(dl)[:m.logVisualCurCol+1]))
+		if curBytePos < len(dl) {
+			col := ui.FindColumnInLine(dl[curBytePos:], rawQuery)
+			if col >= 0 {
+				m.logJumpToCol(start, m.logVisualCurCol+1+col)
 				return
 			}
 		}
 	}
+	for i := start + 1; i < len(m.logLines); i++ {
+		if m.logFindFirstMatch(i, rawQuery) {
+			return
+		}
+	}
+	for i := 0; i <= start; i++ {
+		if m.logFindFirstMatch(i, rawQuery) {
+			return
+		}
+	}
+}
+
+func (m *Model) findNextLogMatchBackward(rawQuery string, start int) {
+	// Check for a match on the current line before the cursor.
+	if start >= 0 && start < len(m.logLines) {
+		dl := m.logDisplayLine(start)
+		curBytePos := len(string([]rune(dl)[:m.logVisualCurCol]))
+		if curBytePos > 0 {
+			lastCol := findLastMatchInStr(dl[:curBytePos], rawQuery)
+			if lastCol >= 0 {
+				m.logJumpToCol(start, lastCol)
+				return
+			}
+		}
+	}
+	for i := start - 1; i >= 0; i-- {
+		if m.logFindLastMatch(i, rawQuery) {
+			return
+		}
+	}
+	for i := len(m.logLines) - 1; i >= start; i-- {
+		if m.logFindLastMatch(i, rawQuery) {
+			return
+		}
+	}
+}
+
+// findLastMatchInStr finds the rightmost match column in a string.
+func findLastMatchInStr(text, query string) int {
+	lastCol := -1
+	remaining := text
+	offset := 0
+	for {
+		col := ui.FindColumnInLine(remaining, query)
+		if col < 0 {
+			break
+		}
+		lastCol = offset + col
+		advanceRunes := col + 1
+		runes := []rune(remaining)
+		if advanceRunes >= len(runes) {
+			break
+		}
+		remaining = string(runes[advanceRunes:])
+		offset += advanceRunes
+	}
+	return lastCol
 }
 
 func (m Model) handleLogKeyQuestion() (tea.Model, tea.Cmd) {

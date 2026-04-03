@@ -19,12 +19,12 @@ func (m Model) openCanIBrowser() (tea.Model, tea.Cmd) {
 	return m, m.loadCanIRules()
 }
 
-// processCanIRules converts raw access rules into grouped CanIResource entries,
-// cross-referencing with discovered CRDs for kind names.
-func (m *Model) processCanIRules(rules []k8s.AccessRule) {
-	allVerbs := []string{"get", "list", "watch", "create", "update", "patch", "delete"}
+// canIAllVerbs is the list of standard Kubernetes verbs.
+var canIAllVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
 
-	// Build permission lookup: "group/resource" -> set of allowed verbs.
+// buildPermLookup builds a permission lookup map from access rules.
+// Keys are "group/resource", values are maps of verb -> allowed.
+func buildPermLookup(rules []k8s.AccessRule) map[string]map[string]bool {
 	perms := make(map[string]map[string]bool)
 	for _, rule := range rules {
 		for _, group := range rule.APIGroups {
@@ -33,59 +33,40 @@ func (m *Model) processCanIRules(rules []k8s.AccessRule) {
 				if perms[key] == nil {
 					perms[key] = make(map[string]bool)
 				}
-				for _, verb := range rule.Verbs {
-					if verb == "*" {
-						for _, v := range allVerbs {
-							perms[key][v] = true
-						}
-					} else {
-						perms[key][verb] = true
-					}
-				}
+				addVerbs(perms[key], rule.Verbs)
 			}
 		}
 	}
+	return perms
+}
 
-	// Handle wildcard resources: if a rule has "*" as resource, it applies to
-	// all resources in that group.
-	for _, rule := range rules {
-		for _, group := range rule.APIGroups {
-			for _, resource := range rule.Resources {
-				if resource == "*" {
-					key := group + "/*"
-					if perms[key] == nil {
-						perms[key] = make(map[string]bool)
-					}
-					for _, verb := range rule.Verbs {
-						if verb == "*" {
-							for _, v := range allVerbs {
-								perms[key][v] = true
-							}
-						} else {
-							perms[key][verb] = true
-						}
-					}
-				}
+// addVerbs adds verbs to a verb set, expanding "*" to all verbs.
+func addVerbs(verbSet map[string]bool, verbs []string) {
+	for _, verb := range verbs {
+		if verb == "*" {
+			for _, v := range canIAllVerbs {
+				verbSet[v] = true
 			}
+		} else {
+			verbSet[verb] = true
 		}
 	}
+}
 
-	// Build resource list from discovered CRDs.
-	groupMap := make(map[string][]model.CanIResource)
-
-	crds := m.discoveredCRDs[m.nav.Context]
-	for _, rt := range crds {
-		group := rt.APIGroup
-		resource := rt.Resource
-		kind := rt.Kind
-
-		key := group + "/" + resource
-		verbs := make(map[string]bool)
-		for _, v := range allVerbs {
-			verbs[v] = false
-		}
-
-		// Check specific resource permissions.
+// resolveVerbs resolves the effective verbs for a group/resource pair,
+// checking specific, wildcard-resource, wildcard-group, and fully-wildcard keys.
+func resolveVerbs(perms map[string]map[string]bool, group, resource string) map[string]bool {
+	verbs := make(map[string]bool, len(canIAllVerbs))
+	for _, v := range canIAllVerbs {
+		verbs[v] = false
+	}
+	// Check in order: specific, wildcard resource, wildcard group, full wildcard.
+	for _, key := range []string{
+		group + "/" + resource,
+		group + "/*",
+		"*/" + resource,
+		"*/*",
+	} {
 		if p, ok := perms[key]; ok {
 			for v, allowed := range p {
 				if allowed {
@@ -93,167 +74,89 @@ func (m *Model) processCanIRules(rules []k8s.AccessRule) {
 				}
 			}
 		}
-		// Check wildcard resource permissions for this group.
-		wildcardKey := group + "/*"
-		if p, ok := perms[wildcardKey]; ok {
-			for v, allowed := range p {
-				if allowed {
-					verbs[v] = true
-				}
-			}
-		}
-		// Check wildcard group with specific resource.
-		wildcardGroupKey := "*/" + resource
-		if p, ok := perms[wildcardGroupKey]; ok {
-			for v, allowed := range p {
-				if allowed {
-					verbs[v] = true
-				}
-			}
-		}
-		// Check wildcard group + wildcard resource.
-		if p, ok := perms["*/*"]; ok {
-			for v, allowed := range p {
-				if allowed {
-					verbs[v] = true
-				}
-			}
-		}
+	}
+	return verbs
+}
 
-		groupMap[group] = append(groupMap[group], model.CanIResource{
-			APIGroup: group,
-			Resource: resource,
-			Kind:     kind,
-			Verbs:    verbs,
+// groupHasResource checks if a resource already exists in the group's resource list.
+func groupHasResource(groupMap map[string][]model.CanIResource, group, resource string) bool {
+	for _, r := range groupMap[group] {
+		if r.Resource == resource {
+			return true
+		}
+	}
+	return false
+}
+
+// processCanIRules converts raw access rules into grouped CanIResource entries,
+// cross-referencing with discovered CRDs for kind names.
+func (m *Model) processCanIRules(rules []k8s.AccessRule) {
+	perms := buildPermLookup(rules)
+	groupMap := make(map[string][]model.CanIResource)
+
+	// Add resources from discovered CRDs.
+	for _, rt := range m.discoveredCRDs[m.nav.Context] {
+		verbs := resolveVerbs(perms, rt.APIGroup, rt.Resource)
+		groupMap[rt.APIGroup] = append(groupMap[rt.APIGroup], model.CanIResource{
+			APIGroup: rt.APIGroup, Resource: rt.Resource, Kind: rt.Kind, Verbs: verbs,
 		})
 	}
 
-	// Also include built-in resource types from TopLevelResourceTypes.
+	// Add built-in resource types not already covered by CRDs.
 	for _, cat := range model.TopLevelResourceTypes() {
 		for _, rt := range cat.Types {
-			// Skip internal/synthetic types (e.g., _helm, _portforward).
 			if strings.HasPrefix(rt.APIGroup, "_") {
 				continue
 			}
-
-			group := rt.APIGroup
-			resource := rt.Resource
-			kind := rt.Kind
-
-			// Check if already in the list (from CRDs).
-			found := false
-			for _, r := range groupMap[group] {
-				if r.Resource == resource {
-					found = true
-					break
-				}
-			}
-			if found {
+			if groupHasResource(groupMap, rt.APIGroup, rt.Resource) {
 				continue
 			}
-
-			key := group + "/" + resource
-			verbs := make(map[string]bool)
-			for _, v := range allVerbs {
-				verbs[v] = false
-			}
-
-			// Check specific resource permissions.
-			if p, ok := perms[key]; ok {
-				for v, allowed := range p {
-					if allowed {
-						verbs[v] = true
-					}
-				}
-			}
-			// Check wildcard resource permissions for this group.
-			wildcardKey := group + "/*"
-			if p, ok := perms[wildcardKey]; ok {
-				for v, allowed := range p {
-					if allowed {
-						verbs[v] = true
-					}
-				}
-			}
-			// Check wildcard group with specific resource.
-			wildcardGroupKey := "*/" + resource
-			if p, ok := perms[wildcardGroupKey]; ok {
-				for v, allowed := range p {
-					if allowed {
-						verbs[v] = true
-					}
-				}
-			}
-			// Check wildcard group + wildcard resource.
-			if p, ok := perms["*/*"]; ok {
-				for v, allowed := range p {
-					if allowed {
-						verbs[v] = true
-					}
-				}
-			}
-
-			groupMap[group] = append(groupMap[group], model.CanIResource{
-				APIGroup: group,
-				Resource: resource,
-				Kind:     kind,
-				Verbs:    verbs,
+			verbs := resolveVerbs(perms, rt.APIGroup, rt.Resource)
+			groupMap[rt.APIGroup] = append(groupMap[rt.APIGroup], model.CanIResource{
+				APIGroup: rt.APIGroup, Resource: rt.Resource, Kind: rt.Kind, Verbs: verbs,
 			})
 		}
 	}
 
-	// Also add resources from rules that aren't in discovered CRDs.
+	// Add resources from rules that aren't in CRDs or built-in types.
 	for key, verbSet := range perms {
 		if strings.HasSuffix(key, "/*") {
-			continue // Skip wildcard entries.
+			continue
 		}
 		parts := strings.SplitN(key, "/", 2)
-		if len(parts) != 2 {
+		if len(parts) != 2 || parts[1] == "*" {
 			continue
 		}
 		group, resource := parts[0], parts[1]
-		if resource == "*" {
+		if groupHasResource(groupMap, group, resource) {
 			continue
 		}
-
-		// Check if already in the list.
-		found := false
-		for _, r := range groupMap[group] {
-			if r.Resource == resource {
-				found = true
-				break
-			}
-		}
-		if found {
-			continue
-		}
-
-		verbs := make(map[string]bool)
-		for _, v := range allVerbs {
+		verbs := make(map[string]bool, len(canIAllVerbs))
+		for _, v := range canIAllVerbs {
 			verbs[v] = verbSet[v]
 		}
 		groupMap[group] = append(groupMap[group], model.CanIResource{
-			APIGroup: group,
-			Resource: resource,
-			Kind:     resource, // fallback: use resource name as kind
-			Verbs:    verbs,
+			APIGroup: group, Resource: resource, Kind: resource, Verbs: verbs,
 		})
 	}
 
-	// Sort resources within each group.
+	// Sort and build result.
+	m.canIGroups = buildSortedCanIGroups(groupMap)
+}
+
+// buildSortedCanIGroups sorts resources within groups and builds the final sorted group list.
+func buildSortedCanIGroups(groupMap map[string][]model.CanIResource) []model.CanIGroup {
 	for group := range groupMap {
 		sort.Slice(groupMap[group], func(i, j int) bool {
 			return groupMap[group][i].Resource < groupMap[group][j].Resource
 		})
 	}
 
-	// Build sorted group list.
 	groupNames := make([]string, 0, len(groupMap))
 	for g := range groupMap {
 		groupNames = append(groupNames, g)
 	}
 	sort.Slice(groupNames, func(i, j int) bool {
-		// Put core ("") first, then alphabetical.
 		if groupNames[i] == "" {
 			return true
 		}
@@ -263,13 +166,11 @@ func (m *Model) processCanIRules(rules []k8s.AccessRule) {
 		return groupNames[i] < groupNames[j]
 	})
 
-	m.canIGroups = make([]model.CanIGroup, len(groupNames))
+	groups := make([]model.CanIGroup, len(groupNames))
 	for i, name := range groupNames {
-		m.canIGroups[i] = model.CanIGroup{
-			Name:      name,
-			Resources: groupMap[name],
-		}
+		groups[i] = model.CanIGroup{Name: name, Resources: groupMap[name]}
 	}
+	return groups
 }
 
 // canIVisibleGroups returns the indices into m.canIGroups that match the current
