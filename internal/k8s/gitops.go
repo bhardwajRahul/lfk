@@ -33,58 +33,7 @@ func (c *Client) getArgoManagedResources(ctx context.Context, dynClient dynamic.
 	resources, _ := statusMap["resources"].([]interface{})
 
 	if len(resources) > 0 {
-		var items []model.Item
-		for _, r := range resources {
-			res, ok := r.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			name, _ := res["name"].(string)
-			kind, _ := res["kind"].(string)
-			ns, _ := res["namespace"].(string)
-			group, _ := res["group"].(string)
-			version, _ := res["version"].(string)
-			syncStatus, _ := res["status"].(string)
-
-			healthStatus := ""
-			if health, ok := res["health"].(map[string]interface{}); ok {
-				healthStatus, _ = health["status"].(string)
-			}
-
-			status := healthStatus
-			if syncStatus != "" && healthStatus != "" {
-				status = healthStatus + "/" + syncStatus
-			} else if syncStatus != "" {
-				status = syncStatus
-			}
-
-			// Store group/version in Extra so the UI can resolve the correct
-			// GVR when loading YAML for this owned resource.
-			extra := ""
-			if group != "" || version != "" {
-				extra = group + "/" + version
-			}
-
-			// Build API version string for display (e.g. "apps/v1", "v1").
-			apiVersion := version
-			if group != "" {
-				apiVersion = group + "/" + version
-			}
-
-			ti := model.Item{
-				Name:      name,
-				Kind:      kind,
-				Namespace: ns,
-				Status:    status,
-				Extra:     extra,
-				Columns: []model.KeyValue{
-					{Key: "KIND", Value: kind},
-					{Key: "APIVERSION", Value: apiVersion},
-				},
-			}
-			items = append(items, ti)
-		}
-
+		items := argoStatusResourcesToItems(resources)
 		sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 		return items, nil
 	}
@@ -93,15 +42,91 @@ func (c *Client) getArgoManagedResources(ctx context.Context, dynClient dynamic.
 	// Try to discover resources by label selectors in the target namespace.
 	logger.Info("ArgoCD app has no status.resources, falling back to label discovery", "app", appName)
 
-	targetNs := namespace
+	targetNs := argoDestinationNamespace(app, namespace)
+	items := c.argoFallbackDiscovery(ctx, contextName, targetNs, appName)
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Kind != items[j].Kind {
+			return items[i].Kind < items[j].Kind
+		}
+		return items[i].Name < items[j].Name
+	})
+	return items, nil
+}
+
+// argoStatusResourcesToItems converts status.resources entries from an ArgoCD
+// Application into model.Item entries.
+func argoStatusResourcesToItems(resources []interface{}) []model.Item {
+	var items []model.Item
+	for _, r := range resources {
+		res, ok := r.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := res["name"].(string)
+		kind, _ := res["kind"].(string)
+		ns, _ := res["namespace"].(string)
+		group, _ := res["group"].(string)
+		version, _ := res["version"].(string)
+		syncStatus, _ := res["status"].(string)
+
+		healthStatus := ""
+		if health, ok := res["health"].(map[string]interface{}); ok {
+			healthStatus, _ = health["status"].(string)
+		}
+
+		status := healthStatus
+		if syncStatus != "" && healthStatus != "" {
+			status = healthStatus + "/" + syncStatus
+		} else if syncStatus != "" {
+			status = syncStatus
+		}
+
+		// Store group/version in Extra so the UI can resolve the correct
+		// GVR when loading YAML for this owned resource.
+		extra := ""
+		if group != "" || version != "" {
+			extra = group + "/" + version
+		}
+
+		// Build API version string for display (e.g. "apps/v1", "v1").
+		apiVersion := version
+		if group != "" {
+			apiVersion = group + "/" + version
+		}
+
+		ti := model.Item{
+			Name:      name,
+			Kind:      kind,
+			Namespace: ns,
+			Status:    status,
+			Extra:     extra,
+			Columns: []model.KeyValue{
+				{Key: "KIND", Value: kind},
+				{Key: "APIVERSION", Value: apiVersion},
+			},
+		}
+		items = append(items, ti)
+	}
+	return items
+}
+
+// argoDestinationNamespace extracts the destination namespace from an ArgoCD
+// Application spec, falling back to the given default.
+func argoDestinationNamespace(app *unstructured.Unstructured, defaultNs string) string {
 	if specMap, ok := app.Object["spec"].(map[string]interface{}); ok {
 		if dest, ok := specMap["destination"].(map[string]interface{}); ok {
 			if dns, ok := dest["namespace"].(string); ok && dns != "" {
-				targetNs = dns
+				return dns
 			}
 		}
 	}
+	return defaultNs
+}
 
+// argoFallbackDiscovery discovers resources by label selectors when
+// status.resources is empty for an ArgoCD Application.
+func (c *Client) argoFallbackDiscovery(ctx context.Context, contextName, targetNs, appName string) []model.Item {
 	labelSelectors := []string{
 		"app.kubernetes.io/instance=" + appName,
 		"argocd.argoproj.io/instance=" + appName,
@@ -116,97 +141,37 @@ func (c *Client) getArgoManagedResources(ctx context.Context, dynClient dynamic.
 
 		cs, csErr := c.clientsetForContext(contextName)
 		if csErr != nil {
-			// If we can't get a clientset, try the next selector.
 			continue
 		}
 
 		// Deployments
 		if depList, err := cs.AppsV1().Deployments(targetNs).List(ctx, opts); err == nil {
 			for _, d := range depList.Items {
-				key := "Deployment/" + d.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      d.Name,
-					Kind:      "Deployment",
-					Namespace: d.Namespace,
-					CreatedAt: d.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(d.CreationTimestamp.Time)),
-				})
+				appendIfUnseen(&items, seen, "Deployment", d.Name, d.Namespace, d.CreationTimestamp.Time)
 			}
 		}
-
 		// Services
 		if svcList, err := cs.CoreV1().Services(targetNs).List(ctx, opts); err == nil {
 			for _, s := range svcList.Items {
-				key := "Service/" + s.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      s.Name,
-					Kind:      "Service",
-					Namespace: s.Namespace,
-					CreatedAt: s.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(s.CreationTimestamp.Time)),
-				})
+				appendIfUnseen(&items, seen, "Service", s.Name, s.Namespace, s.CreationTimestamp.Time)
 			}
 		}
-
 		// ConfigMaps
 		if cmList, err := cs.CoreV1().ConfigMaps(targetNs).List(ctx, opts); err == nil {
 			for _, cm := range cmList.Items {
-				key := "ConfigMap/" + cm.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      cm.Name,
-					Kind:      "ConfigMap",
-					Namespace: cm.Namespace,
-					CreatedAt: cm.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(cm.CreationTimestamp.Time)),
-				})
+				appendIfUnseen(&items, seen, "ConfigMap", cm.Name, cm.Namespace, cm.CreationTimestamp.Time)
 			}
 		}
-
 		// StatefulSets
 		if ssList, err := cs.AppsV1().StatefulSets(targetNs).List(ctx, opts); err == nil {
 			for _, ss := range ssList.Items {
-				key := "StatefulSet/" + ss.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      ss.Name,
-					Kind:      "StatefulSet",
-					Namespace: ss.Namespace,
-					CreatedAt: ss.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(ss.CreationTimestamp.Time)),
-				})
+				appendIfUnseen(&items, seen, "StatefulSet", ss.Name, ss.Namespace, ss.CreationTimestamp.Time)
 			}
 		}
-
 		// DaemonSets
 		if dsList, err := cs.AppsV1().DaemonSets(targetNs).List(ctx, opts); err == nil {
 			for _, ds := range dsList.Items {
-				key := "DaemonSet/" + ds.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      ds.Name,
-					Kind:      "DaemonSet",
-					Namespace: ds.Namespace,
-					CreatedAt: ds.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(ds.CreationTimestamp.Time)),
-				})
+				appendIfUnseen(&items, seen, "DaemonSet", ds.Name, ds.Namespace, ds.CreationTimestamp.Time)
 			}
 		}
 	}
@@ -216,14 +181,23 @@ func (c *Client) getArgoManagedResources(ctx context.Context, dynClient dynamic.
 	} else {
 		logger.Info("ArgoCD fallback: found resources via label selectors", "app", appName, "count", len(items))
 	}
+	return items
+}
 
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Kind != items[j].Kind {
-			return items[i].Kind < items[j].Kind
-		}
-		return items[i].Name < items[j].Name
+// appendIfUnseen appends an item to items if the kind/name key has not been seen.
+func appendIfUnseen(items *[]model.Item, seen map[string]bool, kind, name, namespace string, createdAt time.Time) {
+	key := kind + "/" + name
+	if seen[key] {
+		return
+	}
+	seen[key] = true
+	*items = append(*items, model.Item{
+		Name:      name,
+		Kind:      kind,
+		Namespace: namespace,
+		CreatedAt: createdAt,
+		Age:       formatAge(time.Since(createdAt)),
 	})
-	return items, nil
 }
 
 // SyncArgoApp triggers a sync on an ArgoCD Application by setting the operation field.

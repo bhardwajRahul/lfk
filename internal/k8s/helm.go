@@ -8,6 +8,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/janosmiko/lfk/internal/logger"
 	"github.com/janosmiko/lfk/internal/model"
@@ -174,164 +175,12 @@ func (c *Client) getHelmManagedResources(ctx context.Context, contextName, names
 
 	for _, labelSelector := range labelSelectors {
 		logger.Debug("Helm: listing managed resources", "selector", labelSelector, "namespace", namespace)
+		opts := metav1.ListOptions{LabelSelector: labelSelector}
 
-		// Deployments
-		depList, depErr := cs.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if depErr == nil {
-			for _, d := range depList.Items {
-				key := "Deployment/" + d.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				var replicas int32 = 1
-				if d.Spec.Replicas != nil {
-					replicas = *d.Spec.Replicas
-				}
-				ti := model.Item{Name: d.Name, Kind: "Deployment"}
-				if d.Status.AvailableReplicas == replicas {
-					ti.Status = "Available"
-				} else {
-					ti.Status = "Progressing"
-				}
-				ti.Ready = fmt.Sprintf("%d/%d", d.Status.ReadyReplicas, replicas)
-				ti.CreatedAt = d.CreationTimestamp.Time
-				ti.Age = formatAge(time.Since(d.CreationTimestamp.Time))
-				items = append(items, ti)
-			}
-		}
-
-		// StatefulSets
-		ssList, ssErr := cs.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if ssErr == nil {
-			for _, ss := range ssList.Items {
-				key := "StatefulSet/" + ss.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				var replicas int32 = 1
-				if ss.Spec.Replicas != nil {
-					replicas = *ss.Spec.Replicas
-				}
-				ti := model.Item{Name: ss.Name, Kind: "StatefulSet"}
-				ti.Ready = fmt.Sprintf("%d/%d", ss.Status.ReadyReplicas, replicas)
-				ti.CreatedAt = ss.CreationTimestamp.Time
-				ti.Age = formatAge(time.Since(ss.CreationTimestamp.Time))
-				items = append(items, ti)
-			}
-		}
-
-		// DaemonSets
-		dsList, dsErr := cs.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if dsErr == nil {
-			for _, ds := range dsList.Items {
-				key := "DaemonSet/" + ds.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				ti := model.Item{Name: ds.Name, Kind: "DaemonSet"}
-				ti.Ready = fmt.Sprintf("%d/%d", ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
-				ti.CreatedAt = ds.CreationTimestamp.Time
-				ti.Age = formatAge(time.Since(ds.CreationTimestamp.Time))
-				items = append(items, ti)
-			}
-		}
-
-		// Services
-		svcList, svcErr := cs.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if svcErr == nil {
-			for _, s := range svcList.Items {
-				key := "Service/" + s.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      s.Name,
-					Kind:      "Service",
-					Status:    "Active",
-					CreatedAt: s.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(s.CreationTimestamp.Time)),
-				})
-			}
-		}
-
-		// ConfigMaps
-		cmList, cmErr := cs.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if cmErr == nil {
-			for _, cm := range cmList.Items {
-				key := "ConfigMap/" + cm.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      cm.Name,
-					Kind:      "ConfigMap",
-					CreatedAt: cm.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(cm.CreationTimestamp.Time)),
-				})
-			}
-		}
-
-		// Secrets (non-helm-release)
-		secList, secErr := cs.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if secErr == nil {
-			for _, s := range secList.Items {
-				if s.Labels["owner"] == "helm" {
-					continue // skip helm release secrets
-				}
-				key := "Secret/" + s.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      s.Name,
-					Kind:      "Secret",
-					CreatedAt: s.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(s.CreationTimestamp.Time)),
-				})
-			}
-		}
-
-		// ServiceAccounts
-		saList, saErr := cs.CoreV1().ServiceAccounts(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if saErr == nil {
-			for _, sa := range saList.Items {
-				key := "ServiceAccount/" + sa.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      sa.Name,
-					Kind:      "ServiceAccount",
-					CreatedAt: sa.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(sa.CreationTimestamp.Time)),
-				})
-			}
-		}
-
-		// Ingresses
-		ingList, ingErr := cs.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-		if ingErr == nil {
-			for _, ing := range ingList.Items {
-				key := "Ingress/" + ing.Name
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				items = append(items, model.Item{
-					Name:      ing.Name,
-					Kind:      "Ingress",
-					CreatedAt: ing.CreationTimestamp.Time,
-					Age:       formatAge(time.Since(ing.CreationTimestamp.Time)),
-				})
-			}
-		}
+		collectHelmDeployments(&items, seen, cs, ctx, namespace, opts)
+		collectHelmStatefulSets(&items, seen, cs, ctx, namespace, opts)
+		collectHelmDaemonSets(&items, seen, cs, ctx, namespace, opts)
+		collectHelmSimpleResources(&items, seen, cs, ctx, namespace, opts)
 	}
 
 	if len(items) == 0 {
@@ -345,4 +194,145 @@ func (c *Client) getHelmManagedResources(ctx context.Context, contextName, names
 		return items[i].Name < items[j].Name
 	})
 	return items, nil
+}
+
+// collectHelmDeployments lists Deployments matching opts and appends them (with status/ready) to items.
+func collectHelmDeployments(items *[]model.Item, seen map[string]bool, cs kubernetes.Interface, ctx context.Context, namespace string, opts metav1.ListOptions) {
+	depList, err := cs.AppsV1().Deployments(namespace).List(ctx, opts)
+	if err != nil {
+		return
+	}
+	for _, d := range depList.Items {
+		key := "Deployment/" + d.Name
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		var replicas int32 = 1
+		if d.Spec.Replicas != nil {
+			replicas = *d.Spec.Replicas
+		}
+		ti := model.Item{Name: d.Name, Kind: "Deployment"}
+		if d.Status.AvailableReplicas == replicas {
+			ti.Status = "Available"
+		} else {
+			ti.Status = "Progressing"
+		}
+		ti.Ready = fmt.Sprintf("%d/%d", d.Status.ReadyReplicas, replicas)
+		ti.CreatedAt = d.CreationTimestamp.Time
+		ti.Age = formatAge(time.Since(d.CreationTimestamp.Time))
+		*items = append(*items, ti)
+	}
+}
+
+// collectHelmStatefulSets lists StatefulSets matching opts and appends them (with ready) to items.
+func collectHelmStatefulSets(items *[]model.Item, seen map[string]bool, cs kubernetes.Interface, ctx context.Context, namespace string, opts metav1.ListOptions) {
+	ssList, err := cs.AppsV1().StatefulSets(namespace).List(ctx, opts)
+	if err != nil {
+		return
+	}
+	for _, ss := range ssList.Items {
+		key := "StatefulSet/" + ss.Name
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		var replicas int32 = 1
+		if ss.Spec.Replicas != nil {
+			replicas = *ss.Spec.Replicas
+		}
+		ti := model.Item{Name: ss.Name, Kind: "StatefulSet"}
+		ti.Ready = fmt.Sprintf("%d/%d", ss.Status.ReadyReplicas, replicas)
+		ti.CreatedAt = ss.CreationTimestamp.Time
+		ti.Age = formatAge(time.Since(ss.CreationTimestamp.Time))
+		*items = append(*items, ti)
+	}
+}
+
+// collectHelmDaemonSets lists DaemonSets matching opts and appends them (with ready) to items.
+func collectHelmDaemonSets(items *[]model.Item, seen map[string]bool, cs kubernetes.Interface, ctx context.Context, namespace string, opts metav1.ListOptions) {
+	dsList, err := cs.AppsV1().DaemonSets(namespace).List(ctx, opts)
+	if err != nil {
+		return
+	}
+	for _, ds := range dsList.Items {
+		key := "DaemonSet/" + ds.Name
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		ti := model.Item{Name: ds.Name, Kind: "DaemonSet"}
+		ti.Ready = fmt.Sprintf("%d/%d", ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
+		ti.CreatedAt = ds.CreationTimestamp.Time
+		ti.Age = formatAge(time.Since(ds.CreationTimestamp.Time))
+		*items = append(*items, ti)
+	}
+}
+
+// collectHelmSimpleResources lists Services, ConfigMaps, Secrets,
+// ServiceAccounts, and Ingresses matching opts and appends them to items.
+func collectHelmSimpleResources(items *[]model.Item, seen map[string]bool, cs kubernetes.Interface, ctx context.Context, namespace string, opts metav1.ListOptions) {
+	// Services
+	if svcList, err := cs.CoreV1().Services(namespace).List(ctx, opts); err == nil {
+		for _, s := range svcList.Items {
+			key := "Service/" + s.Name
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			*items = append(*items, model.Item{
+				Name:      s.Name,
+				Kind:      "Service",
+				Status:    "Active",
+				CreatedAt: s.CreationTimestamp.Time,
+				Age:       formatAge(time.Since(s.CreationTimestamp.Time)),
+			})
+		}
+	}
+
+	// ConfigMaps
+	if cmList, err := cs.CoreV1().ConfigMaps(namespace).List(ctx, opts); err == nil {
+		for _, cm := range cmList.Items {
+			appendIfUnseenItem(items, seen, "ConfigMap", cm.Name, cm.CreationTimestamp.Time)
+		}
+	}
+
+	// Secrets (non-helm-release)
+	if secList, err := cs.CoreV1().Secrets(namespace).List(ctx, opts); err == nil {
+		for _, s := range secList.Items {
+			if s.Labels["owner"] == "helm" {
+				continue // skip helm release secrets
+			}
+			appendIfUnseenItem(items, seen, "Secret", s.Name, s.CreationTimestamp.Time)
+		}
+	}
+
+	// ServiceAccounts
+	if saList, err := cs.CoreV1().ServiceAccounts(namespace).List(ctx, opts); err == nil {
+		for _, sa := range saList.Items {
+			appendIfUnseenItem(items, seen, "ServiceAccount", sa.Name, sa.CreationTimestamp.Time)
+		}
+	}
+
+	// Ingresses
+	if ingList, err := cs.NetworkingV1().Ingresses(namespace).List(ctx, opts); err == nil {
+		for _, ing := range ingList.Items {
+			appendIfUnseenItem(items, seen, "Ingress", ing.Name, ing.CreationTimestamp.Time)
+		}
+	}
+}
+
+// appendIfUnseenItem appends an item with no namespace to items if the kind/name key has not been seen.
+func appendIfUnseenItem(items *[]model.Item, seen map[string]bool, kind, name string, createdAt time.Time) {
+	key := kind + "/" + name
+	if seen[key] {
+		return
+	}
+	seen[key] = true
+	*items = append(*items, model.Item{
+		Name:      name,
+		Kind:      kind,
+		CreatedAt: createdAt,
+		Age:       formatAge(time.Since(createdAt)),
+	})
 }

@@ -26,6 +26,14 @@ type StartupPhase struct {
 	Status   string // "completed", "in-progress", "unknown"
 }
 
+// podConditionTimes holds parsed condition timestamps from a pod's status.
+type podConditionTimes struct {
+	scheduled       time.Time
+	initialized     time.Time
+	containersReady time.Time
+	ready           time.Time
+}
+
 // GetPodStartupAnalysis fetches a pod and its events to compute a startup timing breakdown.
 func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespace, podName string) (*PodStartupInfo, error) {
 	clientset, err := c.clientsetForContext(contextName)
@@ -46,25 +54,59 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 	creationTime := pod.CreationTimestamp.Time
 	now := time.Now()
 
-	// Extract condition timestamps.
-	var scheduledTime, initializedTime, containersReadyTime, readyTime time.Time
-	for _, cond := range pod.Status.Conditions {
+	ct := extractConditionTimes(pod.Status.Conditions)
+
+	// Phase 1: Scheduling.
+	appendSchedulingPhase(info, ct.scheduled, creationTime, now)
+
+	// Phase 2: Image Pull (from events).
+	events, err := clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=Pod", podName),
+	})
+	if err == nil && events != nil {
+		appendImagePullPhase(info, events.Items, now)
+	}
+
+	// Phase 3: Init Containers.
+	if len(pod.Spec.InitContainers) > 0 {
+		appendInitContainerPhases(info, ct, pod.Status.InitContainerStatuses, now)
+	}
+
+	// Phase 4: Container Startup.
+	appendContainerStartupPhases(info, ct, pod.Status.ContainerStatuses, now)
+
+	// Phase 5: Readiness.
+	appendReadinessPhase(info, ct.containersReady, ct.ready, now)
+
+	// Compute total time.
+	info.TotalTime = computeTotalStartupTime(creationTime, ct, now)
+
+	return info, nil
+}
+
+// extractConditionTimes parses condition timestamps from a pod's status conditions.
+func extractConditionTimes(conditions []corev1.PodCondition) podConditionTimes {
+	var ct podConditionTimes
+	for _, cond := range conditions {
 		if cond.LastTransitionTime.IsZero() {
 			continue
 		}
 		switch cond.Type {
 		case "PodScheduled":
-			scheduledTime = cond.LastTransitionTime.Time
+			ct.scheduled = cond.LastTransitionTime.Time
 		case "Initialized":
-			initializedTime = cond.LastTransitionTime.Time
+			ct.initialized = cond.LastTransitionTime.Time
 		case "ContainersReady":
-			containersReadyTime = cond.LastTransitionTime.Time
+			ct.containersReady = cond.LastTransitionTime.Time
 		case "Ready":
-			readyTime = cond.LastTransitionTime.Time
+			ct.ready = cond.LastTransitionTime.Time
 		}
 	}
+	return ct
+}
 
-	// Phase 1: Scheduling (Created -> PodScheduled).
+// appendSchedulingPhase adds the scheduling phase (Created -> PodScheduled).
+func appendSchedulingPhase(info *PodStartupInfo, scheduledTime, creationTime, now time.Time) {
 	if !scheduledTime.IsZero() {
 		info.Phases = append(info.Phases, StartupPhase{
 			Name:     "Scheduling",
@@ -78,89 +120,64 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 			Status:   "in-progress",
 		})
 	}
+}
 
-	// Phase 2: Image Pull (from events).
-	events, err := clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=Pod", podName),
-	})
-	if err == nil && events != nil {
-		pullDuration := computeImagePullTime(events.Items)
-		if pullDuration > 0 {
+// appendImagePullPhase adds the image pull phase from events.
+func appendImagePullPhase(info *PodStartupInfo, events []corev1.Event, now time.Time) {
+	pullDuration := computeImagePullTime(events)
+	if pullDuration > 0 {
+		info.Phases = append(info.Phases, StartupPhase{
+			Name:     "Image Pull",
+			Duration: pullDuration,
+			Status:   "completed",
+		})
+		return
+	}
+	// Check if pulling is in progress.
+	for _, ev := range events {
+		if ev.Reason == "Pulling" {
 			info.Phases = append(info.Phases, StartupPhase{
 				Name:     "Image Pull",
-				Duration: pullDuration,
-				Status:   "completed",
-			})
-		} else {
-			// Check if pulling is in progress.
-			for _, ev := range events.Items {
-				if ev.Reason == "Pulling" {
-					info.Phases = append(info.Phases, StartupPhase{
-						Name:     "Image Pull",
-						Duration: now.Sub(ev.LastTimestamp.Time),
-						Status:   "in-progress",
-					})
-					break
-				}
-			}
-		}
-	}
-
-	// Phase 3: Init Containers (PodScheduled -> Initialized).
-	hasInitContainers := len(pod.Spec.InitContainers) > 0
-	if hasInitContainers {
-		if !initializedTime.IsZero() && !scheduledTime.IsZero() {
-			info.Phases = append(info.Phases, StartupPhase{
-				Name:     "Init Containers",
-				Duration: initializedTime.Sub(scheduledTime),
-				Status:   "completed",
-			})
-		} else if !scheduledTime.IsZero() {
-			info.Phases = append(info.Phases, StartupPhase{
-				Name:     "Init Containers",
-				Duration: now.Sub(scheduledTime),
+				Duration: now.Sub(ev.LastTimestamp.Time),
 				Status:   "in-progress",
 			})
-		}
-
-		// Add per-init-container timing if available.
-		for _, cs := range pod.Status.InitContainerStatuses {
-			switch {
-			case cs.State.Terminated != nil:
-				start := cs.State.Terminated.StartedAt.Time
-				finish := cs.State.Terminated.FinishedAt.Time
-				if !start.IsZero() && !finish.IsZero() {
-					info.Phases = append(info.Phases, StartupPhase{
-						Name:     fmt.Sprintf("  init: %s", cs.Name),
-						Duration: finish.Sub(start),
-						Status:   "completed",
-					})
-				}
-			case cs.State.Running != nil:
-				info.Phases = append(info.Phases, StartupPhase{
-					Name:     fmt.Sprintf("  init: %s", cs.Name),
-					Duration: now.Sub(cs.State.Running.StartedAt.Time),
-					Status:   "in-progress",
-				})
-			default:
-				info.Phases = append(info.Phases, StartupPhase{
-					Name:     fmt.Sprintf("  init: %s", cs.Name),
-					Duration: 0,
-					Status:   "unknown",
-				})
-			}
+			break
 		}
 	}
+}
 
-	// Phase 4: Container Startup (Initialized -> ContainersReady).
-	baseTime := initializedTime
+// appendInitContainerPhases adds the overall init container phase and per-container timing.
+func appendInitContainerPhases(info *PodStartupInfo, ct podConditionTimes, statuses []corev1.ContainerStatus, now time.Time) {
+	if !ct.initialized.IsZero() && !ct.scheduled.IsZero() {
+		info.Phases = append(info.Phases, StartupPhase{
+			Name:     "Init Containers",
+			Duration: ct.initialized.Sub(ct.scheduled),
+			Status:   "completed",
+		})
+	} else if !ct.scheduled.IsZero() {
+		info.Phases = append(info.Phases, StartupPhase{
+			Name:     "Init Containers",
+			Duration: now.Sub(ct.scheduled),
+			Status:   "in-progress",
+		})
+	}
+
+	// Add per-init-container timing if available.
+	for _, cs := range statuses {
+		info.Phases = append(info.Phases, containerStatusToPhase(cs, "init", now, time.Time{}))
+	}
+}
+
+// appendContainerStartupPhases adds the overall container startup phase and per-container timing.
+func appendContainerStartupPhases(info *PodStartupInfo, ct podConditionTimes, statuses []corev1.ContainerStatus, now time.Time) {
+	baseTime := ct.initialized
 	if baseTime.IsZero() {
-		baseTime = scheduledTime
+		baseTime = ct.scheduled
 	}
-	if !containersReadyTime.IsZero() && !baseTime.IsZero() {
+	if !ct.containersReady.IsZero() && !baseTime.IsZero() {
 		info.Phases = append(info.Phases, StartupPhase{
 			Name:     "Container Startup",
-			Duration: containersReadyTime.Sub(baseTime),
+			Duration: ct.containersReady.Sub(baseTime),
 			Status:   "completed",
 		})
 	} else if !baseTime.IsZero() {
@@ -172,43 +189,41 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 	}
 
 	// Add per-container timing.
-	for _, cs := range pod.Status.ContainerStatuses {
-		switch {
-		case cs.State.Running != nil:
-			startedAt := cs.State.Running.StartedAt.Time
-			if !startedAt.IsZero() && !containersReadyTime.IsZero() {
-				info.Phases = append(info.Phases, StartupPhase{
-					Name:     fmt.Sprintf("  container: %s", cs.Name),
-					Duration: containersReadyTime.Sub(startedAt),
-					Status:   "completed",
-				})
-			} else if !startedAt.IsZero() {
-				info.Phases = append(info.Phases, StartupPhase{
-					Name:     fmt.Sprintf("  container: %s", cs.Name),
-					Duration: now.Sub(startedAt),
-					Status:   "in-progress",
-				})
-			}
-		case cs.State.Terminated != nil && !cs.State.Terminated.StartedAt.IsZero():
-			start := cs.State.Terminated.StartedAt.Time
-			finish := cs.State.Terminated.FinishedAt.Time
-			if !finish.IsZero() {
-				info.Phases = append(info.Phases, StartupPhase{
-					Name:     fmt.Sprintf("  container: %s", cs.Name),
-					Duration: finish.Sub(start),
-					Status:   "completed",
-				})
-			}
-		default:
-			info.Phases = append(info.Phases, StartupPhase{
-				Name:     fmt.Sprintf("  container: %s", cs.Name),
-				Duration: 0,
-				Status:   "unknown",
-			})
-		}
+	for _, cs := range statuses {
+		info.Phases = append(info.Phases, containerStatusToPhase(cs, "container", now, ct.containersReady))
 	}
+}
 
-	// Phase 5: Readiness (ContainersReady -> Ready).
+// containerStatusToPhase converts a container status into a startup phase entry.
+// prefix is "init" or "container". endTime is used as the end of a running container's
+// phase (containersReadyTime for regular containers, zero for init containers).
+func containerStatusToPhase(cs corev1.ContainerStatus, prefix string, now, endTime time.Time) StartupPhase {
+	phaseName := fmt.Sprintf("  %s: %s", prefix, cs.Name)
+
+	switch {
+	case cs.State.Terminated != nil:
+		start := cs.State.Terminated.StartedAt.Time
+		finish := cs.State.Terminated.FinishedAt.Time
+		if !start.IsZero() && !finish.IsZero() {
+			return StartupPhase{Name: phaseName, Duration: finish.Sub(start), Status: "completed"}
+		}
+		return StartupPhase{Name: phaseName, Duration: 0, Status: "unknown"}
+	case cs.State.Running != nil:
+		startedAt := cs.State.Running.StartedAt.Time
+		if !startedAt.IsZero() && !endTime.IsZero() {
+			return StartupPhase{Name: phaseName, Duration: endTime.Sub(startedAt), Status: "completed"}
+		}
+		if !startedAt.IsZero() {
+			return StartupPhase{Name: phaseName, Duration: now.Sub(startedAt), Status: "in-progress"}
+		}
+		return StartupPhase{Name: phaseName, Duration: 0, Status: "unknown"}
+	default:
+		return StartupPhase{Name: phaseName, Duration: 0, Status: "unknown"}
+	}
+}
+
+// appendReadinessPhase adds the readiness probe phase (ContainersReady -> Ready).
+func appendReadinessPhase(info *PodStartupInfo, containersReadyTime, readyTime, now time.Time) {
 	if !readyTime.IsZero() && !containersReadyTime.IsZero() {
 		readinessDur := readyTime.Sub(containersReadyTime)
 		if readinessDur > 0 {
@@ -225,18 +240,18 @@ func (c *Client) GetPodStartupAnalysis(ctx context.Context, contextName, namespa
 			Status:   "in-progress",
 		})
 	}
+}
 
-	// Compute total time.
+// computeTotalStartupTime computes the total startup time from creation to ready.
+func computeTotalStartupTime(creationTime time.Time, ct podConditionTimes, now time.Time) time.Duration {
 	switch {
-	case !readyTime.IsZero():
-		info.TotalTime = readyTime.Sub(creationTime)
-	case !containersReadyTime.IsZero():
-		info.TotalTime = containersReadyTime.Sub(creationTime)
+	case !ct.ready.IsZero():
+		return ct.ready.Sub(creationTime)
+	case !ct.containersReady.IsZero():
+		return ct.containersReady.Sub(creationTime)
 	default:
-		info.TotalTime = now.Sub(creationTime)
+		return now.Sub(creationTime)
 	}
-
-	return info, nil
 }
 
 // computeImagePullTime calculates total image pull duration from events.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
@@ -232,97 +233,7 @@ func (c *Client) GetResources(ctx context.Context, contextName, namespace string
 
 	items := make([]model.Item, 0, len(list.Items))
 	for _, item := range list.Items {
-		ti := model.Item{
-			Name:   item.GetName(),
-			Kind:   item.GetKind(),
-			Status: extractStatus(item.Object),
-		}
-
-		// Check if the resource is being deleted.
-		if item.GetDeletionTimestamp() != nil {
-			ti.Deleting = true
-			ti.Columns = append(ti.Columns, model.KeyValue{
-				Key:   "Deletion",
-				Value: item.GetDeletionTimestamp().Format(time.RFC3339),
-			})
-		}
-
-		// Always populate namespace for namespaced resources so that actions
-		// (logs, exec, etc.) use the item's actual namespace, not the selector.
-		if rt.Namespaced {
-			ti.Namespace = item.GetNamespace()
-		}
-
-		// Populate Age from creationTimestamp.
-		creationTS := item.GetCreationTimestamp()
-		if !creationTS.IsZero() {
-			ti.CreatedAt = creationTS.Time
-			ti.Age = formatAge(time.Since(creationTS.Time))
-		}
-
-		// Populate Ready and Restarts based on kind.
-		populateResourceDetails(&ti, item.Object, rt.Kind)
-
-		// Override status to "Terminating" for resources marked for deletion.
-		applyDeletionStatus(&ti)
-
-		// Add "Used By" column for PVCs showing which pods reference the claim.
-		if rt.Kind == "PersistentVolumeClaim" {
-			if pods, err := c.GetPodsUsingPVC(ctx, contextName, ti.Namespace, ti.Name); err == nil && len(pods) > 0 {
-				ti.Columns = append(ti.Columns, model.KeyValue{Key: "Used By", Value: strings.Join(pods, ", ")})
-			}
-		}
-
-		// Evaluate CRD additionalPrinterColumns if present.
-		if len(rt.PrinterColumns) > 0 {
-			// Build a set of existing column keys to avoid duplicates.
-			existingKeys := make(map[string]bool, len(ti.Columns))
-			for _, kv := range ti.Columns {
-				existingKeys[kv.Key] = true
-			}
-			for _, pc := range rt.PrinterColumns {
-				if existingKeys[pc.Name] {
-					continue
-				}
-				val, ok := evaluateSimpleJSONPath(item.Object, pc.JSONPath)
-				if !ok || val == nil {
-					continue
-				}
-				formatted := formatPrinterValue(val, pc.Type)
-				if formatted == "" {
-					continue
-				}
-				// Skip printer columns that duplicate the STATUS column
-				// (exact match or contained within, e.g., "Healthy" in "Healthy/Synced").
-				if formatted == ti.Status || strings.Contains(ti.Status, formatted) {
-					continue
-				}
-				ti.Columns = append(ti.Columns, model.KeyValue{Key: pc.Name, Value: formatted})
-			}
-		}
-
-		// Extract owner references for navigation.
-		if metadata, ok := item.Object["metadata"].(map[string]interface{}); ok {
-			if ownerRefs, ok := metadata["ownerReferences"].([]interface{}); ok {
-				for i, ref := range ownerRefs {
-					if refMap, ok := ref.(map[string]interface{}); ok {
-						kind, _ := refMap["kind"].(string)
-						name, _ := refMap["name"].(string)
-						apiVersion, _ := refMap["apiVersion"].(string)
-						if kind != "" && name != "" {
-							ti.Columns = append(ti.Columns, model.KeyValue{
-								Key:   fmt.Sprintf("owner:%d", i),
-								Value: apiVersion + "||" + kind + "||" + name,
-							})
-						}
-					}
-				}
-			}
-		}
-
-		// Extract labels, finalizers, and annotation count from metadata.
-		populateMetadataFields(&ti, item.Object)
-
+		ti := c.buildResourceItem(ctx, contextName, &item, &rt)
 		items = append(items, ti)
 	}
 	// Sort events by time (newest first); all other resources alphabetically by name.
@@ -332,4 +243,119 @@ func (c *Client) GetResources(ctx context.Context, contextName, namespace string
 		sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 	}
 	return items, nil
+}
+
+// buildResourceItem converts a single unstructured resource into a model.Item.
+func (c *Client) buildResourceItem(ctx context.Context, contextName string, item *unstructured.Unstructured, rt *model.ResourceTypeEntry) model.Item {
+	ti := model.Item{
+		Name:   item.GetName(),
+		Kind:   item.GetKind(),
+		Status: extractStatus(item.Object),
+	}
+
+	// Check if the resource is being deleted.
+	if item.GetDeletionTimestamp() != nil {
+		ti.Deleting = true
+		ti.Columns = append(ti.Columns, model.KeyValue{
+			Key:   "Deletion",
+			Value: item.GetDeletionTimestamp().Format(time.RFC3339),
+		})
+	}
+
+	// Always populate namespace for namespaced resources so that actions
+	// (logs, exec, etc.) use the item's actual namespace, not the selector.
+	if rt.Namespaced {
+		ti.Namespace = item.GetNamespace()
+	}
+
+	// Populate Age from creationTimestamp.
+	creationTS := item.GetCreationTimestamp()
+	if !creationTS.IsZero() {
+		ti.CreatedAt = creationTS.Time
+		ti.Age = formatAge(time.Since(creationTS.Time))
+	}
+
+	// Populate Ready and Restarts based on kind.
+	populateResourceDetails(&ti, item.Object, rt.Kind)
+
+	// Override status to "Terminating" for resources marked for deletion.
+	applyDeletionStatus(&ti)
+
+	// Add "Used By" column for PVCs showing which pods reference the claim.
+	if rt.Kind == "PersistentVolumeClaim" {
+		if pods, err := c.GetPodsUsingPVC(ctx, contextName, ti.Namespace, ti.Name); err == nil && len(pods) > 0 {
+			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Used By", Value: strings.Join(pods, ", ")})
+		}
+	}
+
+	// Evaluate CRD additionalPrinterColumns if present.
+	populatePrinterColumns(&ti, item.Object, rt.PrinterColumns)
+
+	// Extract owner references for navigation.
+	populateOwnerReferences(&ti, item.Object)
+
+	// Extract labels, finalizers, and annotation count from metadata.
+	populateMetadataFields(&ti, item.Object)
+
+	return ti
+}
+
+// populatePrinterColumns evaluates CRD additionalPrinterColumns and appends
+// them to the item's columns, skipping duplicates and status-matching values.
+func populatePrinterColumns(ti *model.Item, obj map[string]interface{}, printerColumns []model.PrinterColumn) {
+	if len(printerColumns) == 0 {
+		return
+	}
+	// Build a set of existing column keys to avoid duplicates.
+	existingKeys := make(map[string]bool, len(ti.Columns))
+	for _, kv := range ti.Columns {
+		existingKeys[kv.Key] = true
+	}
+	for _, pc := range printerColumns {
+		if existingKeys[pc.Name] {
+			continue
+		}
+		val, ok := evaluateSimpleJSONPath(obj, pc.JSONPath)
+		if !ok || val == nil {
+			continue
+		}
+		formatted := formatPrinterValue(val, pc.Type)
+		if formatted == "" {
+			continue
+		}
+		// Skip printer columns that duplicate the STATUS column
+		// (exact match or contained within, e.g., "Healthy" in "Healthy/Synced").
+		if formatted == ti.Status || strings.Contains(ti.Status, formatted) {
+			continue
+		}
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: pc.Name, Value: formatted})
+	}
+}
+
+// populateOwnerReferences extracts owner references from the object metadata
+// and appends them as columns for navigation.
+func populateOwnerReferences(ti *model.Item, obj map[string]interface{}) {
+	metadata, ok := obj["metadata"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	ownerRefs, ok := metadata["ownerReferences"].([]interface{})
+	if !ok {
+		return
+	}
+	for i, ref := range ownerRefs {
+		refMap, ok := ref.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		kind, _ := refMap["kind"].(string)
+		name, _ := refMap["name"].(string)
+		apiVersion, _ := refMap["apiVersion"].(string)
+		if kind != "" && name != "" {
+			ti.Columns = append(ti.Columns, model.KeyValue{
+				Key:   fmt.Sprintf("owner:%d", i),
+				Value: apiVersion + "||" + kind + "||" + name,
+			})
+		}
+	}
 }
