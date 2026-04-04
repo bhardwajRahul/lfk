@@ -1311,6 +1311,81 @@ func TestCovCompareResourceValuesEqual(t *testing.T) {
 	assert.False(t, result) // equal, not less
 }
 
+func TestSortMiddleItemsResourceQuantities(t *testing.T) {
+	origCols := ui.ActiveSortableColumns
+	t.Cleanup(func() { ui.ActiveSortableColumns = origCols })
+	ui.ActiveSortableColumns = []string{"Capacity"}
+
+	m := Model{
+		nav:    model.NavigationState{Level: model.LevelResources},
+		tabs:   []TabState{{}},
+		execMu: &sync.Mutex{},
+	}
+
+	m.middleItems = []model.Item{
+		{Name: "pv-a", Columns: []model.KeyValue{{Key: "Capacity", Value: "10Gi"}}},
+		{Name: "pv-b", Columns: []model.KeyValue{{Key: "Capacity", Value: "50Gi"}}},
+		{Name: "pv-c", Columns: []model.KeyValue{{Key: "Capacity", Value: "5Gi"}}},
+	}
+	m.sortColumnName = "Capacity"
+	m.sortAscending = true
+
+	m.sortMiddleItems()
+	assert.Equal(t, "pv-c", m.middleItems[0].Name) // 5Gi
+	assert.Equal(t, "pv-a", m.middleItems[1].Name) // 10Gi
+	assert.Equal(t, "pv-b", m.middleItems[2].Name) // 50Gi
+}
+
+func TestSortMiddleItemsPlainNumbers(t *testing.T) {
+	origCols := ui.ActiveSortableColumns
+	t.Cleanup(func() { ui.ActiveSortableColumns = origCols })
+	ui.ActiveSortableColumns = []string{"Replicas"}
+
+	m := Model{
+		nav:    model.NavigationState{Level: model.LevelResources},
+		tabs:   []TabState{{}},
+		execMu: &sync.Mutex{},
+	}
+
+	m.middleItems = []model.Item{
+		{Name: "d-a", Columns: []model.KeyValue{{Key: "Replicas", Value: "10"}}},
+		{Name: "d-b", Columns: []model.KeyValue{{Key: "Replicas", Value: "2"}}},
+		{Name: "d-c", Columns: []model.KeyValue{{Key: "Replicas", Value: "100"}}},
+	}
+	m.sortColumnName = "Replicas"
+	m.sortAscending = true
+
+	m.sortMiddleItems()
+	assert.Equal(t, "d-b", m.middleItems[0].Name) // 2
+	assert.Equal(t, "d-a", m.middleItems[1].Name) // 10
+	assert.Equal(t, "d-c", m.middleItems[2].Name) // 100
+}
+
+func TestSortMiddleItemsMixedMiGi(t *testing.T) {
+	origCols := ui.ActiveSortableColumns
+	t.Cleanup(func() { ui.ActiveSortableColumns = origCols })
+	ui.ActiveSortableColumns = []string{"Storage"}
+
+	m := Model{
+		nav:    model.NavigationState{Level: model.LevelResources},
+		tabs:   []TabState{{}},
+		execMu: &sync.Mutex{},
+	}
+
+	m.middleItems = []model.Item{
+		{Name: "pv-a", Columns: []model.KeyValue{{Key: "Storage", Value: "512Mi"}}},
+		{Name: "pv-b", Columns: []model.KeyValue{{Key: "Storage", Value: "2Gi"}}},
+		{Name: "pv-c", Columns: []model.KeyValue{{Key: "Storage", Value: "100Mi"}}},
+	}
+	m.sortColumnName = "Storage"
+	m.sortAscending = true
+
+	m.sortMiddleItems()
+	assert.Equal(t, "pv-c", m.middleItems[0].Name) // 100Mi
+	assert.Equal(t, "pv-a", m.middleItems[1].Name) // 512Mi
+	assert.Equal(t, "pv-b", m.middleItems[2].Name) // 2Gi
+}
+
 func TestCovErrorLogVisibleCount(t *testing.T) {
 	m := baseModelCov()
 	m.addLogEntry("INF", "log1")

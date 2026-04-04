@@ -120,14 +120,10 @@ func (m *Model) sortMiddleItems() {
 				less = a.CreatedAt.After(b.CreatedAt) // newest first is "ascending" for age
 			}
 		default:
-			// Extra column: compare values as strings, with numeric awareness for CPU/MEM.
+			// Extra column: compare with numeric/resource-quantity awareness.
 			va := getColumnValue(a, colName)
 			vb := getColumnValue(b, colName)
-			if colName == "CPU" || colName == "MEM" || colName == "CPU/R" || colName == "CPU/L" || colName == "MEM/R" || colName == "MEM/L" {
-				less = compareResourceValues(va, vb, colName)
-			} else {
-				less = strings.ToLower(va) < strings.ToLower(vb)
-			}
+			less = compareColumnValues(va, vb, colName)
 		}
 		if !asc {
 			return !less
@@ -166,6 +162,45 @@ func compareResourceValues(a, b, col string) bool {
 	va := ui.ParseResourceValue(a, isCPU)
 	vb := ui.ParseResourceValue(b, isCPU)
 	return va < vb
+}
+
+// compareColumnValues compares two column values with automatic detection of
+// resource quantities (10Gi, 500Mi, 100m), plain numbers, and strings.
+func compareColumnValues(a, b, colName string) bool {
+	// Known CPU/MEM columns: use resource value parser directly.
+	if colName == "CPU" || colName == "MEM" || colName == "CPU/R" || colName == "CPU/L" || colName == "MEM/R" || colName == "MEM/L" {
+		return compareResourceValues(a, b, colName)
+	}
+
+	// Try parsing as resource quantities (Gi, Mi, Ki, B suffixes or millicores).
+	if looksLikeResourceQuantity(a) || looksLikeResourceQuantity(b) {
+		va := ui.ParseResourceValue(a, false)
+		vb := ui.ParseResourceValue(b, false)
+		if va != 0 || vb != 0 {
+			return va < vb
+		}
+	}
+
+	// Try parsing as plain numbers.
+	na, errA := strconv.ParseFloat(strings.TrimSpace(a), 64)
+	nb, errB := strconv.ParseFloat(strings.TrimSpace(b), 64)
+	if errA == nil && errB == nil {
+		return na < nb
+	}
+
+	// Fall back to lexicographic comparison.
+	return strings.ToLower(a) < strings.ToLower(b)
+}
+
+// looksLikeResourceQuantity returns true if the value has a Kubernetes resource
+// quantity suffix (Gi, Mi, Ki, B, m for millicores).
+func looksLikeResourceQuantity(s string) bool {
+	s = strings.TrimSpace(s)
+	return strings.HasSuffix(s, "Gi") ||
+		strings.HasSuffix(s, "Mi") ||
+		strings.HasSuffix(s, "Ki") ||
+		strings.HasSuffix(s, "Ti") ||
+		(strings.HasSuffix(s, "m") && len(s) > 1 && s[len(s)-2] >= '0' && s[len(s)-2] <= '9')
 }
 
 func getColumnValue(item model.Item, key string) string {
