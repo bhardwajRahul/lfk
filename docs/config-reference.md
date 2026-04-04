@@ -190,6 +190,7 @@ To override or extend:
 ```yaml
 abbreviations:
   po: pod
+  dep: deployment
   deploy: deployment
   svc: service
   ing: ingress
@@ -208,6 +209,8 @@ abbreviations:
 | Abbreviation | Resource Type |
 |---|---|
 | `po` | pod |
+| `dp` | deployment |
+| `dep` | deployment |
 | `deploy` | deployment |
 | `rs` | replicaset |
 | `sts` | statefulset |

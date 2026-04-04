@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -28,22 +29,69 @@ func TestStatusBarCommandBarActive(t *testing.T) {
 	assert.Contains(t, stripped, "get pods")
 }
 
-func TestStatusBarCommandBarWithSuggestions(t *testing.T) {
+func TestStatusBarCommandBarWithSuggestionsNoInline(t *testing.T) {
 	m := Model{
 		nav:                          model.NavigationState{Level: model.LevelResources},
 		commandBarActive:             true,
 		commandBarInput:              TextInput{Value: "get"},
-		commandBarSuggestions:        []string{"get pods", "get deployments", "get services"},
+		commandBarSuggestions:        []ui.Suggestion{{Text: "get pods", Category: "subcommand"}, {Text: "get deployments", Category: "subcommand"}, {Text: "get services", Category: "subcommand"}},
 		commandBarSelectedSuggestion: 1,
 		width:                        120,
 		height:                       40,
 		tabs:                         []TabState{{}},
 		selectedItems:                make(map[string]bool),
 	}
+	// Suggestions should NOT appear inline in the status bar anymore.
 	bar := m.statusBar()
 	stripped := stripANSI(bar)
-	assert.Contains(t, stripped, "get pods")
-	assert.Contains(t, stripped, "get deployments")
+	assert.NotContains(t, stripped, "get pods")
+	assert.NotContains(t, stripped, "get deployments")
+
+	// Suggestions should appear in the dropdown instead.
+	dropdown := m.commandBarDropdown()
+	assert.NotEmpty(t, dropdown)
+	droppedStripped := stripANSI(dropdown)
+	assert.Contains(t, droppedStripped, "get pods")
+	assert.Contains(t, droppedStripped, "get deployments")
+	assert.Contains(t, droppedStripped, "get services")
+}
+
+func TestCommandBarDropdownEmpty(t *testing.T) {
+	m := Model{
+		commandBarActive:      false,
+		commandBarSuggestions: nil,
+		width:                 120,
+		height:                40,
+	}
+	assert.Empty(t, m.commandBarDropdown())
+}
+
+func TestCommandBarDropdownActiveNoSuggestions(t *testing.T) {
+	m := Model{
+		commandBarActive:      true,
+		commandBarSuggestions: nil,
+		width:                 120,
+		height:                40,
+	}
+	assert.Empty(t, m.commandBarDropdown())
+}
+
+func TestCommandBarDropdownMaxHeight(t *testing.T) {
+	m := Model{
+		commandBarActive: true,
+		commandBarSuggestions: []ui.Suggestion{
+			{Text: "a", Category: "cmd"},
+			{Text: "b", Category: "cmd"},
+			{Text: "c", Category: "cmd"},
+		},
+		commandBarSelectedSuggestion: 0,
+		width:                        80,
+		height:                       6, // height/2 = 3, capped at 3
+	}
+	dropdown := m.commandBarDropdown()
+	assert.NotEmpty(t, dropdown)
+	lines := strings.Split(dropdown, "\n")
+	assert.Equal(t, 3, len(lines))
 }
 
 // --- statusBar: filter active ---

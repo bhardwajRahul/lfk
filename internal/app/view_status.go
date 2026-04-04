@@ -72,16 +72,31 @@ func (m Model) statusBar() string {
 
 	// Show command bar when active.
 	if m.commandBarActive {
-		prompt := ui.HelpKeyStyle.Render(":") + m.commandBarInput.CursorLeft() + ui.BarDimStyle.Render("\u2588") + m.commandBarInput.CursorRight()
-		if len(m.commandBarSuggestions) > 0 {
-			prompt += "  "
-			for i, s := range m.commandBarSuggestions {
-				if i == m.commandBarSelectedSuggestion {
-					prompt += ui.OverlaySelectedStyle.Render(" "+s+" ") + " "
-				} else {
-					prompt += ui.BarDimStyle.Render(s) + " "
-				}
+		var prompt string
+		if m.commandBarPreview != "" {
+			// Ghost preview mode: show typed text + ghost completion (dimmed) + cursor at end.
+			typed := m.commandBarInput.Value
+			lastSpace := strings.LastIndex(typed, " ")
+			partial := typed
+			if lastSpace >= 0 {
+				partial = typed[lastSpace+1:]
 			}
+			ghost := m.commandBarPreview
+			lp := strings.ToLower(partial)
+			lg := strings.ToLower(ghost)
+			if strings.HasPrefix(lg, lp) {
+				ghost = ghost[len(partial):]
+			}
+			prompt = ui.HelpKeyStyle.Render(":") +
+				typed +
+				ui.BarDimStyle.Render(ghost) +
+				ui.BarDimStyle.Render("\u2588")
+		} else {
+			// Normal mode: cursor at current position.
+			prompt = ui.HelpKeyStyle.Render(":") +
+				m.commandBarInput.CursorLeft() +
+				ui.BarDimStyle.Render("\u2588") +
+				m.commandBarInput.CursorRight()
 		}
 		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).Render(prompt)
 	}

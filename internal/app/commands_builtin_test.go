@@ -10,11 +10,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestCov80IsKubectlCommandDirect(t *testing.T) {
-	assert.True(t, isKubectlCommand("kubectl get pods"))
-	assert.True(t, isKubectlCommand("kubectl"))
-	assert.True(t, isKubectlCommand("get pods"))
-	assert.False(t, isKubectlCommand("helm install"))
+func TestCov80ClassifyInputKubectl(t *testing.T) {
+	assert.Equal(t, cmdKubectl, classifyInput("kubectl get pods"))
+	assert.Equal(t, cmdKubectl, classifyInput("kubectl"))
+	assert.Equal(t, cmdUnknown, classifyInput("get pods"))
+	assert.NotEqual(t, cmdKubectl, classifyInput("helm install"))
 }
 
 func TestCov80ShellQuote(t *testing.T) {

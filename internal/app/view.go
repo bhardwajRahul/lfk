@@ -180,6 +180,17 @@ func (m Model) viewExplorer() string {
 		contentHeight-- // tab bar takes one line
 	}
 
+	// Command bar dropdown (rendered above the status bar).
+	dropdown := m.commandBarDropdown()
+	dropdownHeight := 0
+	if dropdown != "" {
+		dropdownHeight = strings.Count(dropdown, "\n") + 1
+		contentHeight -= dropdownHeight
+		if contentHeight < 3 {
+			contentHeight = 3
+		}
+	}
+
 	// Column padding is 1 on each side, so inner content width is 2 less.
 	colPad := 2
 	leftInner := leftW - colPad
@@ -253,8 +264,36 @@ func (m Model) viewExplorer() string {
 	if tabBar != "" {
 		parts = append(parts, tabBar)
 	}
-	parts = append(parts, columns, status)
+	parts = append(parts, columns)
+	if dropdown != "" {
+		parts = append(parts, dropdown)
+	}
+	parts = append(parts, status)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+// commandBarDropdown renders the vertical suggestion dropdown for the command bar.
+// Returns an empty string when the command bar is inactive or has no suggestions.
+func (m Model) commandBarDropdown() string {
+	if !m.commandBarActive || len(m.commandBarSuggestions) == 0 {
+		return ""
+	}
+
+	maxHeight := m.height / 2
+	if maxHeight > 10 {
+		maxHeight = 10
+	}
+
+	if maxHeight < 1 {
+		maxHeight = 1
+	}
+
+	return ui.RenderCommandDropdown(
+		m.commandBarSuggestions,
+		m.commandBarSelectedSuggestion,
+		maxHeight,
+		m.width,
+	)
 }
 
 func (m Model) renderTitleBar() string {

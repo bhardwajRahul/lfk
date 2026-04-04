@@ -43,78 +43,80 @@ dashboard: true
 # When not configured, lfk auto-discovers monitoring services by trying
 # common service names across common namespaces.
 monitoring:
-  # my-prod-cluster:
-  #   prometheus:
-  #     namespaces: ["monitoring"]
-  #     services: ["thanos-query"]
-  #     port: "9090"
-  #   alertmanager:
-  #     namespaces: ["monitoring"]
-  #     services: ["alertmanager-main"]
-  #     port: "9093"
-  #   node_metrics: prometheus  # "prometheus" or "metrics-api" (default: auto-detect)
-  # default:
-  #   prometheus:
-  #     namespaces: ["monitoring", "observability"]
-  #     services: ["prometheus-server", "prometheus"]
+# my-prod-cluster:
+#   prometheus:
+#     namespaces: ["monitoring"]
+#     services: ["thanos-query"]
+#     port: "9090"
+#   alertmanager:
+#     namespaces: ["monitoring"]
+#     services: ["alertmanager-main"]
+#     port: "9093"
+#   node_metrics: prometheus  # "prometheus" or "metrics-api" (default: auto-detect)
+# default:
+#   prometheus:
+#     namespaces: ["monitoring", "observability"]
+#     services: ["prometheus-server", "prometheus"]
 
 # ─── Per-Resource-Type Columns ─────────────────────────────────────────────────
 # Configure visible columns for specific resource types (Kind names, case-insensitive).
 # When not set for a kind, columns are auto-detected from resource data.
 resource_columns:
-  # Pod: ["IP", "Node", "Image", "CPU", "MEM", "CPU/R", "CPU/L", "MEM/R", "MEM/L"]
-  # Deployment: ["Replicas", "Available", "CPU", "MEM"]
-  # Service: ["*"]  # show all for Services
-  # StatefulSet: ["Replicas"]
+# Pod: ["IP", "Node", "Image", "CPU", "MEM", "CPU/R", "CPU/L", "MEM/R", "MEM/L"]
+# Deployment: ["Replicas", "Available", "CPU", "MEM"]
+# Service: ["*"]  # show all for Services
+# StatefulSet: ["Replicas"]
 
 # ─── Per-Cluster Overrides ─────────────────────────────────────────────────────
 # Override settings per kubeconfig context name.
 # Currently supports per-cluster resource_columns (same format as global).
 # Per-cluster columns take precedence over the global resource_columns setting.
 clusters:
-  # my-prod-cluster:
-  #   resource_columns:
-  #     Pod: ["IP", "Node", "Image", "CPU", "MEM"]
-  #     Deployment: ["Replicas", "Available"]
-  # my-staging-cluster:
-  #   resource_columns:
-  #     Pod: ["IP", "Node", "Image"]
+# my-prod-cluster:
+#   resource_columns:
+#     Pod: ["IP", "Node", "Image", "CPU", "MEM"]
+#     Deployment: ["Replicas", "Available"]
+# my-staging-cluster:
+#   resource_columns:
+#     Pod: ["IP", "Node", "Image"]
 
 # ─── Theme ─────────────────────────────────────────────────────────────────────
 # Custom color theme. All values are CSS hex color codes.
 # Only specify colors you want to override; others keep colorscheme defaults.
 theme:
-  primary: "#7aa2f7"       # Borders, headers, breadcrumbs, active columns
-  secondary: "#9ece6a"     # Help keys, running status, success markers
-  text: "#c0caf5"          # Normal text
-  selected_fg: "#1a1b26"   # Selected item foreground
-  selected_bg: "#7aa2f7"   # Selected item background
-  border: "#3b4261"        # Inactive borders
-  dimmed: "#565f89"        # Help text, placeholders, dimmed items
-  error: "#f7768e"         # Errors, failures, delete confirmations
-  warning: "#e0af68"       # Warnings, pending status, namespace indicator
-  purple: "#bb9af7"        # Special values
-  base: "#1a1b26"          # Dark background base
-  bar_bg: "#24283b"        # Title and status bar backgrounds
-  surface: "#1f2335"       # Surface color for overlays
+  primary: "#7aa2f7" # Borders, headers, breadcrumbs, active columns
+  secondary: "#9ece6a" # Help keys, running status, success markers
+  text: "#c0caf5" # Normal text
+  selected_fg: "#1a1b26" # Selected item foreground
+  selected_bg: "#7aa2f7" # Selected item background
+  border: "#3b4261" # Inactive borders
+  dimmed: "#565f89" # Help text, placeholders, dimmed items
+  error: "#f7768e" # Errors, failures, delete confirmations
+  warning: "#e0af68" # Warnings, pending status, namespace indicator
+  purple: "#bb9af7" # Special values
+  base: "#1a1b26" # Dark background base
+  bar_bg: "#24283b" # Title and status bar backgrounds
+  surface: "#1f2335" # Surface color for overlays
 
 # ─── Keybindings ───────────────────────────────────────────────────────────────
 # Override direct-action keybindings. Navigation and other keys are fixed.
 keybindings:
-  logs: "L"                # View logs (default: L)
-  refresh: "R"             # Refresh view (default: R)
-  restart: "r"             # Restart resource (default: r)
-  exec: "s"                # Exec into pod (default: s)
-  describe: "v"            # Describe resource (default: v)
-  delete: "D"              # Delete resource (default: D)
-  force_delete: "X"        # Force delete resource (default: X)
-  scale: "S"               # Scale resource (default: S)
+  logs: "L" # View logs (default: L)
+  refresh: "R" # Refresh view (default: R)
+  restart: "r" # Restart resource (default: r)
+  exec: "s" # Exec into pod (default: s)
+  describe: "v" # Describe resource (default: v)
+  delete: "D" # Delete resource (default: D)
+  force_delete: "X" # Force delete resource (default: X)
+  scale: "S" # Scale resource (default: S)
 
 # ─── Search Abbreviations ─────────────────────────────────────────────────────
 # Short names for resource types used in search/filter.
 # These extend the built-in defaults. Override a built-in by redefining the key.
 abbreviations:
   po: pod
+  dp: deployment
+  dep: deployment
   deploy: deployment
   rs: replicaset
   sts: statefulset
@@ -163,29 +165,29 @@ abbreviations:
 # Commands are executed via `sh -c` with KUBECONFIG set.
 # Interactive commands (ssh, etc.) hand over the terminal.
 custom_actions:
-  # Pod:
-  #   - label: "SSH to Node"
-  #     command: "ssh {Node}"
-  #     key: "S"
-  #     description: "SSH into the pod's node"
-  #   - label: "Copy Logs"
-  #     command: "kubectl logs {name} -n {namespace} --context {context} > /tmp/{name}.log"
-  #     key: "C"
-  #     description: "Copy pod logs to file"
-  #   - label: "Tcpdump"
-  #     command: "kubectl exec -it {name} -n {namespace} --context {context} -- tcpdump -i any -w /tmp/capture.pcap"
-  #     key: "T"
-  #     description: "Capture network traffic"
-  # Deployment:
-  #   - label: "Rollout History"
-  #     command: "kubectl rollout history deployment/{name} -n {namespace} --context {context}"
-  #     key: "H"
-  #     description: "Show deployment rollout history"
-  # Service:
-  #   - label: "Curl Endpoint"
-  #     command: "kubectl run curl-test --rm -it --image=curlimages/curl --restart=Never -n {namespace} --context {context} -- curl -s http://{name}"
-  #     key: "C"
-  #     description: "Curl the service endpoint"
+# Pod:
+#   - label: "SSH to Node"
+#     command: "ssh {Node}"
+#     key: "S"
+#     description: "SSH into the pod's node"
+#   - label: "Copy Logs"
+#     command: "kubectl logs {name} -n {namespace} --context {context} > /tmp/{name}.log"
+#     key: "C"
+#     description: "Copy pod logs to file"
+#   - label: "Tcpdump"
+#     command: "kubectl exec -it {name} -n {namespace} --context {context} -- tcpdump -i any -w /tmp/capture.pcap"
+#     key: "T"
+#     description: "Capture network traffic"
+# Deployment:
+#   - label: "Rollout History"
+#     command: "kubectl rollout history deployment/{name} -n {namespace} --context {context}"
+#     key: "H"
+#     description: "Show deployment rollout history"
+# Service:
+#   - label: "Curl Endpoint"
+#     command: "kubectl run curl-test --rm -it --image=curlimages/curl --restart=Never -n {namespace} --context {context} -- curl -s http://{name}"
+#     key: "C"
+#     description: "Curl the service endpoint"
 
 # ─── Filter Presets ───────────────────────────────────────────────────────────
 # Define custom quick filter presets per resource type.
@@ -205,28 +207,28 @@ custom_actions:
 # Deployment gets NotReady/Failing, etc.). Universal presets (Old, Recent)
 # are always shown. Your custom presets appear after the built-ins.
 filter_presets:
-  # Pod:
-  #   - name: "On GPU Nodes"
-  #     key: "g"
-  #     match:
-  #       column: "Node"
-  #       column_value: "gpu"
-  #   - name: "High Memory"
-  #     key: "m"
-  #     match:
-  #       column: "MEM"
-  #       column_value: "Gi"
-  # Deployment:
-  #   - name: "Single Replica"
-  #     key: "1"
-  #     match:
-  #       column: "Replicas"
-  #       column_value: "1"
-  # Event:
-  #   - name: "OOM Events"
-  #     key: "m"
-  #     match:
-  #       status: "OOMKilled"
+# Pod:
+#   - name: "On GPU Nodes"
+#     key: "g"
+#     match:
+#       column: "Node"
+#       column_value: "gpu"
+#   - name: "High Memory"
+#     key: "m"
+#     match:
+#       column: "MEM"
+#       column_value: "Gi"
+# Deployment:
+#   - name: "Single Replica"
+#     key: "1"
+#     match:
+#       column: "Replicas"
+#       column_value: "1"
+# Event:
+#   - name: "OOM Events"
+#     key: "m"
+#     match:
+#       status: "OOMKilled"
 
 # ─── Pinned CRD Groups ──────────────────────────────────────────────────────
 # Pin CRD API groups so they appear right after built-in categories

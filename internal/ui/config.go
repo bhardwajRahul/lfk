@@ -322,6 +322,8 @@ func DefaultAbbreviations() map[string]string {
 		"hpa":    "horizontalpodautoscaler",
 		"vpa":    "verticalpodautoscaler",
 		"ds":     "daemonset",
+		"dp":     "deployment",
+		"dep":    "deployment",
 		"deploy": "deployment",
 		"sts":    "statefulset",
 		"svc":    "service",

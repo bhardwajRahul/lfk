@@ -71,188 +71,58 @@ func TestShellQuote(t *testing.T) {
 	}
 }
 
-// --- isKubectlCommand ---
+// --- classifyInput (kubectl detection) ---
 
-func TestIsKubectlCommand(t *testing.T) {
+func TestClassifyInputKubectl(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected bool
+		name      string
+		input     string
+		isKubectl bool
 	}{
 		// Explicit "kubectl" prefix cases.
-		{
-			name:     "starts with kubectl space",
-			input:    "kubectl get pods",
-			expected: true,
-		},
-		{
-			name:     "just kubectl",
-			input:    "kubectl",
-			expected: true,
-		},
-		{
-			name:     "kubectl with leading whitespace",
-			input:    "  kubectl get pods",
-			expected: true,
-		},
-		// Known subcommand cases.
-		{
-			name:     "get subcommand",
-			input:    "get pods -n kube-system",
-			expected: true,
-		},
-		{
-			name:     "describe subcommand",
-			input:    "describe pod my-pod",
-			expected: true,
-		},
-		{
-			name:     "logs subcommand",
-			input:    "logs my-pod -f",
-			expected: true,
-		},
-		{
-			name:     "exec subcommand",
-			input:    "exec -it my-pod -- bash",
-			expected: true,
-		},
-		{
-			name:     "delete subcommand",
-			input:    "delete pod my-pod",
-			expected: true,
-		},
-		{
-			name:     "apply subcommand",
-			input:    "apply -f deployment.yaml",
-			expected: true,
-		},
-		{
-			name:     "create subcommand",
-			input:    "create namespace test",
-			expected: true,
-		},
-		{
-			name:     "edit subcommand",
-			input:    "edit deployment my-deploy",
-			expected: true,
-		},
-		{
-			name:     "patch subcommand",
-			input:    "patch svc my-svc -p {}",
-			expected: true,
-		},
-		{
-			name:     "scale subcommand",
-			input:    "scale deployment my-deploy --replicas=3",
-			expected: true,
-		},
-		{
-			name:     "rollout subcommand",
-			input:    "rollout restart deployment my-deploy",
-			expected: true,
-		},
-		{
-			name:     "top subcommand",
-			input:    "top pods",
-			expected: true,
-		},
-		{
-			name:     "label subcommand",
-			input:    "label pod my-pod env=prod",
-			expected: true,
-		},
-		{
-			name:     "annotate subcommand",
-			input:    "annotate pod my-pod note=test",
-			expected: true,
-		},
-		{
-			name:     "port-forward subcommand",
-			input:    "port-forward svc/my-svc 8080:80",
-			expected: true,
-		},
-		{
-			name:     "cp subcommand",
-			input:    "cp /tmp/foo my-pod:/tmp/bar",
-			expected: true,
-		},
-		{
-			name:     "cordon subcommand",
-			input:    "cordon my-node",
-			expected: true,
-		},
-		{
-			name:     "uncordon subcommand",
-			input:    "uncordon my-node",
-			expected: true,
-		},
-		{
-			name:     "drain subcommand",
-			input:    "drain my-node",
-			expected: true,
-		},
-		{
-			name:     "taint subcommand",
-			input:    "taint node my-node key=val:NoSchedule",
-			expected: true,
-		},
-		{
-			name:     "config subcommand",
-			input:    "config view",
-			expected: true,
-		},
-		{
-			name:     "auth subcommand",
-			input:    "auth can-i get pods",
-			expected: true,
-		},
-		{
-			name:     "api-resources subcommand",
-			input:    "api-resources",
-			expected: true,
-		},
-		{
-			name:     "explain subcommand",
-			input:    "explain pod.spec",
-			expected: true,
-		},
-		{
-			name:     "diff subcommand",
-			input:    "diff -f deployment.yaml",
-			expected: true,
-		},
+		{name: "starts with kubectl space", input: "kubectl get pods", isKubectl: true},
+		{name: "just kubectl", input: "kubectl", isKubectl: true},
+		// Bare subcommand cases -- no longer classified as kubectl.
+		{name: "get subcommand", input: "get pods -n kube-system", isKubectl: false},
+		{name: "describe subcommand", input: "describe pod my-pod", isKubectl: false},
+		{name: "logs subcommand", input: "logs my-pod -f", isKubectl: false},
+		{name: "exec subcommand", input: "exec -it my-pod -- bash", isKubectl: false},
+		{name: "delete subcommand", input: "delete pod my-pod", isKubectl: false},
+		{name: "apply subcommand", input: "apply -f deployment.yaml", isKubectl: false},
+		{name: "create subcommand", input: "create namespace test", isKubectl: false},
+		{name: "edit subcommand", input: "edit deployment my-deploy", isKubectl: false},
+		{name: "patch subcommand", input: "patch svc my-svc -p {}", isKubectl: false},
+		{name: "scale subcommand", input: "scale deployment my-deploy --replicas=3", isKubectl: false},
+		{name: "rollout subcommand", input: "rollout restart deployment my-deploy", isKubectl: false},
+		{name: "top subcommand", input: "top pods", isKubectl: false},
+		{name: "label subcommand", input: "label pod my-pod env=prod", isKubectl: false},
+		{name: "annotate subcommand", input: "annotate pod my-pod note=test", isKubectl: false},
+		{name: "port-forward subcommand", input: "port-forward svc/my-svc 8080:80", isKubectl: false},
+		{name: "cp subcommand", input: "cp /tmp/foo my-pod:/tmp/bar", isKubectl: false},
+		{name: "cordon subcommand", input: "cordon my-node", isKubectl: false},
+		{name: "uncordon subcommand", input: "uncordon my-node", isKubectl: false},
+		{name: "drain subcommand", input: "drain my-node", isKubectl: false},
+		{name: "taint subcommand", input: "taint node my-node key=val:NoSchedule", isKubectl: false},
+		{name: "config subcommand", input: "config view", isKubectl: false},
+		{name: "auth subcommand", input: "auth can-i get pods", isKubectl: false},
+		{name: "api-resources subcommand", input: "api-resources", isKubectl: false},
+		{name: "explain subcommand", input: "explain pod.spec", isKubectl: false},
+		{name: "diff subcommand", input: "diff -f deployment.yaml", isKubectl: false},
 		// Non-kubectl cases.
-		{
-			name:     "shell command",
-			input:    "echo hello",
-			expected: false,
-		},
-		{
-			name:     "arbitrary command",
-			input:    "ls -la /tmp",
-			expected: false,
-		},
-		{
-			name:     "curl command",
-			input:    "curl http://example.com",
-			expected: false,
-		},
-		{
-			name:     "helm command",
-			input:    "helm list",
-			expected: false,
-		},
-		{
-			name:     "subcommand case insensitive",
-			input:    "GET pods",
-			expected: true,
-		},
+		{name: "shell command", input: "echo hello", isKubectl: false},
+		{name: "arbitrary command", input: "ls -la /tmp", isKubectl: false},
+		{name: "curl command", input: "curl http://example.com", isKubectl: false},
+		{name: "helm command", input: "helm list", isKubectl: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isKubectlCommand(tt.input)
-			assert.Equal(t, tt.expected, result)
+			result := classifyInput(tt.input)
+			if tt.isKubectl {
+				assert.Equal(t, cmdKubectl, result)
+			} else {
+				assert.NotEqual(t, cmdKubectl, result)
+			}
 		})
 	}
 }
@@ -632,27 +502,24 @@ func TestCovOpenBulkActionDirectNoSelection(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
-func TestCovExecuteCommandBarEmpty(t *testing.T) {
+func TestCovExecuteCommandBarInputEmpty(t *testing.T) {
 	m := baseModelWithFakeClient()
-	cmd := m.executeCommandBar("")
+	_, cmd := m.executeCommandBarInput("")
 	assert.Nil(t, cmd)
 }
 
-func TestCovExecuteCommandBarShell(t *testing.T) {
+func TestCovExecuteCommandBarInputShell(t *testing.T) {
 	m := baseModelWithFakeClient()
-	cmd := m.executeCommandBar("echo hello")
-	msg := execCmd(t, cmd)
-	result, ok := msg.(commandBarResultMsg)
-	require.True(t, ok)
-	assert.NoError(t, result.err)
-	assert.Contains(t, result.output, "hello")
+	_, cmd := m.executeCommandBarInput("!echo hello")
+	// Shell commands use tea.ExecProcess, so cmd is non-nil.
+	assert.NotNil(t, cmd)
 }
 
-func TestCovExecuteCommandBarKubectl(t *testing.T) {
+func TestCovExecuteCommandBarInputKubectl(t *testing.T) {
 	m := baseModelWithFakeClient()
 	m.nav.Context = "test-ctx"
 	m.namespace = "default"
-	cmd := m.executeCommandBar("kubectl version --client")
+	_, cmd := m.executeCommandBarInput("kubectl version --client")
 	// Returns non-nil even if kubectl is not found.
 	assert.NotNil(t, cmd)
 }

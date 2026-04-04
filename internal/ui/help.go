@@ -123,6 +123,20 @@ func helpSections() []helpSection {
 			},
 		},
 		{
+			title: "Command Bar (:)",
+			bindings: []helpEntry{
+				{kb.CommandBar, "Open command bar"},
+				{"", "Resource jump: :pod, :dep, :svc, :pvc, :hpa (with autocomplete)"},
+				{"", "Built-in: :ns <name>, :ctx <name>, :set <option>, :sort <col>, :export <fmt>"},
+				{"", "Kubectl: :kubectl get pods, :k get pods, :get pods (with flag completion)"},
+				{"", "Shell: :! <command> (run arbitrary shell command)"},
+				{"Tab / Down", "Cycle suggestions forward"},
+				{"Shift+Tab / Up", "Cycle suggestions backward"},
+				{"Enter", "Accept suggestion (if visible) or execute command"},
+				{"Esc", "Close command bar"},
+			},
+		},
+		{
 			title: "Bookmarks",
 			bindings: []helpEntry{
 				{kb.SetMark + "<a-z/0-9>", "Set local mark (stays in current cluster on jump)"},

@@ -392,38 +392,100 @@ func (m *Model) searchAllItemsFind(allItems []model.Item, queries []string, star
 
 // handleCommandBarKey processes key events when the command bar is active.
 func (m Model) handleCommandBarKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Handle paste events.
 	if msg.Paste {
 		return m.handleCommandBarPaste(msg)
 	}
-	switch msg.String() {
-	case "esc", "ctrl+c":
+
+	key := msg.String()
+
+	// Right or Space accepts ghost preview if active (not loading placeholders).
+	if (key == "right" || key == " ") && m.commandBarPreview != "" && m.commandBarPreview != "loading..." {
+		m.commandBarInput.Set(m.commandBarApplySuggestion(m.commandBarPreview))
+		m.commandBarPreview = ""
+		return m.commandBarRefreshSuggestions()
+	}
+
+	// Tab/Shift+Tab/Ctrl+N/P don't clear preview (they cycle).
+	// All other keys clear the preview.
+	if key != "tab" && key != "shift+tab" && key != "ctrl+n" && key != "ctrl+p" {
+		m.commandBarPreview = ""
+	}
+
+	switch key {
+	case "ctrl+@", "ctrl+space":
+		// Open/refresh suggestions.
+		return m.commandBarRefreshSuggestions()
+	case "esc":
+		// If suggestions are open, close them first. Otherwise close the command bar.
+		if len(m.commandBarSuggestions) > 0 {
+			m.commandBarSuggestions = nil
+			m.commandBarSelectedSuggestion = 0
+			m.commandBarPreview = ""
+			return m, nil
+		}
+		return m.commandBarClose(), nil
+	case "ctrl+c":
 		return m.commandBarClose(), nil
 	case "enter":
-		return m.commandBarSubmit()
-	case "up":
-		m.commandBarInput.Set(m.commandHistory.up(m.commandBarInput.Value))
-		return m, nil
-	case "down":
-		m.commandBarInput.Set(m.commandHistory.down())
-		return m, nil
-	case "tab":
-		return m.commandBarAcceptSuggestion(), nil
-	case "shift+tab":
-		m.commandBarCycleSuggestion(-1)
-		return m, nil
-	case "right":
+		return m.commandBarEnter()
+	case "tab", "ctrl+n", "down":
 		if len(m.commandBarSuggestions) > 0 {
+			sel := m.commandBarSuggestions[m.commandBarSelectedSuggestion]
+			// Skip status entries (e.g., "loading...").
+			if sel.Category == "status" {
+				return m, nil
+			}
+			// If only one actionable suggestion, accept it directly.
+			actionable := m.commandBarActionableSuggestionCount()
+			if key == "tab" && actionable == 1 {
+				m.commandBarInput.Set(m.commandBarApplySuggestion(sel.Text))
+				m.commandBarPreview = ""
+				return m.commandBarRefreshSuggestions()
+			}
 			m.commandBarCycleSuggestion(1)
-		} else {
-			m.commandBarInput.Right()
+			// Skip over status entries when cycling.
+			for m.commandBarSuggestions[m.commandBarSelectedSuggestion].Category == "status" {
+				m.commandBarCycleSuggestion(1)
+			}
+			m.commandBarPreview = m.commandBarSuggestions[m.commandBarSelectedSuggestion].Text
+			return m, nil
+		}
+		if key == "down" {
+			m.commandBarInput.Set(m.commandHistory.down())
+			return m, nil
 		}
 		return m, nil
-	case "left":
+	case "shift+tab", "ctrl+p", "up":
 		if len(m.commandBarSuggestions) > 0 {
 			m.commandBarCycleSuggestion(-1)
-		} else {
-			m.commandBarInput.Left()
+			// Skip over status entries when cycling.
+			for m.commandBarSuggestions[m.commandBarSelectedSuggestion].Category == "status" {
+				m.commandBarCycleSuggestion(-1)
+			}
+			m.commandBarPreview = m.commandBarSuggestions[m.commandBarSelectedSuggestion].Text
+			return m, nil
+		}
+		if key == "up" {
+			m.commandBarInput.Set(m.commandHistory.up(m.commandBarInput.Value))
+			return m, nil
+		}
+		return m, nil
+	case "ctrl+d":
+		if len(m.commandBarSuggestions) > 0 {
+			m.commandBarCycleSuggestion(5)
+			m.commandBarPreview = m.commandBarSuggestions[m.commandBarSelectedSuggestion].Text
+		}
+		return m, nil
+	case "ctrl+f":
+		if len(m.commandBarSuggestions) > 0 {
+			m.commandBarCycleSuggestion(10)
+			m.commandBarPreview = m.commandBarSuggestions[m.commandBarSelectedSuggestion].Text
+		}
+		return m, nil
+	case "ctrl+b":
+		if len(m.commandBarSuggestions) > 0 {
+			m.commandBarCycleSuggestion(-10)
+			m.commandBarPreview = m.commandBarSuggestions[m.commandBarSelectedSuggestion].Text
 		}
 		return m, nil
 	case "ctrl+a":
@@ -436,20 +498,42 @@ func (m Model) handleCommandBarKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.commandBarInput.Value) > 0 {
 			m.commandBarInput.Backspace()
 		}
-		return m.commandBarRefreshSuggestions(), nil
+		return m.commandBarRefreshSuggestions()
 	case "ctrl+w":
 		m.commandBarInput.DeleteWord()
-		return m.commandBarRefreshSuggestions(), nil
+		return m.commandBarRefreshSuggestions()
 	case "ctrl+u":
+		if len(m.commandBarSuggestions) > 0 {
+			m.commandBarCycleSuggestion(-5)
+			m.commandBarPreview = m.commandBarSuggestions[m.commandBarSelectedSuggestion].Text
+			return m, nil
+		}
 		m.commandBarInput.DeleteLine()
-		return m.commandBarRefreshSuggestions(), nil
+		return m.commandBarRefreshSuggestions()
+	case "left":
+		m.commandBarInput.Left()
+		return m, nil
+	case "right":
+		m.commandBarInput.Right()
+		return m, nil
 	default:
-		key := msg.String()
 		if len(key) == 1 && key[0] >= 32 && key[0] < 127 {
 			m.commandBarInput.Insert(key)
 		}
-		return m.commandBarRefreshSuggestions(), nil
+		return m.commandBarRefreshSuggestions()
 	}
+}
+
+// commandBarActionableSuggestionCount returns the number of suggestions
+// that are not status placeholders (e.g., "loading...").
+func (m Model) commandBarActionableSuggestionCount() int {
+	count := 0
+	for _, s := range m.commandBarSuggestions {
+		if s.Category != "status" {
+			count++
+		}
+	}
+	return count
 }
 
 func (m Model) handleCommandBarPaste(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -461,7 +545,7 @@ func (m Model) handleCommandBarPaste(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if text != "" {
 		m.commandBarInput.Insert(text)
 	}
-	return m.commandBarRefreshSuggestions(), nil
+	return m.commandBarRefreshSuggestions()
 }
 
 func (m Model) commandBarClose() Model {
@@ -469,36 +553,37 @@ func (m Model) commandBarClose() Model {
 	m.commandBarInput.Clear()
 	m.commandBarSuggestions = nil
 	m.commandBarSelectedSuggestion = 0
+	m.commandBarPreview = ""
 	return m
 }
 
-func (m Model) commandBarSubmit() (tea.Model, tea.Cmd) {
+func (m Model) commandBarEnter() (tea.Model, tea.Cmd) {
+	// If suggestions are visible, accept the selected one and clear suggestions.
+	if len(m.commandBarSuggestions) > 0 {
+		suggestion := m.commandBarSuggestions[m.commandBarSelectedSuggestion]
+		if suggestion.Category != "status" {
+			m.commandBarInput.Set(m.commandBarApplySuggestion(suggestion.Text))
+		}
+		m.commandBarPreview = ""
+		m.commandBarSuggestions = nil
+		m.commandBarSelectedSuggestion = 0
+		return m, nil
+	}
+
+	// No suggestions visible: execute the current input.
 	m.commandBarActive = false
 	input := m.commandBarInput.Value
 	m.commandBarInput.Clear()
 	m.commandBarSuggestions = nil
 	m.commandBarSelectedSuggestion = 0
+	m.commandBarPreview = ""
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
 		return m, nil
 	}
 	m.commandHistory.add(trimmed)
 	m.commandHistory.save()
-	if trimmed == "q" || trimmed == "q!" || trimmed == "quit" {
-		return m, tea.Quit
-	}
-	return m, m.executeCommandBar(input)
-}
-
-func (m Model) commandBarAcceptSuggestion() Model {
-	if len(m.commandBarSuggestions) > 0 {
-		suggestion := m.commandBarSuggestions[m.commandBarSelectedSuggestion]
-		m.commandBarInput.Set(m.commandBarApplySuggestion(suggestion))
-		m.commandBarSuggestions = nil
-		m.commandBarSelectedSuggestion = 0
-		m.commandBarSuggestions = m.commandBarGenerateSuggestions()
-	}
-	return m
+	return m.executeCommandBarInput(input)
 }
 
 func (m *Model) commandBarCycleSuggestion(delta int) {
@@ -510,10 +595,23 @@ func (m *Model) commandBarCycleSuggestion(delta int) {
 	m.commandBarSelectedSuggestion = ((m.commandBarSelectedSuggestion % n) + n) % n
 }
 
-func (m Model) commandBarRefreshSuggestions() Model {
-	m.commandBarSuggestions = m.commandBarGenerateSuggestions()
+func (m Model) commandBarRefreshSuggestions() (Model, tea.Cmd) {
+	oldLoading := m.commandBarNameLoading
+	m.commandBarSuggestions = m.generateCommandBarSuggestions()
 	m.commandBarSelectedSuggestion = 0
-	return m
+	m.commandBarPreview = ""
+
+	// If a new async fetch was triggered, add a loading placeholder and fire the fetch.
+	if m.commandBarNameLoading != "" && m.commandBarNameLoading != oldLoading {
+		m.commandBarSuggestions = append(m.commandBarSuggestions,
+			ui.Suggestion{Text: "loading...", Category: "status"})
+		// Parse cache key to get namespace and resource type.
+		parts := strings.SplitN(m.commandBarNameLoading, "/", 3)
+		if len(parts) == 3 {
+			return m, m.fetchCommandBarResourceNames(parts[2], parts[1])
+		}
+	}
+	return m, nil
 }
 
 // commandBarApplySuggestion replaces the current partial word in the input
@@ -522,262 +620,11 @@ func (m Model) commandBarApplySuggestion(suggestion string) string {
 	input := m.commandBarInput.Value
 	// If input ends with a space, append the suggestion as a new word.
 	if strings.HasSuffix(input, " ") || input == "" {
-		return input + suggestion + " "
+		return input + suggestion
 	}
 	// Otherwise replace the last partial word.
 	if idx := strings.LastIndex(input, " "); idx >= 0 {
-		return input[:idx+1] + suggestion + " "
+		return input[:idx+1] + suggestion
 	}
-	return suggestion + " "
-}
-
-// commandBarGenerateSuggestions returns contextual suggestions based on the
-// current command bar input. It considers the position (which word is being
-// typed) and the preceding words to provide relevant completions.
-//
-// Suggestions are only provided when the input looks like a kubectl command
-// (starts with "kubectl " or the first word matches a known subcommand).
-// For arbitrary shell commands, no suggestions are returned.
-func (m Model) commandBarGenerateSuggestions() []string {
-	input := m.commandBarInput.Value
-
-	// Strip optional leading "kubectl " prefix for analysis.
-	stripped := input
-	hasKubectlPrefix := strings.HasPrefix(strings.ToLower(stripped), "kubectl ")
-	if hasKubectlPrefix {
-		stripped = stripped[8:]
-	}
-
-	// Split into words, keeping track of whether we're mid-word or starting a new one.
-	words := strings.Fields(stripped)
-	midWord := !strings.HasSuffix(input, " ") && len(input) > 0
-
-	// If the user has typed at least one complete word (or is mid-word on a
-	// non-first word) and it doesn't look like a kubectl command, skip
-	// suggestions — shell autocompletion is too complex to handle inline.
-	if !hasKubectlPrefix && len(words) > 0 {
-		firstWord := strings.ToLower(words[0])
-		isKubectl := false
-		for _, sub := range kubectlSubcommands() {
-			if firstWord == sub {
-				isKubectl = true
-				break
-			}
-		}
-		// If we're mid-word on the very first word, we still want to offer
-		// kubectl subcommand completions so the user can discover them.
-		// But if the first completed word isn't a kubectl subcommand, bail out.
-		if !isKubectl && (!midWord || len(words) > 1) {
-			return nil
-		}
-	}
-
-	// Determine position: what word index are we completing?
-	pos := len(words)
-	if midWord && pos > 0 {
-		pos-- // We're still typing the current word, so position is the last word's index.
-	}
-
-	var prefix string
-	if midWord && len(words) > 0 {
-		prefix = strings.ToLower(words[len(words)-1])
-	}
-
-	// --- Flag-aware completion ---
-	// Check if the previous word is a flag that expects a value.
-	if len(words) >= 1 {
-		prevWord := ""
-		if midWord && len(words) >= 2 {
-			// Currently typing a word; the flag is the word before it.
-			prevWord = words[len(words)-2]
-		} else if !midWord {
-			// Cursor is after a space; the flag is the last completed word.
-			prevWord = words[len(words)-1]
-		}
-
-		prevWordLower := strings.ToLower(prevWord)
-		switch prevWordLower {
-		case "-n", "--namespace":
-			return m.filterSuggestions(m.cachedNamespaces, prefix)
-		case "-o", "--output":
-			return m.filterSuggestions(outputFormatSuggestions(), prefix)
-		}
-	}
-
-	// If the current word starts with "-", suggest common kubectl flags.
-	if midWord && strings.HasPrefix(prefix, "-") {
-		return m.filterSuggestions(kubectlFlagSuggestions(), prefix)
-	}
-
-	candidates := m.suggestionsForPosition(pos, words)
-
-	if prefix == "" {
-		// Limit visible suggestions when there's no prefix filter.
-		const maxVisible = 8
-		if len(candidates) > maxVisible {
-			candidates = candidates[:maxVisible]
-		}
-		return candidates
-	}
-
-	// Filter candidates by prefix.
-	var filtered []string
-	for _, c := range candidates {
-		if strings.HasPrefix(strings.ToLower(c), prefix) && strings.ToLower(c) != prefix {
-			filtered = append(filtered, c)
-		}
-	}
-
-	const maxFiltered = 8
-	if len(filtered) > maxFiltered {
-		filtered = filtered[:maxFiltered]
-	}
-
-	return filtered
-}
-
-// suggestionsForPosition returns completion candidates based on cursor position in the input.
-func (m Model) suggestionsForPosition(pos int, words []string) []string {
-	switch pos {
-	case 0:
-		return kubectlSubcommands()
-	case 1:
-		return m.suggestionsForSecondWord(words)
-	default:
-		subCmd := ""
-		if len(words) > 0 {
-			subCmd = strings.ToLower(words[0])
-		}
-		if subCmd == "rollout" && pos == 2 {
-			return m.resourceTypeSuggestions()
-		}
-		return m.resourceNameSuggestions()
-	}
-}
-
-// suggestionsForSecondWord returns candidates for the second word based on the subcommand.
-func (m Model) suggestionsForSecondWord(words []string) []string {
-	subCmd := ""
-	if len(words) > 0 {
-		subCmd = strings.ToLower(words[0])
-	}
-	switch subCmd {
-	case "get", "describe", "delete", "edit", "patch", "label", "annotate", "scale", "autoscale":
-		return m.resourceTypeSuggestions()
-	case "logs", "exec", "port-forward", "attach", "cp":
-		return m.resourceNameSuggestions()
-	case "apply", "create":
-		return []string{"-f", "-k", "--dry-run=client", "--dry-run=server"}
-	case "rollout":
-		return []string{"status", "history", "undo", "restart", "pause", "resume"}
-	case "config":
-		return []string{"view", "use-context", "get-contexts", "current-context", "set-context"}
-	case "top":
-		return []string{"pods", "nodes"}
-	case "cordon", "uncordon", "drain", "taint":
-		return m.resourceNameSuggestions()
-	default:
-		return m.resourceTypeSuggestions()
-	}
-}
-
-// kubectlSubcommands returns common kubectl subcommands for autocompletion.
-func kubectlSubcommands() []string {
-	return []string{
-		"get", "describe", "logs", "exec", "delete", "apply", "create",
-		"edit", "patch", "scale", "rollout", "top", "label", "annotate",
-		"port-forward", "cp", "cordon", "uncordon", "drain", "taint",
-		"config", "auth", "api-resources", "explain", "diff",
-	}
-}
-
-// resourceTypeSuggestions returns resource type names available for completion.
-// It combines the built-in types with any CRDs that were discovered.
-func (m Model) resourceTypeSuggestions() []string {
-	seen := make(map[string]bool)
-	var result []string
-
-	for _, cat := range model.TopLevelResourceTypes() {
-		for _, t := range cat.Types {
-			name := strings.ToLower(t.Resource)
-			if !seen[name] {
-				seen[name] = true
-				result = append(result, name)
-			}
-		}
-	}
-
-	// Also include CRD resource types from the left column items if available.
-	for _, item := range m.leftItems {
-		if item.Extra != "" && item.Extra != "__overview__" && item.Extra != "__monitoring__" && item.Kind != "__port_forwards__" {
-			name := strings.ToLower(item.Name)
-			if !seen[name] {
-				seen[name] = true
-				result = append(result, name)
-			}
-		}
-	}
-
-	return result
-}
-
-// resourceNameSuggestions returns resource names from the current middle column,
-// which represents the resources currently visible to the user.
-func (m Model) resourceNameSuggestions() []string {
-	var names []string
-	seen := make(map[string]bool)
-	for _, item := range m.middleItems {
-		if item.Name != "" && !seen[item.Name] {
-			seen[item.Name] = true
-			names = append(names, item.Name)
-		}
-	}
-	return names
-}
-
-// kubectlFlagSuggestions returns common kubectl flags for autocompletion.
-func kubectlFlagSuggestions() []string {
-	return []string{
-		"-n", "--namespace",
-		"-o", "--output",
-		"-l", "--selector",
-		"-A", "--all-namespaces",
-		"--sort-by",
-		"--field-selector",
-		"--show-labels",
-		"-w", "--watch",
-		"--no-headers",
-		"-f", "--filename",
-		"--dry-run=client", "--dry-run=server",
-	}
-}
-
-// outputFormatSuggestions returns kubectl output format values.
-func outputFormatSuggestions() []string {
-	return []string{
-		"json", "yaml", "wide", "name",
-		"jsonpath=", "custom-columns=",
-	}
-}
-
-// filterSuggestions filters candidates by prefix and returns a limited result set.
-// This is used by flag-aware completion paths that bypass the main switch logic.
-func (m Model) filterSuggestions(candidates []string, prefix string) []string {
-	const maxResults = 8
-	if prefix == "" {
-		if len(candidates) > maxResults {
-			candidates = candidates[:maxResults]
-		}
-		return candidates
-	}
-	var filtered []string
-	for _, c := range candidates {
-		if strings.HasPrefix(strings.ToLower(c), prefix) && strings.ToLower(c) != prefix {
-			filtered = append(filtered, c)
-		}
-	}
-	if len(filtered) > maxResults {
-		filtered = filtered[:maxResults]
-	}
-	return filtered
+	return suggestion
 }

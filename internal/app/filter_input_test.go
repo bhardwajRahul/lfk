@@ -547,22 +547,36 @@ func TestCovHandleCommandBarKeyUpDown(t *testing.T) {
 func TestCovHandleCommandBarKeyTab(t *testing.T) {
 	m := baseModelCov()
 	m.commandBarActive = true
-	m.commandBarInput = TextInput{Value: "get", Cursor: 3}
-	m.commandBarSuggestions = []string{"get", "get pods"}
+	m.commandBarInput = TextInput{Value: "ge", Cursor: 2}
+	m.commandBarSuggestions = []ui.Suggestion{{Text: "get", Category: "subcommand"}}
 	m.commandBarSelectedSuggestion = 0
+	m.commandBarPreview = "get"
 	m.commandHistory = &commandHistory{cursor: -1}
 
+	// Tab accepts the ghost preview.
 	r, _ := m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyTab})
-	assert.NotEqual(t, "get", r.(Model).commandBarInput.Value)
+	assert.Contains(t, r.(Model).commandBarInput.Value, "get")
 }
 
-func TestCovHandleCommandBarKeyShiftTab(t *testing.T) {
+func TestCovHandleCommandBarKeyCtrlN(t *testing.T) {
 	m := baseModelCov()
 	m.commandBarActive = true
-	m.commandBarSuggestions = []string{"a", "b", "c"}
+	m.commandBarSuggestions = []ui.Suggestion{{Text: "a"}, {Text: "b"}, {Text: "c"}}
 	m.commandBarSelectedSuggestion = 0
 
-	r, _ := m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyShiftTab})
+	// Ctrl+N cycles forward.
+	r, _ := m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyCtrlN})
+	assert.Equal(t, 1, r.(Model).commandBarSelectedSuggestion)
+}
+
+func TestCovHandleCommandBarKeyCtrlP(t *testing.T) {
+	m := baseModelCov()
+	m.commandBarActive = true
+	m.commandBarSuggestions = []ui.Suggestion{{Text: "a"}, {Text: "b"}, {Text: "c"}}
+	m.commandBarSelectedSuggestion = 0
+
+	// Ctrl+P cycles backward (wraps).
+	r, _ := m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyCtrlP})
 	assert.Equal(t, 2, r.(Model).commandBarSelectedSuggestion)
 }
 
@@ -610,23 +624,12 @@ func TestCovHandleCommandBarKeyRightLeft(t *testing.T) {
 	m.commandBarActive = true
 	m.commandBarInput = TextInput{Value: "hello", Cursor: 3}
 
-	// Without suggestions: moves cursor.
+	// Right/left now always move cursor (no longer cycle suggestions).
 	r, _ := m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyRight})
 	assert.Equal(t, 4, r.(Model).commandBarInput.Cursor)
 
 	r, _ = m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyLeft})
 	assert.Equal(t, 2, r.(Model).commandBarInput.Cursor)
-
-	// With suggestions: cycles.
-	m.commandBarSuggestions = []string{"a", "b", "c"}
-	m.commandBarSelectedSuggestion = 0
-
-	r, _ = m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyRight})
-	assert.Equal(t, 1, r.(Model).commandBarSelectedSuggestion)
-
-	m.commandBarSelectedSuggestion = 0
-	r, _ = m.handleCommandBarKey(tea.KeyMsg{Type: tea.KeyLeft})
-	assert.Equal(t, 2, r.(Model).commandBarSelectedSuggestion)
 }
 
 func TestCovHandleCommandBarKeyCtrlAE(t *testing.T) {

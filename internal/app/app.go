@@ -674,12 +674,18 @@ type Model struct {
 	// Command bar state.
 	commandBarActive             bool
 	commandBarInput              TextInput
-	commandBarSuggestions        []string
+	commandBarSuggestions        []ui.Suggestion
 	commandBarSelectedSuggestion int
+	commandBarPreview            string // ghost text shown dimmed after cursor (tab preview)
 	commandHistory               *commandHistory
 
 	// Cached namespace names for command bar autocompletion.
 	cachedNamespaces []string
+
+	// Async resource name cache for cross-namespace kubectl completion.
+	// Key: "context/namespace/resource" -> list of resource names.
+	commandBarNameCache   map[string][]string
+	commandBarNameLoading string // cache key currently being fetched ("" if idle)
 
 	// Stderr capture channel for exec credential plugin errors.
 	stderrChan <-chan string

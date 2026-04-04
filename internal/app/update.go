@@ -183,6 +183,17 @@ func (m Model) updateActionResultMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case finalizerRemoveResultMsg:
 		mdl, cmd := m.updateFinalizerRemoveResult(msg)
 		return mdl, cmd, true
+	case commandBarNamesFetchedMsg:
+		if m.commandBarNameCache == nil {
+			m.commandBarNameCache = make(map[string][]string)
+		}
+		m.commandBarNameCache[msg.cacheKey] = msg.names
+		m.commandBarNameLoading = ""
+		// Refresh suggestions if command bar is still active.
+		if m.commandBarActive {
+			m.commandBarSuggestions = m.generateCommandBarSuggestions()
+		}
+		return m, nil, true
 	case yamlClipboardMsg:
 		mdl, cmd := m.updateYamlClipboard(msg)
 		return mdl, cmd, true

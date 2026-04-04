@@ -108,6 +108,37 @@ func (c *Client) KubeconfigPaths() string {
 	return strings.Join(c.loadingRules.Precedence, ":")
 }
 
+// KubeconfigPathForContext returns the kubeconfig file path that defines the
+// given context. If the context's origin file cannot be determined, it falls
+// back to the first path in the precedence list.
+func (c *Client) KubeconfigPathForContext(contextName string) string {
+	// Check if the context has a location extension that tracks its source file.
+	if ctx, ok := c.rawConfig.Contexts[contextName]; ok && ctx != nil {
+		for _, loc := range ctx.Extensions {
+			// clientcmd doesn't store source file in extensions by default,
+			// so we try a different approach below.
+			_ = loc
+		}
+	}
+
+	// Walk each kubeconfig file and check if it defines this context.
+	for _, path := range c.loadingRules.Precedence {
+		cfg, err := clientcmd.LoadFromFile(path)
+		if err != nil {
+			continue
+		}
+		if _, ok := cfg.Contexts[contextName]; ok {
+			return path
+		}
+	}
+
+	// Fallback to the first file.
+	if len(c.loadingRules.Precedence) > 0 {
+		return c.loadingRules.Precedence[0]
+	}
+	return ""
+}
+
 // buildKubeconfigPaths assembles the list of kubeconfig file paths to load.
 func buildKubeconfigPaths() []string {
 	var paths []string

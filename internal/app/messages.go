@@ -400,3 +400,9 @@ type finalizerRemoveResultMsg struct {
 	failed    int
 	errors    []string
 }
+
+// commandBarNamesFetchedMsg carries async resource names for command bar completion.
+type commandBarNamesFetchedMsg struct {
+	cacheKey string
+	names    []string
+}

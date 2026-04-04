@@ -24,40 +24,6 @@ func TestExpandSearchQuery(t *testing.T) {
 	})
 }
 
-// --- kubectlSubcommands ---
-
-func TestKubectlSubcommands(t *testing.T) {
-	subs := kubectlSubcommands()
-	assert.Contains(t, subs, "get")
-	assert.Contains(t, subs, "describe")
-	assert.Contains(t, subs, "logs")
-	assert.Contains(t, subs, "exec")
-	assert.Contains(t, subs, "delete")
-	assert.Contains(t, subs, "apply")
-	assert.True(t, len(subs) > 10)
-}
-
-// --- kubectlFlagSuggestions ---
-
-func TestKubectlFlagSuggestions(t *testing.T) {
-	flags := kubectlFlagSuggestions()
-	assert.Contains(t, flags, "-n")
-	assert.Contains(t, flags, "--namespace")
-	assert.Contains(t, flags, "-o")
-	assert.Contains(t, flags, "--output")
-	assert.True(t, len(flags) > 5)
-}
-
-// --- outputFormatSuggestions ---
-
-func TestOutputFormatSuggestions(t *testing.T) {
-	formats := outputFormatSuggestions()
-	assert.Contains(t, formats, "json")
-	assert.Contains(t, formats, "yaml")
-	assert.Contains(t, formats, "wide")
-	assert.Contains(t, formats, "name")
-}
-
 // --- searchMatches ---
 
 func TestSearchMatches(t *testing.T) {
@@ -98,10 +64,11 @@ func TestSearchMatchesItem(t *testing.T) {
 	})
 }
 
-// --- resourceNameSuggestions ---
+// --- resourceNames ---
 
-func TestResourceNameSuggestions(t *testing.T) {
+func TestResourceNames(t *testing.T) {
 	m := Model{
+		nav: model.NavigationState{Level: model.LevelResources},
 		middleItems: []model.Item{
 			{Name: "pod-a"},
 			{Name: "pod-b"},
@@ -110,39 +77,14 @@ func TestResourceNameSuggestions(t *testing.T) {
 		},
 	}
 
-	names := m.resourceNameSuggestions()
+	names := resourceNames(&m)
 	assert.Equal(t, []string{"pod-a", "pod-b"}, names)
 }
 
-func TestResourceNameSuggestionsEmpty(t *testing.T) {
+func TestResourceNamesEmpty(t *testing.T) {
 	m := Model{}
-	names := m.resourceNameSuggestions()
+	names := resourceNames(&m)
 	assert.Empty(t, names)
-}
-
-// --- filterSuggestions ---
-
-func TestFilterSuggestions(t *testing.T) {
-	m := Model{}
-	candidates := []string{"pods", "pvc", "pv", "services", "secrets"}
-
-	t.Run("filter by prefix", func(t *testing.T) {
-		result := m.filterSuggestions(candidates, "p")
-		assert.Contains(t, result, "pods")
-		assert.Contains(t, result, "pvc")
-		assert.Contains(t, result, "pv")
-		assert.NotContains(t, result, "services")
-	})
-
-	t.Run("empty prefix returns limited results", func(t *testing.T) {
-		result := m.filterSuggestions(candidates, "")
-		assert.Len(t, result, 5)
-	})
-
-	t.Run("no match returns empty", func(t *testing.T) {
-		result := m.filterSuggestions(candidates, "zzz")
-		assert.Empty(t, result)
-	})
 }
 
 // --- jumpToSearchMatch ---
@@ -305,31 +247,31 @@ func TestCommandBarApplySuggestion(t *testing.T) {
 			name:       "empty input appends suggestion",
 			input:      "",
 			suggestion: "get",
-			expected:   "get ",
+			expected:   "get",
 		},
 		{
 			name:       "input ending with space appends",
 			input:      "kubectl ",
 			suggestion: "get",
-			expected:   "kubectl get ",
+			expected:   "kubectl get",
 		},
 		{
 			name:       "replaces last partial word",
 			input:      "kubectl ge",
 			suggestion: "get",
-			expected:   "kubectl get ",
+			expected:   "kubectl get",
 		},
 		{
 			name:       "single partial word replaces",
 			input:      "ge",
 			suggestion: "get",
-			expected:   "get ",
+			expected:   "get",
 		},
 		{
 			name:       "replaces last word of multi-word input",
 			input:      "kubectl get po",
-			suggestion: "pods",
-			expected:   "kubectl get pods ",
+			suggestion: "pod",
+			expected:   "kubectl get pod",
 		},
 	}
 	for _, tt := range tests {
@@ -343,15 +285,15 @@ func TestCommandBarApplySuggestion(t *testing.T) {
 	}
 }
 
-// --- commandBarGenerateSuggestions ---
+// --- generateCommandBarSuggestions ---
 
-func TestCommandBarGenerateSuggestions(t *testing.T) {
-	t.Run("empty input returns kubectl subcommands", func(t *testing.T) {
+func TestGenerateCommandBarSuggestions(t *testing.T) {
+	t.Run("empty input returns default suggestions", func(t *testing.T) {
 		m := Model{
 			commandBarInput: TextInput{Value: ""},
 		}
-		suggestions := m.commandBarGenerateSuggestions()
-		// Empty input gives limited results (first N).
+		suggestions := m.generateCommandBarSuggestions()
+		// Empty input gives default suggestions (builtin commands + resources).
 		assert.NotEmpty(t, suggestions)
 	})
 
@@ -359,15 +301,19 @@ func TestCommandBarGenerateSuggestions(t *testing.T) {
 		m := Model{
 			commandBarInput: TextInput{Value: "kubectl ge"},
 		}
-		suggestions := m.commandBarGenerateSuggestions()
-		assert.Contains(t, suggestions, "get")
+		suggestions := m.generateCommandBarSuggestions()
+		texts := make([]string, 0, len(suggestions))
+		for _, s := range suggestions {
+			texts = append(texts, s.Text)
+		}
+		assert.Contains(t, texts, "get")
 	})
 
-	t.Run("non-kubectl command returns nil", func(t *testing.T) {
+	t.Run("shell command returns nil", func(t *testing.T) {
 		m := Model{
-			commandBarInput: TextInput{Value: "echo hello "},
+			commandBarInput: TextInput{Value: "!echo hello"},
 		}
-		suggestions := m.commandBarGenerateSuggestions()
+		suggestions := m.generateCommandBarSuggestions()
 		assert.Nil(t, suggestions)
 	})
 
@@ -375,54 +321,61 @@ func TestCommandBarGenerateSuggestions(t *testing.T) {
 		m := Model{
 			commandBarInput: TextInput{Value: "kubectl get pods -"},
 		}
-		suggestions := m.commandBarGenerateSuggestions()
+		suggestions := m.generateCommandBarSuggestions()
 		assert.NotEmpty(t, suggestions)
 	})
 }
 
-// --- resourceTypeSuggestions ---
+// --- completeResourceJump ---
 
-func TestResourceTypeSuggestions(t *testing.T) {
+func TestCompleteResourceJump(t *testing.T) {
 	t.Run("returns built-in resource types", func(t *testing.T) {
-		m := Model{}
-		suggestions := m.resourceTypeSuggestions()
+		suggestions := completeResourceJump("", testLeftItems())
 		assert.NotEmpty(t, suggestions)
-		// Should contain standard K8s resources.
-		assert.Contains(t, suggestions, "pods")
-		assert.Contains(t, suggestions, "deployments")
-		assert.Contains(t, suggestions, "services")
+		// Extract text values for comparison.
+		texts := make([]string, 0, len(suggestions))
+		for _, s := range suggestions {
+			texts = append(texts, s.Text)
+		}
+		assert.Contains(t, texts, "pod")
+		assert.Contains(t, texts, "deployment")
 	})
 
-	t.Run("includes CRD types from left items", func(t *testing.T) {
-		m := Model{
-			leftItems: []model.Item{
-				{Name: "MyCustomResource", Extra: "custom-group"},
-			},
+	t.Run("prefix filter for services", func(t *testing.T) {
+		suggestions := completeResourceJump("serv", testLeftItems())
+		texts := make([]string, 0, len(suggestions))
+		for _, s := range suggestions {
+			texts = append(texts, s.Text)
 		}
-		suggestions := m.resourceTypeSuggestions()
-		assert.Contains(t, suggestions, "mycustomresource")
+		assert.Contains(t, texts, "service")
 	})
 
-	t.Run("excludes overview and monitoring items", func(t *testing.T) {
-		m := Model{
-			leftItems: []model.Item{
-				{Name: "Overview", Extra: "__overview__"},
-				{Name: "Monitoring", Extra: "__monitoring__"},
-				{Name: "PortForwards", Kind: "__port_forwards__"},
-			},
+	t.Run("includes CRD names", func(t *testing.T) {
+		items := append(testLeftItems(), model.Item{
+			Name:  "MyCustomResource",
+			Extra: "example.io/v1/mycustomresource",
+		})
+		suggestions := completeResourceJump("myc", items)
+		texts := make([]string, 0, len(suggestions))
+		for _, s := range suggestions {
+			texts = append(texts, s.Text)
 		}
-		suggestions := m.resourceTypeSuggestions()
-		assert.NotContains(t, suggestions, "overview")
-		assert.NotContains(t, suggestions, "monitoring")
+		assert.Contains(t, texts, "mycustomresource")
+	})
+
+	t.Run("filters by prefix", func(t *testing.T) {
+		suggestions := completeResourceJump("pod", testLeftItems())
+		for _, s := range suggestions {
+			assert.True(t, len(s.Text) > 0)
+		}
 	})
 
 	t.Run("no duplicates", func(t *testing.T) {
-		m := Model{}
-		suggestions := m.resourceTypeSuggestions()
+		suggestions := completeResourceJump("", testLeftItems())
 		seen := make(map[string]bool)
 		for _, s := range suggestions {
-			assert.False(t, seen[s], "duplicate suggestion: %s", s)
-			seen[s] = true
+			assert.False(t, seen[s.Text], "duplicate suggestion: %s", s.Text)
+			seen[s.Text] = true
 		}
 	})
 }

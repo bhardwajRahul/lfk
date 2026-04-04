@@ -81,6 +81,7 @@
 - **Resource sorting** by name, age, or status
 - **Filter and search**: Filter with `f`, search with `/` -- supports substring, regex (auto-detected), and fuzzy (`~` prefix) modes
 - **Abbreviated search**: Type `pvc`, `hpa`, `deploy` etc. to jump to resource types
+- **Command bar** (`:`) with vertical dropdown autocomplete: resource jumps (`:pod`, `:dep`), built-in commands (`:ns`, `:ctx`, `:set`, `:sort`), kubectl with flag/namespace completion, shell commands (`:!`)
 - **Watch mode**: Auto-refresh resources every 2 seconds (enabled by default)
 - **Owner/controller navigation**: Jump to the owner of any resource with `o`
 - **Events view** with warnings-only filter toggle
@@ -267,7 +268,7 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `I` | API Explorer (browse resource structure interactively) |
 | `U` | RBAC permissions browser (can-i) |
 | `T` | Open theme selector |
-| `:` | Open command bar (kubectl/shell commands) |
+| `:` | Command bar: resource jumps (`:pod`, `:dep`), built-ins (`:ns`, `:ctx`, `:set`), kubectl (`:get pods`), shell (`:! cmd`) |
 | `w` | Toggle watch mode (auto-refresh) |
 | `,` | Column visibility toggle (show/hide and reorder columns) |
 | `>` / `<` | Sort by next / previous column |
@@ -541,6 +542,8 @@ keybindings:
 # Search abbreviations (extend or override built-in abbreviations)
 abbreviations:
   po: pod
+  dp: "deployment"
+  dep: deployment
   deploy: deployment
   svc: service
   ing: ingress

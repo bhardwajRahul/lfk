@@ -378,8 +378,8 @@ func (m Model) handleExplorerUIKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		mdl := m.handleKeySearch()
 		return mdl, nil, true
 	case kb.CommandBar:
-		mdl := m.handleKeyCommandBar()
-		return mdl, nil, true
+		mdl, cmd := m.handleKeyCommandBar()
+		return mdl, cmd, true
 	case kb.FinalizerSearch:
 		m.openFinalizerSearch()
 		return m, nil, true
@@ -708,13 +708,17 @@ func (m Model) handleKeySearch() Model {
 	return m
 }
 
-func (m Model) handleKeyCommandBar() Model {
+func (m Model) handleKeyCommandBar() (Model, tea.Cmd) {
 	m.commandBarActive = true
 	m.commandBarInput.Clear()
 	m.commandBarSuggestions = nil
 	m.commandBarSelectedSuggestion = 0
 	m.commandHistory.reset()
-	return m
+	// Eagerly populate namespace cache if empty.
+	if len(m.cachedNamespaces) == 0 {
+		return m, m.loadNamespaces()
+	}
+	return m, nil
 }
 
 func (m Model) handleKeyColumnToggle() Model {

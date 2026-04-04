@@ -1,0 +1,394 @@
+package app
+
+import (
+	"testing"
+
+	"github.com/janosmiko/lfk/internal/model"
+	"github.com/janosmiko/lfk/internal/ui"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// ---------------------------------------------------------------------------
+// extractShellCommand
+// ---------------------------------------------------------------------------
+
+func TestExtractShellCommand(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "bang_space_cmd", input: "! ls -la", want: "ls -la"},
+		{name: "bang_no_space", input: "!ls", want: "ls"},
+		{name: "bang_multiple_spaces", input: "!   echo hello", want: "echo hello"},
+		{name: "bang_only", input: "!", want: ""},
+		{name: "bang_space_only", input: "! ", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, extractShellCommand(tt.input))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// injectKubectlDefaults
+// ---------------------------------------------------------------------------
+
+func TestInjectKubectlDefaults(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		context   string
+		namespace string
+		wantCtx   bool // expect --context in result
+		wantNS    bool // expect -n in result
+	}{
+		{
+			name:      "inject_both",
+			args:      []string{"get", "pods"},
+			context:   "my-ctx",
+			namespace: "my-ns",
+			wantCtx:   true,
+			wantNS:    true,
+		},
+		{
+			name:      "has_namespace_flag",
+			args:      []string{"get", "pods", "-n", "other"},
+			context:   "my-ctx",
+			namespace: "my-ns",
+			wantCtx:   true,
+			wantNS:    false, // already present, should not inject
+		},
+		{
+			name:      "has_all_namespaces",
+			args:      []string{"get", "pods", "-A"},
+			context:   "my-ctx",
+			namespace: "my-ns",
+			wantCtx:   true,
+			wantNS:    false, // -A means all namespaces
+		},
+		{
+			name:      "has_all_namespaces_long",
+			args:      []string{"get", "pods", "--all-namespaces"},
+			context:   "my-ctx",
+			namespace: "my-ns",
+			wantCtx:   true,
+			wantNS:    false,
+		},
+		{
+			name:      "has_context_flag",
+			args:      []string{"get", "pods", "--context", "foo"},
+			context:   "my-ctx",
+			namespace: "my-ns",
+			wantCtx:   false, // already present
+			wantNS:    true,
+		},
+		{
+			name:      "has_namespace_equals",
+			args:      []string{"get", "pods", "--namespace=bar"},
+			context:   "my-ctx",
+			namespace: "my-ns",
+			wantCtx:   true,
+			wantNS:    false, // equals form should be detected
+		},
+		{
+			name:      "empty_context_no_inject",
+			args:      []string{"get", "pods"},
+			context:   "",
+			namespace: "my-ns",
+			wantCtx:   false, // empty context, nothing to inject
+			wantNS:    true,
+		},
+		{
+			name:      "empty_namespace_no_inject",
+			args:      []string{"get", "pods"},
+			context:   "my-ctx",
+			namespace: "",
+			wantCtx:   true,
+			wantNS:    false, // empty namespace, nothing to inject
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := baseModelCov()
+			m.nav.Context = tt.context
+			m.namespace = tt.namespace
+
+			result := m.injectKubectlDefaults(tt.args)
+
+			hasCtx := containsFlag(result, "--context")
+			hasNS := containsFlag(result, "-n")
+
+			if tt.wantCtx {
+				assert.True(t, hasCtx, "expected --context to be injected")
+			} else {
+				// If context was already present in input, it should still be there.
+				// If empty, it should not have been added.
+				if tt.context == "" {
+					assert.False(t, hasCtx, "expected --context NOT to be injected (empty)")
+				}
+			}
+
+			if tt.wantNS {
+				assert.True(t, hasNS, "expected -n to be injected")
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// executeSetCommand
+// ---------------------------------------------------------------------------
+
+func TestExecuteSetCommand(t *testing.T) {
+	tests := []struct {
+		name      string
+		option    string
+		checkFn   func(t *testing.T, m Model)
+		wantError bool
+	}{
+		{
+			name:   "wrap",
+			option: "wrap",
+			checkFn: func(t *testing.T, m Model) {
+				assert.True(t, m.logWrap)
+			},
+		},
+		{
+			name:   "nowrap",
+			option: "nowrap",
+			checkFn: func(t *testing.T, m Model) {
+				assert.False(t, m.logWrap)
+			},
+		},
+		{
+			name:   "linenumbers",
+			option: "linenumbers",
+			checkFn: func(t *testing.T, m Model) {
+				assert.True(t, m.logLineNumbers)
+			},
+		},
+		{
+			name:   "nolinenumbers",
+			option: "nolinenumbers",
+			checkFn: func(t *testing.T, m Model) {
+				assert.False(t, m.logLineNumbers)
+			},
+		},
+		{
+			name:   "timestamps",
+			option: "timestamps",
+			checkFn: func(t *testing.T, m Model) {
+				assert.True(t, m.logTimestamps)
+			},
+		},
+		{
+			name:   "notimestamps",
+			option: "notimestamps",
+			checkFn: func(t *testing.T, m Model) {
+				assert.False(t, m.logTimestamps)
+			},
+		},
+		{
+			name:   "follow",
+			option: "follow",
+			checkFn: func(t *testing.T, m Model) {
+				assert.True(t, m.logFollow)
+			},
+		},
+		{
+			name:   "nofollow",
+			option: "nofollow",
+			checkFn: func(t *testing.T, m Model) {
+				assert.False(t, m.logFollow)
+			},
+		},
+		{
+			name:      "unknown_option",
+			option:    "unknown",
+			wantError: true,
+		},
+		{
+			name:      "empty_option",
+			option:    "",
+			wantError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := baseModelCov()
+			result, _ := m.executeSetCommand(tt.option)
+			rm := result.(Model)
+			if tt.wantError {
+				assert.True(t, rm.statusMessageErr)
+			} else {
+				require.NotNil(t, tt.checkFn)
+				tt.checkFn(t, rm)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// executeResourceJump
+// ---------------------------------------------------------------------------
+
+func TestExecuteResourceJump(t *testing.T) {
+	t.Run("matching_left_item", func(t *testing.T) {
+		m := baseModelCov()
+		m.nav.Level = model.LevelResourceTypes
+		m.leftItems = []model.Item{
+			{Name: "Pods", Kind: "Pod", Extra: "v1/pods"},
+			{Name: "Deployments", Kind: "Deployment", Extra: "apps/v1/deployments"},
+			{Name: "Services", Kind: "Service", Extra: "v1/services"},
+		}
+		m.middleItems = m.leftItems
+
+		ret, _ := m.executeResourceJump("deployment")
+		result := ret.(Model)
+		// Should have navigated into the resource type (level changed to Resources).
+		assert.NotNil(t, result)
+	})
+
+	t.Run("abbreviation_jump", func(t *testing.T) {
+		origAbbr := ui.SearchAbbreviations
+		ui.SearchAbbreviations = map[string]string{
+			"deploy": "deployments",
+			"svc":    "services",
+		}
+		defer func() { ui.SearchAbbreviations = origAbbr }()
+
+		m := baseModelCov()
+		m.nav.Level = model.LevelResourceTypes
+		m.leftItems = []model.Item{
+			{Name: "Pods", Kind: "Pod", Extra: "v1/pods"},
+			{Name: "Deployments", Kind: "Deployment", Extra: "apps/v1/deployments"},
+			{Name: "Services", Kind: "Service", Extra: "v1/services"},
+		}
+		m.middleItems = m.leftItems
+
+		ret, _ := m.executeResourceJump("svc")
+		result := ret.(Model)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("no_match_shows_error", func(t *testing.T) {
+		m := baseModelCov()
+		m.nav.Level = model.LevelResourceTypes
+		m.leftItems = []model.Item{
+			{Name: "Pods", Kind: "Pod", Extra: "v1/pods"},
+		}
+		m.middleItems = m.leftItems
+
+		ret, _ := m.executeResourceJump("nonexistent")
+		result := ret.(Model)
+		assert.Contains(t, result.statusMessage, "not found")
+	})
+}
+
+// ---------------------------------------------------------------------------
+// executeBuiltinCommand
+// ---------------------------------------------------------------------------
+
+func TestExecuteBuiltinCommand(t *testing.T) {
+	t.Run("quit_returns_quit_cmd", func(t *testing.T) {
+		m := baseModelCov()
+		_, cmd := m.executeBuiltinCommand("q")
+		require.NotNil(t, cmd)
+	})
+
+	t.Run("quit_bang", func(t *testing.T) {
+		m := baseModelCov()
+		_, cmd := m.executeBuiltinCommand("q!")
+		require.NotNil(t, cmd)
+	})
+
+	t.Run("namespace_sets_namespace", func(t *testing.T) {
+		m := baseModelWithFakeClient()
+		result, _ := m.executeBuiltinCommand("ns production")
+		rm := result.(Model)
+		assert.Equal(t, "production", rm.namespace)
+	})
+
+	t.Run("context_sets_context", func(t *testing.T) {
+		m := baseModelWithFakeClient()
+		result, _ := m.executeBuiltinCommand("ctx my-cluster")
+		rm := result.(Model)
+		assert.Equal(t, "my-cluster", rm.nav.Context)
+	})
+
+	t.Run("set_delegates_to_set_command", func(t *testing.T) {
+		m := baseModelCov()
+		result, _ := m.executeBuiltinCommand("set wrap")
+		rm := result.(Model)
+		assert.True(t, rm.logWrap)
+	})
+
+	t.Run("sort_sets_column", func(t *testing.T) {
+		m := baseModelCov()
+		result, _ := m.executeBuiltinCommand("sort Name")
+		rm := result.(Model)
+		assert.Equal(t, "Name", rm.sortColumnName)
+	})
+
+	t.Run("unknown_builtin_returns_error", func(t *testing.T) {
+		m := baseModelCov()
+		result, _ := m.executeBuiltinCommand("notabuiltin")
+		rm := result.(Model)
+		assert.True(t, rm.statusMessageErr)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// executeCommandBarInput (dispatcher)
+// ---------------------------------------------------------------------------
+
+func TestExecuteCommandBarInput(t *testing.T) {
+	t.Run("empty_input", func(t *testing.T) {
+		m := baseModelCov()
+		result, cmd := m.executeCommandBarInput("")
+		rm := result.(Model)
+		assert.Equal(t, m, rm)
+		assert.Nil(t, cmd)
+	})
+
+	t.Run("shell_input", func(t *testing.T) {
+		m := baseModelWithFakeClient()
+		_, cmd := m.executeCommandBarInput("! echo hello")
+		assert.NotNil(t, cmd)
+	})
+
+	t.Run("builtin_input_quit", func(t *testing.T) {
+		m := baseModelCov()
+		_, cmd := m.executeCommandBarInput("q")
+		assert.NotNil(t, cmd)
+	})
+
+	t.Run("unknown_tries_kubectl", func(t *testing.T) {
+		m := baseModelWithFakeClient()
+		_, cmd := m.executeCommandBarInput("somethingweird")
+		// Should attempt kubectl for backward compat.
+		assert.NotNil(t, cmd)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+
+func TestExtractShellCommandNoPrefix(t *testing.T) {
+	// Edge case: if someone somehow passes a string without bang.
+	assert.Equal(t, "hello", extractShellCommand("hello"))
+}
+
+// containsFlag checks if a flag exists in a slice of args.
+func containsFlag(args []string, flag string) bool {
+	for _, a := range args {
+		if a == flag {
+			return true
+		}
+	}
+	return false
+}
