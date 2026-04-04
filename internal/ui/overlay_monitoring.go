@@ -827,72 +827,17 @@ func RenderEventViewer(p EventViewerParams) string {
 
 	wrapStyle := lipgloss.NewStyle().Width(contentW)
 
+	evLineCtx := eventLineContext{
+		wrapStyle:  wrapStyle,
+		contentW:   contentW,
+		lowerQuery: lowerQuery,
+		selStart:   selStart,
+		selEnd:     selEnd,
+		colStart:   colStart,
+		colEnd:     colEnd,
+	}
 	for i := scroll; i < end; i++ {
-		line := p.Lines[i]
-		inSelection := p.VisualMode != 0 && i >= selStart && i <= selEnd
-		isCursorLine := i == p.Cursor
-
-		// Fit line to content width: wrap or truncate.
-		fitLine := line
-		if p.Wrap {
-			fitLine = wrapStyle.Render(line)
-		} else if len([]rune(fitLine)) > contentW {
-			fitLine = string([]rune(fitLine)[:contentW])
-		}
-
-		if inSelection {
-			// For selection, truncate to single line (wrapping + selection is complex).
-			selLine := line
-			if len([]rune(selLine)) > contentW {
-				selLine = string([]rune(selLine)[:contentW])
-			}
-			rendered := RenderVisualSelection(
-				selLine, rune(p.VisualMode),
-				i, selStart, selEnd,
-				p.VisualStart, p.VisualCol, p.CursorCol,
-				colStart, colEnd,
-			)
-			if isCursorLine {
-				b.WriteString(YamlCursorIndicatorStyle.Render("\u258e") + rendered)
-			} else {
-				b.WriteString(" " + rendered)
-			}
-		} else if isCursorLine {
-			// Cursor line: gutter indicator + block cursor at column position.
-			if p.Wrap {
-				// In wrap mode, show wrapped content without column cursor.
-				displayLine := fitLine
-				if p.SearchQuery != "" {
-					displayLine = highlightEventSearchLine(line, lowerQuery)
-					displayLine = wrapStyle.Render(displayLine)
-				}
-				b.WriteString(YamlCursorIndicatorStyle.Render("\u258e") + displayLine)
-			} else {
-				displayLine := fitLine
-				if p.SearchQuery != "" {
-					displayLine = highlightEventSearchLine(displayLine, lowerQuery)
-				}
-				cursorLine := RenderCursorAtCol(displayLine, fitLine, p.CursorCol)
-				b.WriteString(YamlCursorIndicatorStyle.Render("\u258e") + cursorLine)
-			}
-		} else {
-			if p.Wrap {
-				displayLine := fitLine
-				if p.SearchQuery != "" {
-					displayLine = highlightEventSearchLine(line, lowerQuery)
-					displayLine = wrapStyle.Render(displayLine)
-				}
-				b.WriteString(" " + displayLine)
-			} else {
-				displayLine := fitLine
-				if p.SearchQuery != "" {
-					displayLine = highlightEventSearchLine(displayLine, lowerQuery)
-				} else {
-					displayLine = OverlayNormalStyle.Render(displayLine)
-				}
-				b.WriteString(" " + displayLine)
-			}
-		}
+		b.WriteString(renderEventViewerLine(p, i, evLineCtx))
 		if i < end-1 {
 			b.WriteString("\n")
 		}
@@ -925,6 +870,89 @@ func RenderEventViewer(p EventViewerParams) string {
 	}
 
 	return b.String()
+}
+
+// eventLineContext holds shared state for rendering individual event viewer lines.
+type eventLineContext struct {
+	wrapStyle  lipgloss.Style
+	contentW   int
+	lowerQuery string
+	selStart   int
+	selEnd     int
+	colStart   int
+	colEnd     int
+}
+
+// renderEventViewerLine renders a single line in the event viewer.
+func renderEventViewerLine(p EventViewerParams, i int, ctx eventLineContext) string {
+	line := p.Lines[i]
+	inSelection := p.VisualMode != 0 && i >= ctx.selStart && i <= ctx.selEnd
+	isCursorLine := i == p.Cursor
+
+	fitLine := line
+	if p.Wrap {
+		fitLine = ctx.wrapStyle.Render(line)
+	} else if len([]rune(fitLine)) > ctx.contentW {
+		fitLine = string([]rune(fitLine)[:ctx.contentW])
+	}
+
+	if inSelection {
+		selLine := line
+		if len([]rune(selLine)) > ctx.contentW {
+			selLine = string([]rune(selLine)[:ctx.contentW])
+		}
+		rendered := RenderVisualSelection(
+			selLine, rune(p.VisualMode),
+			i, ctx.selStart, ctx.selEnd,
+			p.VisualStart, p.VisualCol, p.CursorCol,
+			ctx.colStart, ctx.colEnd,
+		)
+		if isCursorLine {
+			return YamlCursorIndicatorStyle.Render("\u258e") + rendered
+		}
+		return " " + rendered
+	}
+
+	if isCursorLine {
+		return renderEventCursorLine(p, line, fitLine, ctx)
+	}
+
+	return renderEventNormalLine(p, line, fitLine, ctx)
+}
+
+// renderEventCursorLine renders the cursor line with gutter indicator and block cursor.
+func renderEventCursorLine(p EventViewerParams, line, fitLine string, ctx eventLineContext) string {
+	gutter := YamlCursorIndicatorStyle.Render("\u258e")
+	if p.Wrap {
+		displayLine := fitLine
+		if p.SearchQuery != "" {
+			displayLine = ctx.wrapStyle.Render(highlightEventSearchLine(line, ctx.lowerQuery))
+		}
+		return gutter + displayLine
+	}
+	displayLine := fitLine
+	if p.SearchQuery != "" {
+		displayLine = highlightEventSearchLine(displayLine, ctx.lowerQuery)
+	}
+	return gutter + RenderCursorAtCol(displayLine, fitLine, p.CursorCol)
+}
+
+// renderEventNormalLine renders a non-cursor, non-selected line.
+func renderEventNormalLine(p EventViewerParams, line, fitLine string, ctx eventLineContext) string {
+	if p.Wrap {
+		displayLine := fitLine
+		if p.SearchQuery != "" {
+			displayLine = ctx.wrapStyle.Render(highlightEventSearchLine(line, ctx.lowerQuery))
+		}
+		return " " + displayLine
+	}
+	displayLine := fitLine
+	if p.SearchQuery != "" {
+		displayLine = highlightEventSearchLine(displayLine, ctx.lowerQuery)
+	} else {
+		displayLine = OverlayNormalStyle.Render(displayLine)
+	}
+	return " " + displayLine
 }
 
 // highlightEventSearchLine highlights search matches in a single line using

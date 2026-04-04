@@ -11,83 +11,130 @@ import (
 )
 
 func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch m.overlay {
-	case overlayNamespace:
-		return m.handleNamespaceOverlayKey(msg)
-	case overlayAction:
-		return m.handleActionOverlayKey(msg)
-	case overlayConfirm:
-		return m.handleConfirmOverlayKey(msg)
-	case overlayConfirmType:
-		return m.handleConfirmTypeOverlayKey(msg)
-	case overlayScaleInput:
-		return m.handleScaleOverlayKey(msg)
-	case overlayPVCResize:
-		return m.handlePVCResizeOverlayKey(msg)
-	case overlayPortForward:
-		return m.handlePortForwardOverlayKey(msg)
-	case overlayContainerSelect:
-		return m.handleContainerSelectOverlayKey(msg)
-	case overlayPodSelect:
-		return m.handlePodSelectOverlayKey(msg)
-	case overlayBookmarks:
-		return m.handleBookmarkOverlayKey(msg)
-	case overlayTemplates:
-		return m.handleTemplateOverlayKey(msg)
-	case overlaySecretEditor:
-		return m.handleSecretEditorKey(msg)
-	case overlayConfigMapEditor:
-		return m.handleConfigMapEditorKey(msg)
-	case overlayRollback:
-		return m.handleRollbackOverlayKey(msg)
-	case overlayHelmRollback:
-		return m.handleHelmRollbackOverlayKey(msg)
-	case overlayLabelEditor:
-		return m.handleLabelEditorKey(msg)
-	case overlayAutoSync:
-		return m.handleAutoSyncKey(msg)
-	case overlayColorscheme:
-		return m.handleColorschemeOverlayKey(msg)
-	case overlayFilterPreset:
-		return m.handleFilterPresetOverlayKey(msg)
-	case overlayRBAC:
-		m.overlay = overlayNone
-		return m, nil
-	case overlayPodStartup:
-		m.overlay = overlayNone
-		return m, nil
-	case overlayAlerts:
-		return m.handleAlertsOverlayKey(msg)
-	case overlayBatchLabel:
-		return m.handleBatchLabelOverlayKey(msg)
-	case overlayQuotaDashboard:
-		return m.handleOverlayKeyOverlayQuotaDashboard(msg)
-	case overlayEventTimeline:
-		return m.handleEventTimelineOverlayKey(msg)
-	case overlayNetworkPolicy:
-		return m.handleNetworkPolicyOverlayKey(msg)
-	case overlayCanI:
-		return m.handleCanIKey(msg)
-	case overlayCanISubject:
-		return m.handleCanISubjectOverlayKey(msg)
-	case overlayExplainSearch:
-		return m.handleExplainSearchOverlayKey(msg)
-	case overlayQuitConfirm:
-		return m.handleQuitConfirmOverlayKey(msg)
-	case overlayLogPodSelect:
-		return m.handleLogPodSelectOverlayKey(msg)
-	case overlayLogContainerSelect:
-		return m.handleLogContainerSelectOverlayKey(msg)
-	case overlayFinalizerSearch:
-		return m.handleFinalizerSearchKey(msg)
-	case overlayColumnToggle:
-		return m.handleColumnToggleKey(msg)
+	if mdl, cmd, ok := m.handleOverlayKeyPrimary(msg); ok {
+		return mdl, cmd
+	}
+	if mdl, cmd, ok := m.handleOverlayKeySecondary(msg); ok {
+		return mdl, cmd
 	}
 	return m, nil
 }
 
+// handleOverlayKeyPrimary dispatches overlay keys for core overlays
+// (selectors, confirmations, editors).
+func (m Model) handleOverlayKeyPrimary(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	switch m.overlay {
+	case overlayNamespace:
+		mdl, cmd := m.handleNamespaceOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayAction:
+		mdl, cmd := m.handleActionOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayConfirm:
+		mdl, cmd := m.handleConfirmOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayConfirmType:
+		mdl, cmd := m.handleConfirmTypeOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayScaleInput:
+		mdl, cmd := m.handleScaleOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayPVCResize:
+		mdl, cmd := m.handlePVCResizeOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayPortForward:
+		mdl, cmd := m.handlePortForwardOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayContainerSelect:
+		mdl, cmd := m.handleContainerSelectOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayPodSelect:
+		mdl, cmd := m.handlePodSelectOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayBookmarks:
+		mdl, cmd := m.handleBookmarkOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayTemplates:
+		mdl, cmd := m.handleTemplateOverlayKey(msg)
+		return mdl, cmd, true
+	case overlaySecretEditor:
+		mdl, cmd := m.handleSecretEditorKey(msg)
+		return mdl, cmd, true
+	case overlayConfigMapEditor:
+		mdl, cmd := m.handleConfigMapEditorKey(msg)
+		return mdl, cmd, true
+	case overlayRollback:
+		mdl, cmd := m.handleRollbackOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayHelmRollback:
+		mdl, cmd := m.handleHelmRollbackOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayLabelEditor:
+		mdl, cmd := m.handleLabelEditorKey(msg)
+		return mdl, cmd, true
+	case overlayAutoSync:
+		mdl, cmd := m.handleAutoSyncKey(msg)
+		return mdl, cmd, true
+	case overlayColorscheme:
+		mdl, cmd := m.handleColorschemeOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayFilterPreset:
+		mdl, cmd := m.handleFilterPresetOverlayKey(msg)
+		return mdl, cmd, true
+	}
+	return m, nil, false
+}
+
+// handleOverlayKeySecondary dispatches overlay keys for secondary overlays
+// (viewers, monitoring, info panels).
+func (m Model) handleOverlayKeySecondary(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	switch m.overlay {
+	case overlayRBAC, overlayPodStartup:
+		m.overlay = overlayNone
+		return m, nil, true
+	case overlayAlerts:
+		mdl, cmd := m.handleAlertsOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayBatchLabel:
+		mdl, cmd := m.handleBatchLabelOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayQuotaDashboard:
+		return m.handleOverlayKeyOverlayQuotaDashboard(msg), nil, true
+	case overlayEventTimeline:
+		mdl, cmd := m.handleEventTimelineOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayNetworkPolicy:
+		return m.handleNetworkPolicyOverlayKey(msg), nil, true
+	case overlayCanI:
+		mdl, cmd := m.handleCanIKey(msg)
+		return mdl, cmd, true
+	case overlayCanISubject:
+		mdl, cmd := m.handleCanISubjectOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayExplainSearch:
+		mdl, cmd := m.handleExplainSearchOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayQuitConfirm:
+		mdl, cmd := m.handleQuitConfirmOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayLogPodSelect:
+		mdl, cmd := m.handleLogPodSelectOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayLogContainerSelect:
+		mdl, cmd := m.handleLogContainerSelectOverlayKey(msg)
+		return mdl, cmd, true
+	case overlayFinalizerSearch:
+		mdl, cmd := m.handleFinalizerSearchKey(msg)
+		return mdl, cmd, true
+	case overlayColumnToggle:
+		mdl, cmd := m.handleColumnToggleKey(msg)
+		return mdl, cmd, true
+	}
+	return m, nil, false
+}
+
 // handleNetworkPolicyOverlayKey handles keyboard input in the network policy visualizer overlay.
-func (m Model) handleNetworkPolicyOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNetworkPolicyOverlayKey(msg tea.KeyMsg) Model {
 	switch msg.String() {
 	case "esc", "q":
 		m.netpolLineInput = ""
@@ -123,11 +170,11 @@ func (m Model) handleNetworkPolicyOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		}
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		m.netpolLineInput += msg.String()
-		return m, nil
+		return m
 	case "0":
 		if m.netpolLineInput != "" {
 			m.netpolLineInput += "0"
-			return m, nil
+			return m
 		}
 	case "ctrl+d":
 		m.netpolLineInput = ""
@@ -150,7 +197,7 @@ func (m Model) handleNetworkPolicyOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	default:
 		m.netpolLineInput = ""
 	}
-	return m, nil
+	return m
 }
 
 // errorLogVisibleCount returns the number of visible entries and max dimensions for the error log overlay.
@@ -961,11 +1008,11 @@ func (m Model) handleQuitConfirmOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	return m, nil
 }
 
-func (m Model) handleOverlayKeyOverlayQuotaDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleOverlayKeyOverlayQuotaDashboard(msg tea.KeyMsg) Model {
 	if msg.String() == "esc" || msg.String() == "q" {
 		m.overlay = overlayNone
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) handleErrorLogOverlayKeyEsc() (tea.Model, tea.Cmd) {

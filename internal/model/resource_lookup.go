@@ -62,44 +62,55 @@ func FlattenedResourceTypesFiltered(availableGroups map[string]bool) []Item {
 // as additional categories grouped by API group. CRDs that match a built-in resource
 // type (same group + resource) are filtered out to avoid duplicates.
 func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
-	// Build the set of all API groups and specific resources present as discovered CRDs.
-	availableGroups := make(map[string]bool, len(discovered)*2)
-	for _, crd := range discovered {
-		availableGroups[crd.APIGroup] = true
-		availableGroups[crd.APIGroup+"/"+crd.Resource] = true
-	}
-
-	// Helm always shows (uses helm binary, not CRDs).
-	// No special handling needed — Helm is a core category.
-
+	availableGroups := buildAvailableGroups(discovered)
 	items := FlattenedResourceTypesFiltered(availableGroups)
 	if len(discovered) == 0 {
 		return items
 	}
 
-	// Build a set of built-in resource identifiers (group/resource) to filter duplicates.
+	builtIn := buildBuiltInSet()
+	items = updateBuiltInVersions(items, discovered)
+	builtInCategoryForGroup := buildCategoryGroupMap()
+
+	grouped, groupOrder := groupDiscoveredCRDs(discovered, builtIn)
+	orderedGroups := orderGroupsByPinning(groupOrder)
+	items = mergeGroupedCRDs(items, grouped, orderedGroups, builtInCategoryForGroup)
+	return sortItemsByCategory(items)
+}
+
+// buildAvailableGroups creates the set of API groups and resources from discovered CRDs.
+func buildAvailableGroups(discovered []ResourceTypeEntry) map[string]bool {
+	groups := make(map[string]bool, len(discovered)*2)
+	for _, crd := range discovered {
+		groups[crd.APIGroup] = true
+		groups[crd.APIGroup+"/"+crd.Resource] = true
+	}
+	return groups
+}
+
+// buildBuiltInSet returns a set of built-in resource identifiers (group/resource).
+func buildBuiltInSet() map[string]bool {
 	builtIn := make(map[string]bool)
 	for _, cat := range TopLevelResourceTypes() {
 		for _, rt := range cat.Types {
 			builtIn[rt.APIGroup+"/"+rt.Resource] = true
 		}
 	}
+	return builtIn
+}
 
-	// Build a map of discovered CRD versions so built-in entries can be updated
-	// to match the version the cluster actually serves.
+// updateBuiltInVersions updates items whose API version differs from
+// what the cluster actually serves, preventing "resource not found" errors.
+func updateBuiltInVersions(items []Item, discovered []ResourceTypeEntry) []Item {
 	discoveredVersion := make(map[string]string, len(discovered))
 	for _, crd := range discovered {
 		discoveredVersion[crd.APIGroup+"/"+crd.Resource] = crd.APIVersion
 	}
-
-	// Update built-in items whose API version differs from what the cluster serves.
-	// This prevents stale hardcoded versions from causing "resource not found" errors.
 	for i := range items {
 		key := items[i].Extra
 		if key == "" {
 			continue
 		}
-		// Extra format is "group/version/resource" — extract group and resource.
 		parts := strings.SplitN(key, "/", 3)
 		if len(parts) != 3 {
 			continue
@@ -109,21 +120,25 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 			items[i].Extra = parts[0] + "/" + ver + "/" + parts[2]
 		}
 	}
+	return items
+}
 
-	// Build builtInCategoryForGroup dynamically from TopLevelResourceTypes.
-	// Maps API groups to their category name so discovered CRDs from the same group
-	// get inserted alongside built-in entries.
-	builtInCategoryForGroup := make(map[string]string)
+// buildCategoryGroupMap maps API groups to their built-in category name.
+func buildCategoryGroupMap() map[string]string {
+	m := make(map[string]string)
 	for _, cat := range TopLevelResourceTypes() {
 		if coreCategories[cat.Name] {
-			continue // Don't map core resource groups
+			continue
 		}
 		for _, rt := range cat.Types {
-			builtInCategoryForGroup[rt.APIGroup] = cat.Name
+			m[rt.APIGroup] = cat.Name
 		}
 	}
+	return m
+}
 
-	// Group CRDs by API group, filtering out built-in duplicates.
+// groupDiscoveredCRDs groups CRDs by API group, filtering out built-in duplicates.
+func groupDiscoveredCRDs(discovered []ResourceTypeEntry, builtIn map[string]bool) (map[string][]ResourceTypeEntry, []string) {
 	grouped := make(map[string][]ResourceTypeEntry)
 	var groupOrder []string
 	for _, crd := range discovered {
@@ -136,11 +151,18 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 		}
 		grouped[crd.APIGroup] = append(grouped[crd.APIGroup], crd)
 	}
+	return grouped, groupOrder
+}
 
-	// Separate groups into pinned (user-configured) and unpinned, preserving order.
+// orderGroupsByPinning separates and orders groups into pinned-first, then unpinned.
+func orderGroupsByPinning(groupOrder []string) []string {
 	pinnedSet := make(map[string]bool, len(PinnedGroups))
 	for _, g := range PinnedGroups {
 		pinnedSet[g] = true
+	}
+	pinnedOrderMap := make(map[string]int, len(PinnedGroups))
+	for i, g := range PinnedGroups {
+		pinnedOrderMap[g] = i
 	}
 
 	var pinnedOrder, unpinnedOrder []string
@@ -151,22 +173,19 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 			unpinnedOrder = append(unpinnedOrder, group)
 		}
 	}
-
-	// Sort pinnedOrder to match the user's configured order in PinnedGroups.
-	pinnedOrderMap := make(map[string]int, len(PinnedGroups))
-	for i, g := range PinnedGroups {
-		pinnedOrderMap[g] = i
-	}
 	sort.SliceStable(pinnedOrder, func(i, j int) bool {
 		return pinnedOrderMap[pinnedOrder[i]] < pinnedOrderMap[pinnedOrder[j]]
 	})
 
-	// Process groups: pinned first, then unpinned.
-	orderedGroups := make([]string, 0, len(pinnedOrder)+len(unpinnedOrder))
-	orderedGroups = append(orderedGroups, pinnedOrder...)
-	orderedGroups = append(orderedGroups, unpinnedOrder...)
+	result := make([]string, 0, len(pinnedOrder)+len(unpinnedOrder))
+	result = append(result, pinnedOrder...)
+	result = append(result, unpinnedOrder...)
+	return result
+}
 
-	// Build items for each discovered group (non-duplicate CRDs only).
+// mergeGroupedCRDs inserts discovered CRD items into the item list,
+// merging into built-in categories or appending as new categories.
+func mergeGroupedCRDs(items []Item, grouped map[string][]ResourceTypeEntry, orderedGroups []string, builtInCategoryForGroup map[string]string) []Item {
 	for _, group := range orderedGroups {
 		categoryName, isBuiltInGroup := builtInCategoryForGroup[group]
 		if !isBuiltInGroup {
@@ -186,7 +205,6 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 		}
 
 		if isBuiltInGroup {
-			// Merge extra discovered CRDs into their built-in category.
 			insertIdx := -1
 			for i, it := range items {
 				if it.Category == categoryName {
@@ -202,13 +220,20 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 			}
 		}
 
-		// Append non-built-in discovered groups at the end (sorted below).
 		items = append(items, crdItems...)
 	}
+	return items
+}
 
-	// Sort all non-core CRD categories alphabetically by category name,
-	// with pinned groups appearing first (in user-configured order).
-	// Core categories retain their fixed position at the top.
+// sortItemsByCategory sorts items with core categories first, then pinned, then CRDs alphabetically.
+func sortItemsByCategory(items []Item) []Item {
+	pinnedSet := make(map[string]bool, len(PinnedGroups))
+	pinnedOrderMap := make(map[string]int, len(PinnedGroups))
+	for i, g := range PinnedGroups {
+		pinnedSet[g] = true
+		pinnedOrderMap[g] = i
+	}
+
 	var coreItems, pinnedItems, crdItemsList []Item
 	for _, it := range items {
 		switch {
@@ -221,22 +246,18 @@ func MergeWithCRDs(discovered []ResourceTypeEntry) []Item {
 		}
 	}
 
-	// Sort pinned items by the user's configured pinned group order.
 	sort.SliceStable(pinnedItems, func(i, j int) bool {
 		return pinnedOrderMap[pinnedItems[i].Category] < pinnedOrderMap[pinnedItems[j].Category]
 	})
-
-	// Sort CRD items alphabetically by category name.
 	sort.SliceStable(crdItemsList, func(i, j int) bool {
 		return crdItemsList[i].Category < crdItemsList[j].Category
 	})
 
-	items = make([]Item, 0, len(coreItems)+len(pinnedItems)+len(crdItemsList))
-	items = append(items, coreItems...)
-	items = append(items, pinnedItems...)
-	items = append(items, crdItemsList...)
-
-	return items
+	result := make([]Item, 0, len(coreItems)+len(pinnedItems)+len(crdItemsList))
+	result = append(result, coreItems...)
+	result = append(result, pinnedItems...)
+	result = append(result, crdItemsList...)
+	return result
 }
 
 // ResourceRef returns the "group/version/resource" reference string.

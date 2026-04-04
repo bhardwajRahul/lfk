@@ -314,7 +314,7 @@ func highlightNameSelected(name, query string) string {
 
 // RenderColumn renders a single column with optional header, item list, and cursor highlight.
 // The formatItem callback is used to format each item line.
-func RenderColumn(header string, items []model.Item, cursor int, width, height int, isActive, loading bool, spinnerView string, errMsg string) string {
+func RenderColumn(header string, items []model.Item, cursor int, width, height int, isActive, loading bool, spinnerView string, errMsg string) string { //nolint:gocyclo // rendering function with inherent layout complexity
 	var b strings.Builder
 
 	if header != "" {

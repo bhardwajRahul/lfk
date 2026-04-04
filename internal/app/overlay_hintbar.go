@@ -7,10 +7,79 @@ import (
 // overlayHintBar returns the hint bar content for the currently active overlay.
 // Returns empty string when no overlay is active.
 func (m Model) overlayHintBar() string {
-	switch m.overlay {
-	case overlayNone:
-		return ""
+	if hints := m.overlayHintBarDialog(); hints != "" {
+		return hints
+	}
+	if hints := m.overlayHintBarSelector(); hints != "" {
+		return hints
+	}
+	if hints := m.overlayHintBarEditor(); hints != "" {
+		return hints
+	}
+	if hints := m.overlayHintBarMisc(); hints != "" {
+		return hints
+	}
+	return ""
+}
 
+// overlayHintBarDialog handles confirmation and input dialog overlays.
+func (m Model) overlayHintBarDialog() string {
+	switch m.overlay {
+	case overlayConfirm:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "y", Desc: "confirm"},
+			{Key: "n", Desc: "cancel"},
+		})
+	case overlayQuitConfirm:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "y", Desc: "quit"},
+			{Key: "n", Desc: "cancel"},
+		})
+	case overlayConfirmType:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "type DELETE", Desc: "confirm"},
+			{Key: "esc", Desc: "cancel"},
+		})
+	case overlayScaleInput:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "Enter", Desc: "apply"},
+			{Key: "esc", Desc: "cancel"},
+		})
+	case overlayPVCResize:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "Enter", Desc: "resize"},
+			{Key: "esc", Desc: "cancel"},
+		})
+	case overlayBatchLabel:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "Tab", Desc: "toggle add/remove"},
+			{Key: "Enter", Desc: "apply"},
+			{Key: "esc", Desc: "cancel"},
+		})
+	case overlayRBAC, overlayPodStartup:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "any key", Desc: "close"},
+		})
+	case overlayAutoSync:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "jk", Desc: "nav"},
+			{Key: "space", Desc: "toggle"},
+			{Key: "enter", Desc: "save"},
+			{Key: "esc", Desc: "cancel"},
+		})
+	case overlayRollback, overlayHelmRollback:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "jk", Desc: "nav"},
+			{Key: "Enter", Desc: "rollback"},
+			{Key: "esc", Desc: "cancel"},
+		})
+	}
+	return ""
+}
+
+// overlayHintBarSelector handles list/selector overlays.
+func (m Model) overlayHintBarSelector() string {
+	switch m.overlay {
 	case overlayNamespace:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "space", Desc: "select"},
@@ -19,58 +88,24 @@ func (m Model) overlayHintBar() string {
 			{Key: "/", Desc: "filter"},
 			{Key: "esc", Desc: "close"},
 		})
-
 	case overlayAction:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "j/k", Desc: "navigate"},
 			{Key: "enter/key", Desc: "select"},
 			{Key: "esc", Desc: "close"},
 		})
-
-	case overlayConfirm:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "y", Desc: "confirm"},
-			{Key: "n", Desc: "cancel"},
-		})
-
-	case overlayQuitConfirm:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "y", Desc: "quit"},
-			{Key: "n", Desc: "cancel"},
-		})
-
-	case overlayConfirmType:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "type DELETE", Desc: "confirm"},
-			{Key: "esc", Desc: "cancel"},
-		})
-
-	case overlayScaleInput:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "Enter", Desc: "apply"},
-			{Key: "esc", Desc: "cancel"},
-		})
-
-	case overlayPVCResize:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "Enter", Desc: "resize"},
-			{Key: "esc", Desc: "cancel"},
-		})
-
 	case overlayPortForward:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "j/k", Desc: "select port"},
 			{Key: "enter", Desc: "forward"},
 			{Key: "esc", Desc: "cancel"},
 		})
-
 	case overlayContainerSelect:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "j/k", Desc: "navigate"},
 			{Key: "enter", Desc: "select"},
 			{Key: "esc", Desc: "close"},
 		})
-
 	case overlayPodSelect, overlayLogPodSelect:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "/", Desc: "filter"},
@@ -78,42 +113,10 @@ func (m Model) overlayHintBar() string {
 			{Key: "enter", Desc: "select"},
 			{Key: "esc", Desc: "close"},
 		})
-
 	case overlayLogContainerSelect:
 		return m.overlayHintBarOverlayLogContainerSelect()
-
 	case overlayBookmarks:
-		switch m.bookmarkSearchMode {
-		case bookmarkModeFilter:
-			return m.renderHints([]ui.HintEntry{
-				{Key: "type", Desc: "filter"},
-				{Key: "enter", Desc: "apply"},
-				{Key: "esc", Desc: "clear"},
-			})
-		case bookmarkModeConfirmDelete:
-			return m.renderHints([]ui.HintEntry{
-				{Key: "y", Desc: "confirm delete"},
-				{Key: "n", Desc: "cancel"},
-			})
-		case bookmarkModeConfirmDeleteAll:
-			return m.renderHints([]ui.HintEntry{
-				{Key: "y", Desc: "confirm delete all"},
-				{Key: "n", Desc: "cancel"},
-			})
-		default:
-			return m.renderHints([]ui.HintEntry{
-				{Key: "a-z/0-9", Desc: "jump"},
-				{Key: "enter", Desc: "jump"},
-				{Key: "/", Desc: "filter"},
-				{Key: "D", Desc: "delete"},
-				{Key: "ctrl+x", Desc: "delete all"},
-				{Key: "esc", Desc: "close"},
-			})
-		}
-
-	case overlayTemplates:
-		return m.overlayHintBarOverlayTemplates()
-
+		return m.overlayHintBarBookmarks()
 	case overlayColorscheme:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "j/k", Desc: "navigate"},
@@ -123,7 +126,6 @@ func (m Model) overlayHintBar() string {
 			{Key: "/", Desc: "filter"},
 			{Key: "esc", Desc: "cancel"},
 		})
-
 	case overlayFilterPreset:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "key", Desc: "apply"},
@@ -131,38 +133,53 @@ func (m Model) overlayHintBar() string {
 			{Key: ".", Desc: "clear"},
 			{Key: "esc", Desc: "close"},
 		})
-
-	case overlayRBAC:
+	case overlayTemplates:
+		return m.overlayHintBarOverlayTemplates()
+	case overlayCanISubject:
 		return m.renderHints([]ui.HintEntry{
-			{Key: "any key", Desc: "close"},
-		})
-
-	case overlayBatchLabel:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "Tab", Desc: "toggle add/remove"},
-			{Key: "Enter", Desc: "apply"},
+			{Key: "enter", Desc: "select"},
+			{Key: "/", Desc: "filter"},
 			{Key: "esc", Desc: "cancel"},
 		})
-
-	case overlayPodStartup:
+	case overlayExplainSearch:
 		return m.renderHints([]ui.HintEntry{
-			{Key: "any key", Desc: "close"},
-		})
-
-	case overlayQuotaDashboard:
-		return m.renderHints([]ui.HintEntry{
+			{Key: "enter", Desc: "navigate"},
+			{Key: "/", Desc: "filter"},
 			{Key: "esc", Desc: "close"},
 		})
+	}
+	return ""
+}
 
+// overlayHintBarEditor handles editor and viewer overlays.
+func (m Model) overlayHintBarEditor() string {
+	switch m.overlay {
+	case overlaySecretEditor:
+		return m.overlayHintBarOverlaySecretEditor()
+	case overlayConfigMapEditor:
+		return m.overlayHintBarOverlayConfigMapEditor()
+	case overlayLabelEditor:
+		return m.overlayHintBarOverlayLabelEditor()
+	case overlayColumnToggle:
+		return m.overlayHintBarOverlayColumnToggle()
+	case overlayFinalizerSearch:
+		return m.overlayHintBarOverlayFinalizerSearch()
+	case overlayCanI:
+		return m.overlayHintBarOverlayCanI()
+	}
+	return ""
+}
+
+// overlayHintBarMisc handles remaining overlay types.
+func (m Model) overlayHintBarMisc() string {
+	switch m.overlay {
 	case overlayEventTimeline:
 		return m.overlayHintBarOverlayEventTimeline()
-
 	case overlayAlerts:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "j/k", Desc: "scroll"},
 			{Key: "esc", Desc: "close"},
 		})
-
 	case overlayNetworkPolicy:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "j/k", Desc: "scroll"},
@@ -171,56 +188,42 @@ func (m Model) overlayHintBar() string {
 			{Key: "ctrl+f/b", Desc: "page"},
 			{Key: "esc", Desc: "close"},
 		})
-
-	case overlaySecretEditor:
-		return m.overlayHintBarOverlaySecretEditor()
-
-	case overlayConfigMapEditor:
-		return m.overlayHintBarOverlayConfigMapEditor()
-
-	case overlayRollback, overlayHelmRollback:
+	case overlayQuotaDashboard:
 		return m.renderHints([]ui.HintEntry{
-			{Key: "jk", Desc: "nav"},
-			{Key: "Enter", Desc: "rollback"},
-			{Key: "esc", Desc: "cancel"},
-		})
-
-	case overlayLabelEditor:
-		return m.overlayHintBarOverlayLabelEditor()
-
-	case overlayAutoSync:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "jk", Desc: "nav"},
-			{Key: "space", Desc: "toggle"},
-			{Key: "enter", Desc: "save"},
-			{Key: "esc", Desc: "cancel"},
-		})
-
-	case overlayFinalizerSearch:
-		return m.overlayHintBarOverlayFinalizerSearch()
-
-	case overlayCanI:
-		return m.overlayHintBarOverlayCanI()
-
-	case overlayCanISubject:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "enter", Desc: "select"},
-			{Key: "/", Desc: "filter"},
-			{Key: "esc", Desc: "cancel"},
-		})
-
-	case overlayColumnToggle:
-		return m.overlayHintBarOverlayColumnToggle()
-
-	case overlayExplainSearch:
-		return m.renderHints([]ui.HintEntry{
-			{Key: "enter", Desc: "navigate"},
-			{Key: "/", Desc: "filter"},
 			{Key: "esc", Desc: "close"},
 		})
+	}
+	return ""
+}
 
+// overlayHintBarBookmarks returns hints for the bookmark overlay sub-modes.
+func (m Model) overlayHintBarBookmarks() string {
+	switch m.bookmarkSearchMode {
+	case bookmarkModeFilter:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "type", Desc: "filter"},
+			{Key: "enter", Desc: "apply"},
+			{Key: "esc", Desc: "clear"},
+		})
+	case bookmarkModeConfirmDelete:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "y", Desc: "confirm delete"},
+			{Key: "n", Desc: "cancel"},
+		})
+	case bookmarkModeConfirmDeleteAll:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "y", Desc: "confirm delete all"},
+			{Key: "n", Desc: "cancel"},
+		})
 	default:
-		return ""
+		return m.renderHints([]ui.HintEntry{
+			{Key: "a-z/0-9", Desc: "jump"},
+			{Key: "enter", Desc: "jump"},
+			{Key: "/", Desc: "filter"},
+			{Key: "D", Desc: "delete"},
+			{Key: "ctrl+x", Desc: "delete all"},
+			{Key: "esc", Desc: "close"},
+		})
 	}
 }
 

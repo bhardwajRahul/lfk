@@ -356,32 +356,10 @@ func DefaultAbbreviations() map[string]string {
 func LoadConfig() {
 	theme := DefaultTheme()
 	kb := DefaultKeybindings()
-
 	abbr := DefaultAbbreviations()
 
-	configDir := os.Getenv("XDG_CONFIG_HOME")
-	if configDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			ApplyTheme(theme)
-			ActiveKeybindings = kb
-			SearchAbbreviations = abbr
-			return
-		}
-		configDir = filepath.Join(home, ".config")
-	}
-
-	configPath := filepath.Join(configDir, "lfk", "config.yaml")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		ApplyTheme(theme)
-		ActiveKeybindings = kb
-		SearchAbbreviations = abbr
-		return
-	}
-
-	var cfg configFile
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	cfg, ok := loadConfigFile()
+	if !ok {
 		ApplyTheme(theme)
 		ActiveKeybindings = kb
 		SearchAbbreviations = abbr
@@ -389,71 +367,111 @@ func LoadConfig() {
 	}
 
 	ConfigLogPath = cfg.LogPath
+	applyColorscheme(&theme, cfg)
+	mergeThemeOverrides(&theme, cfg.Theme)
+	MergeKeybindings(&kb, &cfg.Keybindings)
+	applyConfigOptions(cfg)
+	applyConfigMaps(cfg, abbr)
 
-	// If a built-in colorscheme is specified, use it as the base theme.
+	ApplyTheme(theme)
+	ActiveKeybindings = kb
+	SearchAbbreviations = abbr
+}
+
+// loadConfigFile reads and parses the YAML config file.
+func loadConfigFile() (configFile, bool) {
+	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if configDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return configFile{}, false
+		}
+		configDir = filepath.Join(home, ".config")
+	}
+
+	configPath := filepath.Join(configDir, "lfk", "config.yaml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return configFile{}, false
+	}
+
+	var cfg configFile
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return configFile{}, false
+	}
+	return cfg, true
+}
+
+// applyColorscheme selects a built-in colorscheme if specified in config.
+func applyColorscheme(theme *Theme, cfg configFile) {
 	if cfg.Colorscheme != "" {
 		if scheme, ok := BuiltinSchemes()[strings.ToLower(cfg.Colorscheme)]; ok {
-			theme = scheme
+			*theme = scheme
 			ActiveSchemeName = strings.ToLower(cfg.Colorscheme)
 		}
 	}
+}
 
-	// Merge theme: only override non-empty values (custom overrides on top of scheme).
-	mergeThemeOverrides(&theme, cfg.Theme)
-
-	// Merge keybindings: only override non-empty values.
-	MergeKeybindings(&kb, &cfg.Keybindings)
-
-	// Apply icon mode from config.
+// applyConfigOptions applies scalar config options (icons, terminal, tips, etc.).
+func applyConfigOptions(cfg configFile) {
 	if cfg.Icons != "" {
 		switch strings.ToLower(cfg.Icons) {
 		case "unicode", "simple", "emoji", "none":
 			IconMode = strings.ToLower(cfg.Icons)
-		default:
-			// Invalid value; keep default "unicode".
 		}
 	}
-
-	// Apply per-resource-type column overrides (normalize keys to lowercase).
-	if len(cfg.ResourceColumns) > 0 {
-		ConfigResourceColumns = make(map[string][]string, len(cfg.ResourceColumns))
-		for k, v := range cfg.ResourceColumns {
-			ConfigResourceColumns[strings.ToLower(k)] = v
-		}
-	}
-
-	// Apply dashboard config.
 	if cfg.Dashboard != nil {
 		ConfigDashboard = *cfg.Dashboard
 	}
-
-	// Merge abbreviations: user config overrides/extends defaults.
-	for k, v := range cfg.Abbreviations {
-		abbr[strings.ToLower(k)] = strings.ToLower(v)
-	}
-
-	// Apply custom actions from config.
-	if len(cfg.CustomActions) > 0 {
-		ConfigCustomActions = cfg.CustomActions
-	}
-
-	// Apply filter presets from config (normalize keys to lowercase).
-	if len(cfg.FilterPresets) > 0 {
-		ConfigFilterPresets = make(map[string][]ConfigFilterPreset, len(cfg.FilterPresets))
-		for k, v := range cfg.FilterPresets {
-			ConfigFilterPresets[strings.ToLower(k)] = v
-		}
-	}
-
-	// Apply terminal mode from config.
 	if cfg.Terminal != "" {
 		switch strings.ToLower(cfg.Terminal) {
 		case "pty", "exec":
 			ConfigTerminalMode = strings.ToLower(cfg.Terminal)
 		}
 	}
+	if len(cfg.PinnedGroups) > 0 {
+		ConfigPinnedGroups = cfg.PinnedGroups
+	}
+	if cfg.Monitoring != nil {
+		model.ConfigMonitoring = cfg.Monitoring
+	}
+	if cfg.Tips != nil {
+		ConfigTipsEnabled = *cfg.Tips
+	}
+	if cfg.LogTailLines != nil && *cfg.LogTailLines > 0 {
+		ConfigLogTailLines = *cfg.LogTailLines
+	}
+	if cfg.ScrollOff != nil && *cfg.ScrollOff >= 0 {
+		ConfigScrollOff = *cfg.ScrollOff
+	}
+	if cfg.ConfirmOnExit != nil {
+		ConfigConfirmOnExit = *cfg.ConfirmOnExit
+	}
+	if cfg.TransparentBg != nil {
+		ConfigTransparentBg = *cfg.TransparentBg
+	}
+}
 
-	// Apply per-cluster resource column overrides (normalize keys to lowercase).
+// applyConfigMaps applies map-based config settings (columns, actions, presets, abbreviations, clusters).
+func applyConfigMaps(cfg configFile, abbr map[string]string) {
+	if len(cfg.ResourceColumns) > 0 {
+		ConfigResourceColumns = make(map[string][]string, len(cfg.ResourceColumns))
+		for k, v := range cfg.ResourceColumns {
+			ConfigResourceColumns[strings.ToLower(k)] = v
+		}
+	}
+	for k, v := range cfg.Abbreviations {
+		abbr[strings.ToLower(k)] = strings.ToLower(v)
+	}
+	if len(cfg.CustomActions) > 0 {
+		ConfigCustomActions = cfg.CustomActions
+	}
+	if len(cfg.FilterPresets) > 0 {
+		ConfigFilterPresets = make(map[string][]ConfigFilterPreset, len(cfg.FilterPresets))
+		for k, v := range cfg.FilterPresets {
+			ConfigFilterPresets[strings.ToLower(k)] = v
+		}
+	}
 	if len(cfg.Clusters) > 0 {
 		ConfigClusterResourceColumns = make(map[string]map[string][]string, len(cfg.Clusters))
 		for ctx, cc := range cfg.Clusters {
@@ -466,43 +484,4 @@ func LoadConfig() {
 			}
 		}
 	}
-
-	// Apply pinned groups from config.
-	if len(cfg.PinnedGroups) > 0 {
-		ConfigPinnedGroups = cfg.PinnedGroups
-	}
-
-	// Apply monitoring endpoint overrides.
-	if cfg.Monitoring != nil {
-		model.ConfigMonitoring = cfg.Monitoring
-	}
-
-	// Apply tips setting.
-	if cfg.Tips != nil {
-		ConfigTipsEnabled = *cfg.Tips
-	}
-
-	// Apply log tail lines setting.
-	if cfg.LogTailLines != nil && *cfg.LogTailLines > 0 {
-		ConfigLogTailLines = *cfg.LogTailLines
-	}
-
-	// Apply scrolloff setting.
-	if cfg.ScrollOff != nil && *cfg.ScrollOff >= 0 {
-		ConfigScrollOff = *cfg.ScrollOff
-	}
-
-	// Apply confirm on exit setting.
-	if cfg.ConfirmOnExit != nil {
-		ConfigConfirmOnExit = *cfg.ConfirmOnExit
-	}
-
-	// Apply transparent background setting.
-	if cfg.TransparentBg != nil {
-		ConfigTransparentBg = *cfg.TransparentBg
-	}
-
-	ApplyTheme(theme)
-	ActiveKeybindings = kb
-	SearchAbbreviations = abbr
 }

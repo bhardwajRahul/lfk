@@ -40,6 +40,26 @@ func ActionsForBulk(kind string) []ActionMenuItem {
 
 // ActionsForKind returns the action menu items appropriate for a given resource kind.
 func ActionsForKind(kind string) []ActionMenuItem {
+	if actions, ok := actionsForCoreKind(kind); ok {
+		return actions
+	}
+	if actions, ok := actionsForWorkloadKind(kind); ok {
+		return actions
+	}
+	if actions, ok := actionsForGitOpsKind(kind); ok {
+		return actions
+	}
+	if actions, ok := actionsForCertManagerKind(kind); ok {
+		return actions
+	}
+	if actions, ok := actionsForOperatorKind(kind); ok {
+		return actions
+	}
+	return actionsDefault()
+}
+
+// actionsForCoreKind returns actions for core Kubernetes resource kinds.
+func actionsForCoreKind(kind string) ([]ActionMenuItem, bool) {
 	switch kind {
 	case "Pod":
 		return []ActionMenuItem{
@@ -55,7 +75,92 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this pod", Key: "D"},
 			{Label: "Force Delete", Description: "Force delete this pod (grace-period=0)", Key: "X"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
+	case "Node":
+		return []ActionMenuItem{
+			{Label: "Cordon", Description: "Mark node as unschedulable", Key: "c"},
+			{Label: "Uncordon", Description: "Mark node as schedulable", Key: "u"},
+			{Label: "Drain", Description: "Drain node (evict pods)", Key: "n"},
+			{Label: "Taint", Description: "Add taint to node", Key: "t"},
+			{Label: "Untaint", Description: "Remove taint from node", Key: "T"},
+			{Label: "Shell", Description: "Open shell on node via debug pod", Key: "s"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in current namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}, true
+	case "Service":
+		return []ActionMenuItem{
+			{Label: "Logs", Description: "View aggregated pod logs", Key: "l"},
+			{Label: "Exec", Description: "Exec into pod behind service", Key: "s"},
+			{Label: "Attach", Description: "Attach to pod behind service", Key: "A"},
+			{Label: "Port Forward", Description: "Forward local port to service", Key: "p"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this service", Key: "D"},
+			{Label: "Debug Pod", Description: "Run alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}, true
+	case "Secret":
+		return []ActionMenuItem{
+			{Label: "Secret Editor", Description: "Edit secret values (decode/encode base64)", Key: "e"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this secret", Key: "D"},
+			{Label: "Labels / Annotations", Description: "Edit labels and annotations", Key: "l"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+			{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
+		}, true
+	case "ConfigMap":
+		return []ActionMenuItem{
+			{Label: "ConfigMap Editor", Description: "Edit configmap key-value data", Key: "e"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this configmap", Key: "D"},
+			{Label: "Labels / Annotations", Description: "Edit labels and annotations", Key: "l"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+			{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
+		}, true
+	case "NetworkPolicy":
+		return []ActionMenuItem{
+			{Label: "Visualize", Description: "Visualize network policy rules", Key: "N"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this network policy", Key: "D"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+			{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
+		}, true
+	case "PersistentVolumeClaim":
+		return []ActionMenuItem{
+			{Label: "Resize", Description: "Expand PVC storage size", Key: "r"},
+			{Label: "Go to Pod", Description: "Navigate to pod using this PVC", Key: "g"},
+			{Label: "Debug Mount", Description: "Run debug pod with this PVC mounted", Key: "b"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "B"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this PVC", Key: "D"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}, true
+	case "Ingress":
+		return []ActionMenuItem{
+			{Label: "Open in Browser", Description: "Open first host URL in browser", Key: "o"},
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this ingress", Key: "D"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}, true
+	}
+	return nil, false
+}
+
+// actionsForWorkloadKind returns actions for workload resource kinds
+// (Deployment, StatefulSet, DaemonSet, Job, CronJob, etc.).
+func actionsForWorkloadKind(kind string) ([]ActionMenuItem, bool) {
+	switch kind {
 	case "Deployment":
 		return []ActionMenuItem{
 			{Label: "Logs", Description: "View aggregated pod logs", Key: "l"},
@@ -70,7 +175,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this deployment", Key: "D"},
 			{Label: "Debug Pod", Description: "Run alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "ReplicaSet":
 		return []ActionMenuItem{
 			{Label: "Scale", Description: "Scale replica count", Key: "S"},
@@ -80,20 +185,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this replicaset", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "Node":
-		return []ActionMenuItem{
-			{Label: "Cordon", Description: "Mark node as unschedulable", Key: "c"},
-			{Label: "Uncordon", Description: "Mark node as schedulable", Key: "u"},
-			{Label: "Drain", Description: "Drain node (evict pods)", Key: "n"},
-			{Label: "Taint", Description: "Add taint to node", Key: "t"},
-			{Label: "Untaint", Description: "Remove taint from node", Key: "T"},
-			{Label: "Shell", Description: "Open shell on node via debug pod", Key: "s"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in current namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "HorizontalPodAutoscaler":
 		return []ActionMenuItem{
 			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
@@ -101,7 +193,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Describe", Description: "Describe resource", Key: "v"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "StatefulSet":
 		return []ActionMenuItem{
 			{Label: "Logs", Description: "View aggregated pod logs", Key: "l"},
@@ -115,7 +207,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this statefulset", Key: "D"},
 			{Label: "Debug Pod", Description: "Run alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "DaemonSet":
 		return []ActionMenuItem{
 			{Label: "Logs", Description: "View aggregated pod logs", Key: "l"},
@@ -128,7 +220,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this daemonset", Key: "D"},
 			{Label: "Debug Pod", Description: "Run alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "Job":
 		return []ActionMenuItem{
 			{Label: "Logs", Description: "View job logs", Key: "l"},
@@ -140,7 +232,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Force Delete", Description: "Force delete this job (grace-period=0)", Key: "X"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "CronJob":
 		return []ActionMenuItem{
 			{Label: "Logs", Description: "View cronjob logs", Key: "l"},
@@ -152,21 +244,28 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this cronjob", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "Service":
+		}, true
+	case "HelmRelease":
 		return []ActionMenuItem{
-			{Label: "Logs", Description: "View aggregated pod logs", Key: "l"},
-			{Label: "Exec", Description: "Exec into pod behind service", Key: "s"},
-			{Label: "Attach", Description: "Attach to pod behind service", Key: "A"},
-			{Label: "Port Forward", Description: "Forward local port to service", Key: "p"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this service", Key: "D"},
-			{Label: "Debug Pod", Description: "Run alpine debug pod in namespace", Key: "b"},
+			{Label: "Values", Description: "View user-supplied values", Key: "u"},
+			{Label: "All Values", Description: "View all values (including defaults)", Key: "A"},
+			{Label: "Edit Values", Description: "Edit values in $EDITOR", Key: "E"},
+			{Label: "Diff", Description: "Compare default vs user-supplied values", Key: "d"},
+			{Label: "Upgrade", Description: "Upgrade release to latest chart version", Key: "U"},
+			{Label: "Rollback", Description: "Rollback to previous revision", Key: "R"},
+			{Label: "Describe", Description: "Show release info", Key: "v"},
+			{Label: "Delete", Description: "Uninstall this release", Key: "D"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
+	}
+	return nil, false
+}
+
+// actionsForGitOpsKind returns actions for Argo and FluxCD resource kinds.
+func actionsForGitOpsKind(kind string) ([]ActionMenuItem, bool) {
+	switch kind {
 	case "Workflow":
-		// Argo Workflows
 		return []ActionMenuItem{
 			{Label: "Watch Workflow", Description: "Live status of workflow nodes", Key: "w"},
 			{Label: "Suspend Workflow", Description: "Pause workflow execution", Key: "s"},
@@ -180,9 +279,8 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this workflow", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "WorkflowTemplate":
-		// Argo Workflow Templates
 		return []ActionMenuItem{
 			{Label: "Submit Workflow", Description: "Create workflow from this template", Key: "s"},
 			{Label: "Describe", Description: "Describe resource", Key: "v"},
@@ -190,18 +288,16 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this template", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "ClusterWorkflowTemplate":
-		// Argo Cluster Workflow Templates
 		return []ActionMenuItem{
 			{Label: "Submit Workflow", Description: "Create workflow from this template", Key: "s"},
 			{Label: "Describe", Description: "Describe resource", Key: "v"},
 			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
 			{Label: "Delete", Description: "Delete this template", Key: "D"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "CronWorkflow":
-		// Argo Cron Workflows
 		return []ActionMenuItem{
 			{Label: "Suspend CronWorkflow", Description: "Suspend scheduled execution", Key: "s"},
 			{Label: "Resume CronWorkflow", Description: "Resume scheduled execution", Key: "r"},
@@ -210,7 +306,7 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this cron workflow", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "Application":
 		return []ActionMenuItem{
 			{Label: "Configure AutoSync", Description: "Toggle autosync, self-heal, prune", Key: "A"},
@@ -223,97 +319,84 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this application", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "ApplicationSet":
 		return []ActionMenuItem{
 			{Label: "Describe", Description: "Describe resource", Key: "v"},
 			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
 			{Label: "Delete", Description: "Delete this ApplicationSet", Key: "D"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "PersistentVolumeClaim":
-		return []ActionMenuItem{
-			{Label: "Resize", Description: "Expand PVC storage size", Key: "r"},
-			{Label: "Go to Pod", Description: "Navigate to pod using this PVC", Key: "g"},
-			{Label: "Debug Mount", Description: "Run debug pod with this PVC mounted", Key: "b"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "B"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this PVC", Key: "D"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "Ingress":
-		return []ActionMenuItem{
-			{Label: "Open in Browser", Description: "Open first host URL in browser", Key: "o"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this ingress", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "HelmRelease":
-		return []ActionMenuItem{
-			{Label: "Values", Description: "View user-supplied values", Key: "u"},
-			{Label: "All Values", Description: "View all values (including defaults)", Key: "A"},
-			{Label: "Edit Values", Description: "Edit values in $EDITOR", Key: "E"},
-			{Label: "Diff", Description: "Compare default vs user-supplied values", Key: "d"},
-			{Label: "Upgrade", Description: "Upgrade release to latest chart version", Key: "U"},
-			{Label: "Rollback", Description: "Rollback to previous revision", Key: "R"},
-			{Label: "Describe", Description: "Show release info", Key: "v"},
-			{Label: "Delete", Description: "Uninstall this release", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "Kustomization":
-		// FluxCD Kustomization
-		return []ActionMenuItem{
-			{Label: "Reconcile", Description: "Trigger reconciliation", Key: "r"},
-			{Label: "Suspend", Description: "Suspend reconciliation", Key: "s"},
-			{Label: "Resume", Description: "Resume reconciliation", Key: "R"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		return actionsFluxReconcilable("Kustomization"), true
 	case "GitRepository", "HelmRepository", "HelmChart", "OCIRepository", "Bucket":
-		// FluxCD Source resources
-		return []ActionMenuItem{
-			{Label: "Reconcile", Description: "Trigger reconciliation", Key: "r"},
-			{Label: "Suspend", Description: "Suspend reconciliation", Key: "s"},
-			{Label: "Resume", Description: "Resume reconciliation", Key: "R"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		return actionsFluxReconcilable(kind), true
 	case "Alert", "Provider", "Receiver":
-		// FluxCD Notification resources
-		return []ActionMenuItem{
-			{Label: "Reconcile", Description: "Trigger reconciliation", Key: "r"},
-			{Label: "Suspend", Description: "Suspend reconciliation", Key: "s"},
-			{Label: "Resume", Description: "Resume reconciliation", Key: "R"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		return actionsFluxReconcilable(kind), true
 	case "ImageRepository", "ImagePolicy", "ImageUpdateAutomation":
-		// FluxCD Image resources
+		return actionsFluxReconcilable(kind), true
+	}
+	return nil, false
+}
+
+// actionsFluxReconcilable returns the standard action set for FluxCD reconcilable resources.
+func actionsFluxReconcilable(_ string) []ActionMenuItem {
+	return []ActionMenuItem{
+		{Label: "Reconcile", Description: "Trigger reconciliation", Key: "r"},
+		{Label: "Suspend", Description: "Suspend reconciliation", Key: "s"},
+		{Label: "Resume", Description: "Resume reconciliation", Key: "R"},
+		{Label: "Describe", Description: "Describe resource", Key: "v"},
+		{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+		{Label: "Delete", Description: "Delete this resource", Key: "D"},
+		{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+		{Label: "Events", Description: "Show related events", Key: "V"},
+	}
+}
+
+// actionsForCertManagerKind returns actions for cert-manager resource kinds.
+func actionsForCertManagerKind(kind string) ([]ActionMenuItem, bool) {
+	switch kind {
+	case "Certificate":
 		return []ActionMenuItem{
-			{Label: "Reconcile", Description: "Trigger reconciliation", Key: "r"},
-			{Label: "Suspend", Description: "Suspend reconciliation", Key: "s"},
-			{Label: "Resume", Description: "Resume reconciliation", Key: "R"},
+			{Label: "Force Renew", Description: "Trigger certificate re-issuance", Key: "r"},
 			{Label: "Describe", Description: "Describe resource", Key: "v"},
 			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
 			{Label: "Delete", Description: "Delete this resource", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
+	case "CertificateRequest":
+		return []ActionMenuItem{
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this resource", Key: "D"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}, true
+	case "Issuer", "ClusterIssuer":
+		return []ActionMenuItem{
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+			{Label: "Delete", Description: "Delete this resource", Key: "D"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}, true
+	case "Order", "Challenge":
+		return []ActionMenuItem{
+			{Label: "Describe", Description: "Describe resource", Key: "v"},
+			{Label: "Delete", Description: "Delete this resource", Key: "D"},
+			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+			{Label: "Events", Description: "Show related events", Key: "V"},
+		}, true
+	}
+	return nil, false
+}
+
+// actionsForOperatorKind returns actions for operator-managed resource kinds
+// (KEDA, External Secrets, etc.).
+func actionsForOperatorKind(kind string) ([]ActionMenuItem, bool) {
+	switch kind {
 	case "ScaledObject", "ScaledJob":
-		// KEDA ScaledObject / ScaledJob
 		return []ActionMenuItem{
 			{Label: "Pause", Description: "Pause autoscaling", Key: "p"},
 			{Label: "Unpause", Description: "Resume autoscaling", Key: "u"},
@@ -322,9 +405,8 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this resource", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
+		}, true
 	case "ExternalSecret", "ClusterExternalSecret", "PushSecret":
-		// External Secrets Operator resources
 		return []ActionMenuItem{
 			{Label: "Force Refresh", Description: "Force sync external secret", Key: "r"},
 			{Label: "Describe", Description: "Describe resource", Key: "v"},
@@ -332,89 +414,22 @@ func ActionsForKind(kind string) []ActionMenuItem {
 			{Label: "Delete", Description: "Delete this resource", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
 			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "Certificate":
-		// cert-manager Certificate resources
-		return []ActionMenuItem{
-			{Label: "Force Renew", Description: "Trigger certificate re-issuance", Key: "r"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "CertificateRequest":
-		// cert-manager CertificateRequest resources
-		return []ActionMenuItem{
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "Issuer", "ClusterIssuer":
-		// cert-manager Issuer resources
-		return []ActionMenuItem{
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "Order", "Challenge":
-		// cert-manager ACME resources
-		return []ActionMenuItem{
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-		}
-	case "Secret":
-		return []ActionMenuItem{
-			{Label: "Secret Editor", Description: "Edit secret values (decode/encode base64)", Key: "e"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this secret", Key: "D"},
-			{Label: "Labels / Annotations", Description: "Edit labels and annotations", Key: "l"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-			{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
-		}
-	case "ConfigMap":
-		return []ActionMenuItem{
-			{Label: "ConfigMap Editor", Description: "Edit configmap key-value data", Key: "e"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this configmap", Key: "D"},
-			{Label: "Labels / Annotations", Description: "Edit labels and annotations", Key: "l"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-			{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
-		}
-	case "NetworkPolicy":
-		return []ActionMenuItem{
-			{Label: "Visualize", Description: "Visualize network policy rules", Key: "N"},
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this network policy", Key: "D"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-			{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
-		}
-	default:
-		return []ActionMenuItem{
-			{Label: "Describe", Description: "Describe resource", Key: "v"},
-			{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
-			{Label: "Delete", Description: "Delete this resource", Key: "D"},
-			{Label: "Labels / Annotations", Description: "Edit labels and annotations", Key: "l"},
-			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
-			{Label: "Events", Description: "Show related events", Key: "V"},
-			{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
-		}
+		}, true
 	}
+	return nil, false
+}
 
-	// Note: "Permissions" action is also available for all kinds — it's appended
-	// by the action dispatch logic if not present in the kind-specific list.
+// actionsDefault returns the generic action menu for unrecognized resource kinds.
+func actionsDefault() []ActionMenuItem {
+	return []ActionMenuItem{
+		{Label: "Describe", Description: "Describe resource", Key: "v"},
+		{Label: "Edit", Description: "Edit resource YAML", Key: "E"},
+		{Label: "Delete", Description: "Delete this resource", Key: "D"},
+		{Label: "Labels / Annotations", Description: "Edit labels and annotations", Key: "l"},
+		{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},
+		{Label: "Events", Description: "Show related events", Key: "V"},
+		{Label: "Permissions", Description: "Check RBAC permissions", Key: "P"},
+	}
 }
 
 // ActionsForPortForward returns the action menu items for a port forward entry.

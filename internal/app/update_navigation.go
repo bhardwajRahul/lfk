@@ -211,88 +211,124 @@ func (m Model) navigateChild() (tea.Model, tea.Cmd) {
 
 	switch m.nav.Level {
 	case model.LevelClusters:
-		logger.Info("Context selected", "context", sel.Name)
-		m.saveCursor()
-		m.nav.Context = sel.Name
-		m.dashboardPreview = ""
-		m.dashboardEventsPreview = ""
-		m.monitoringPreview = ""
-		m.applyPinnedGroups()
-		m.nav.Level = model.LevelResourceTypes
-		m.pushLeft()
-		m.clearRight()
-		// Use CRD-merged list if already discovered, otherwise start with built-in types.
-		if crds, ok := m.discoveredCRDs[sel.Name]; ok && len(crds) > 0 {
-			m.middleItems = model.MergeWithCRDs(crds)
-		} else {
-			m.middleItems = model.FlattenedResourceTypes()
-		}
-		m.itemCache[m.navKey()] = m.middleItems
-		m.restoreCursor()
-		m.syncExpandedGroup()
-		m.saveCurrentSession()
-		// Trigger async CRD discovery if not already cached.
-		cmds := []tea.Cmd{m.loadPreview()}
-		if _, ok := m.discoveredCRDs[sel.Name]; !ok {
-			cmds = append(cmds, m.discoverCRDs(sel.Name))
-		}
-		return m, tea.Batch(cmds...)
-
+		return m.navigateChildCluster(sel)
 	case model.LevelResourceTypes:
-		// Cluster Dashboard or Monitoring item: enter fullscreen dashboard view.
-		if sel.Extra == "__overview__" || sel.Extra == "__monitoring__" {
-			m.fullscreenDashboard = true
-			m.previewScroll = 0
-			m.setStatusMessage("Dashboard fullscreen ON", false)
-			return m, scheduleStatusClear()
-		}
-		// Port Forwards: show active port forwards.
-		if sel.Kind == "__port_forwards__" {
-			m.saveCursor()
-			m.nav.ResourceType = model.ResourceTypeEntry{
-				DisplayName: "Port Forwards",
-				Kind:        "__port_forwards__",
-				APIGroup:    "_portforward",
-				APIVersion:  "v1",
-				Resource:    "portforwards",
-				Namespaced:  false,
-			}
-			m.nav.Level = model.LevelResources
-			m.pushLeft()
-			m.clearRight()
-			m.middleItems = m.portForwardItems()
-			m.setCursor(0)
-			m.clampCursor()
-			m.saveCurrentSession()
-			return m, m.waitForPortForwardUpdate()
-		}
-		// Collapsed group placeholder: expand the group instead of navigating.
-		if sel.Kind == "__collapsed_group__" {
-			m.expandedGroup = sel.Category
-			visible := m.visibleMiddleItems()
-			// Move cursor to the first item in the newly expanded group.
-			for i, item := range visible {
-				if item.Category == sel.Category && item.Kind != "__collapsed_group__" {
-					m.setCursor(i)
-					break
-				}
-			}
-			m.rightItems = nil
-			m.previewYAML = ""
-			m.loading = true
-			return m, m.loadPreview()
-		}
-		rt, ok := model.FindResourceTypeIn(sel.Extra, m.discoveredCRDs[m.nav.Context])
-		if !ok {
-			return m, nil
-		}
+		return m.navigateChildResourceType(sel)
+	case model.LevelResources:
+		return m.navigateChildResource(sel)
+	case model.LevelOwned:
+		return m.navigateChildOwned(sel)
+	case model.LevelContainers:
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) navigateChildCluster(sel *model.Item) (tea.Model, tea.Cmd) {
+	logger.Info("Context selected", "context", sel.Name)
+	m.saveCursor()
+	m.nav.Context = sel.Name
+	m.dashboardPreview = ""
+	m.dashboardEventsPreview = ""
+	m.monitoringPreview = ""
+	m.applyPinnedGroups()
+	m.nav.Level = model.LevelResourceTypes
+	m.pushLeft()
+	m.clearRight()
+	if crds, ok := m.discoveredCRDs[sel.Name]; ok && len(crds) > 0 {
+		m.middleItems = model.MergeWithCRDs(crds)
+	} else {
+		m.middleItems = model.FlattenedResourceTypes()
+	}
+	m.itemCache[m.navKey()] = m.middleItems
+	m.restoreCursor()
+	m.syncExpandedGroup()
+	m.saveCurrentSession()
+	cmds := []tea.Cmd{m.loadPreview()}
+	if _, ok := m.discoveredCRDs[sel.Name]; !ok {
+		cmds = append(cmds, m.discoverCRDs(sel.Name))
+	}
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) navigateChildResourceType(sel *model.Item) (tea.Model, tea.Cmd) {
+	if sel.Extra == "__overview__" || sel.Extra == "__monitoring__" {
+		m.fullscreenDashboard = true
+		m.previewScroll = 0
+		m.setStatusMessage("Dashboard fullscreen ON", false)
+		return m, scheduleStatusClear()
+	}
+	if sel.Kind == "__port_forwards__" {
 		m.saveCursor()
-		m.nav.ResourceType = rt
+		m.nav.ResourceType = model.ResourceTypeEntry{
+			DisplayName: "Port Forwards",
+			Kind:        "__port_forwards__",
+			APIGroup:    "_portforward",
+			APIVersion:  "v1",
+			Resource:    "portforwards",
+			Namespaced:  false,
+		}
 		m.nav.Level = model.LevelResources
 		m.pushLeft()
 		m.clearRight()
+		m.middleItems = m.portForwardItems()
+		m.setCursor(0)
+		m.clampCursor()
 		m.saveCurrentSession()
-		// Use cached items if available for instant display.
+		return m, m.waitForPortForwardUpdate()
+	}
+	if sel.Kind == "__collapsed_group__" {
+		m.expandedGroup = sel.Category
+		visible := m.visibleMiddleItems()
+		for i, item := range visible {
+			if item.Category == sel.Category && item.Kind != "__collapsed_group__" {
+				m.setCursor(i)
+				break
+			}
+		}
+		m.rightItems = nil
+		m.previewYAML = ""
+		m.loading = true
+		return m, m.loadPreview()
+	}
+	rt, ok := model.FindResourceTypeIn(sel.Extra, m.discoveredCRDs[m.nav.Context])
+	if !ok {
+		return m, nil
+	}
+	m.saveCursor()
+	m.nav.ResourceType = rt
+	m.nav.Level = model.LevelResources
+	m.pushLeft()
+	m.clearRight()
+	m.saveCurrentSession()
+	if cached, ok := m.itemCache[m.navKey()]; ok {
+		m.middleItems = cached
+		m.restoreCursor()
+	} else {
+		m.middleItems = nil
+		m.setCursor(0)
+	}
+	m.loading = true
+	return m, m.loadResources(false)
+}
+
+func (m Model) navigateChildResource(sel *model.Item) (tea.Model, tea.Cmd) {
+	if !m.resourceTypeHasChildren() && m.nav.ResourceType.Kind != "Pod" {
+		return m, nil
+	}
+	m.saveCursor()
+	m.nav.ResourceName = sel.Name
+	if sel.Namespace != "" {
+		m.nav.Namespace = sel.Namespace
+	} else if !m.allNamespaces {
+		m.nav.Namespace = m.namespace
+	}
+	m.saveCurrentSession()
+	if m.nav.ResourceType.Kind == "Pod" {
+		m.nav.OwnedName = sel.Name
+		m.nav.Level = model.LevelContainers
+		m.pushLeft()
+		m.clearRight()
 		if cached, ok := m.itemCache[m.navKey()]; ok {
 			m.middleItems = cached
 			m.restoreCursor()
@@ -301,41 +337,54 @@ func (m Model) navigateChild() (tea.Model, tea.Cmd) {
 			m.setCursor(0)
 		}
 		m.loading = true
-		return m, m.loadResources(false)
+		return m, m.loadContainers(false)
+	}
+	m.nav.Level = model.LevelOwned
+	m.pushLeft()
+	m.clearRight()
+	if cached, ok := m.itemCache[m.navKey()]; ok {
+		m.middleItems = cached
+		m.restoreCursor()
+	} else {
+		m.middleItems = nil
+		m.setCursor(0)
+	}
+	m.loading = true
+	return m, m.loadOwned(false)
+}
 
-	case model.LevelResources:
-		// Resources without children: don't navigate further, preview is already shown in right column.
-		if !m.resourceTypeHasChildren() && m.nav.ResourceType.Kind != "Pod" {
-			return m, nil
-		}
-
+func (m Model) navigateChildOwned(sel *model.Item) (tea.Model, tea.Cmd) {
+	if sel.Kind == "Pod" {
 		m.saveCursor()
+		m.nav.OwnedName = sel.Name
+		if sel.Namespace != "" {
+			m.nav.Namespace = sel.Namespace
+		}
+		m.nav.Level = model.LevelContainers
+		m.pushLeft()
+		m.clearRight()
+		if cached, ok := m.itemCache[m.navKey()]; ok {
+			m.middleItems = cached
+			m.restoreCursor()
+		} else {
+			m.middleItems = nil
+			m.setCursor(0)
+		}
+		m.loading = true
+		return m, m.loadContainers(false)
+	}
+	if kindHasOwnedChildren(sel.Kind) {
+		m.saveCursor()
+		m.ownedParentStack = append(m.ownedParentStack, ownedParentState{
+			resourceType: m.nav.ResourceType,
+			resourceName: m.nav.ResourceName,
+			namespace:    m.nav.Namespace,
+		})
+		m.nav.ResourceType.Kind = sel.Kind
 		m.nav.ResourceName = sel.Name
 		if sel.Namespace != "" {
 			m.nav.Namespace = sel.Namespace
-		} else if !m.allNamespaces {
-			m.nav.Namespace = m.namespace
 		}
-		m.saveCurrentSession()
-
-		// Pods have no owned resources; navigate directly to containers.
-		if m.nav.ResourceType.Kind == "Pod" {
-			m.nav.OwnedName = sel.Name
-			m.nav.Level = model.LevelContainers
-			m.pushLeft()
-			m.clearRight()
-			if cached, ok := m.itemCache[m.navKey()]; ok {
-				m.middleItems = cached
-				m.restoreCursor()
-			} else {
-				m.middleItems = nil
-				m.setCursor(0)
-			}
-			m.loading = true
-			return m, m.loadContainers(false)
-		}
-
-		m.nav.Level = model.LevelOwned
 		m.pushLeft()
 		m.clearRight()
 		if cached, ok := m.itemCache[m.navKey()]; ok {
@@ -347,61 +396,6 @@ func (m Model) navigateChild() (tea.Model, tea.Cmd) {
 		}
 		m.loading = true
 		return m, m.loadOwned(false)
-
-	case model.LevelOwned:
-		if sel.Kind == "Pod" {
-			m.saveCursor()
-			m.nav.OwnedName = sel.Name
-			if sel.Namespace != "" {
-				m.nav.Namespace = sel.Namespace
-			}
-			m.nav.Level = model.LevelContainers
-			m.pushLeft()
-			m.clearRight()
-			if cached, ok := m.itemCache[m.navKey()]; ok {
-				m.middleItems = cached
-				m.restoreCursor()
-			} else {
-				m.middleItems = nil
-				m.setCursor(0)
-			}
-			m.loading = true
-			return m, m.loadContainers(false)
-		}
-		// Allow drilling into owned resources that themselves have children
-		// (e.g., ArgoCD Application → Deployment → Pods).
-		if kindHasOwnedChildren(sel.Kind) {
-			m.saveCursor()
-			// Push current parent state so navigateParent can restore it.
-			m.ownedParentStack = append(m.ownedParentStack, ownedParentState{
-				resourceType: m.nav.ResourceType,
-				resourceName: m.nav.ResourceName,
-				namespace:    m.nav.Namespace,
-			})
-			m.nav.ResourceType.Kind = sel.Kind
-			m.nav.ResourceName = sel.Name
-			if sel.Namespace != "" {
-				m.nav.Namespace = sel.Namespace
-			}
-			m.pushLeft()
-			m.clearRight()
-			if cached, ok := m.itemCache[m.navKey()]; ok {
-				m.middleItems = cached
-				m.restoreCursor()
-			} else {
-				m.middleItems = nil
-				m.setCursor(0)
-			}
-			m.loading = true
-			return m, m.loadOwned(false)
-		}
-		// Non-drillable items at LevelOwned: do nothing on right arrow.
-		// Users can still press 'y' to view YAML explicitly.
-		return m, nil
-
-	case model.LevelContainers:
-		// Containers are the deepest level — don't navigate further.
-		return m, nil
 	}
 	return m, nil
 }

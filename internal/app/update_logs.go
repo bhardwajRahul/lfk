@@ -36,62 +36,62 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleLogMovementKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
 	case "j", "down":
-		ret, cmd := m.handleLogKeyJ()
-		return ret, cmd, true
+		ret := m.handleLogKeyJ()
+		return ret, nil, true
 	case "k", "up":
 		ret, cmd := m.handleLogKeyK()
 		return ret, cmd, true
 	case "ctrl+d":
-		ret, cmd := m.handleLogKeyCtrlD()
-		return ret, cmd, true
+		ret := m.handleLogKeyCtrlD()
+		return ret, nil, true
 	case "ctrl+u":
 		ret, cmd := m.handleLogKeyCtrlU()
 		return ret, cmd, true
 	case "ctrl+f":
-		ret, cmd := m.handleLogKeyCtrlF()
-		return ret, cmd, true
+		ret := m.handleLogKeyCtrlF()
+		return ret, nil, true
 	case "ctrl+b":
 		ret, cmd := m.handleLogKeyCtrlB()
 		return ret, cmd, true
 	case "G":
-		ret, cmd := m.handleLogKeyG()
-		return ret, cmd, true
+		ret := m.handleLogKeyG()
+		return ret, nil, true
 	case "g":
 		ret, cmd := m.handleLogKeyG2()
 		return ret, cmd, true
 	case "h", "left":
-		ret, cmd := m.handleLogKeyH()
-		return ret, cmd, true
+		ret := m.handleLogKeyH()
+		return ret, nil, true
 	case "l", "right":
-		ret, cmd := m.handleLogKeyL()
-		return ret, cmd, true
+		ret := m.handleLogKeyL()
+		return ret, nil, true
 	case "$":
-		ret, cmd := m.handleLogKeyDollar()
-		return ret, cmd, true
+		ret := m.handleLogKeyDollar()
+		return ret, nil, true
 	case "e":
-		ret, cmd := m.handleLogKeyE()
-		return ret, cmd, true
+		ret := m.handleLogKeyE()
+		return ret, nil, true
 	case "b":
-		ret, cmd := m.handleLogKeyB()
-		return ret, cmd, true
+		ret := m.handleLogKeyB()
+		return ret, nil, true
 	case "w":
-		ret, cmd := m.handleLogKeyW()
-		return ret, cmd, true
+		ret := m.handleLogKeyW()
+		return ret, nil, true
 	case "W":
-		ret, cmd := m.handleLogKeyW2()
-		return ret, cmd, true
+		ret := m.handleLogKeyW2()
+		return ret, nil, true
 	case "E":
-		ret, cmd := m.handleLogKeyE2()
-		return ret, cmd, true
+		ret := m.handleLogKeyE2()
+		return ret, nil, true
 	case "B":
-		ret, cmd := m.handleLogKeyB2()
-		return ret, cmd, true
+		ret := m.handleLogKeyB2()
+		return ret, nil, true
 	case "^":
-		ret, cmd := m.handleLogKeyCaret()
-		return ret, cmd, true
+		ret := m.handleLogKeyCaret()
+		return ret, nil, true
 	case "0":
-		ret, cmd := m.handleLogKeyZero()
-		return ret, cmd, true
+		ret := m.handleLogKeyZero()
+		return ret, nil, true
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		m.logLineInput += msg.String()
 		return m, nil, true
@@ -103,44 +103,44 @@ func (m Model) handleLogMovementKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 func (m Model) handleLogActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
 	case "?", "f1":
-		ret, cmd := m.handleLogKeyQuestion()
-		return ret, cmd, true
+		ret := m.handleLogKeyQuestion()
+		return ret, nil, true
 	case "q", "esc":
-		ret, cmd := m.handleLogKeyQ()
-		return ret, cmd, true
+		ret := m.handleLogKeyQ()
+		return ret, nil, true
 	case "V":
-		ret, cmd := m.handleLogKeyV()
-		return ret, cmd, true
+		ret := m.handleLogKeyV()
+		return ret, nil, true
 	case "v":
-		ret, cmd := m.handleLogKeyV2()
-		return ret, cmd, true
+		ret := m.handleLogKeyV2()
+		return ret, nil, true
 	case "ctrl+v":
-		ret, cmd := m.handleLogKeyCtrlV()
-		return ret, cmd, true
+		ret := m.handleLogKeyCtrlV()
+		return ret, nil, true
 	case "f":
-		ret, cmd := m.handleLogKeyF()
-		return ret, cmd, true
+		ret := m.handleLogKeyF()
+		return ret, nil, true
 	case "tab", "z", ">":
-		ret, cmd := m.handleLogKeyTab()
-		return ret, cmd, true
+		ret := m.handleLogKeyTab()
+		return ret, nil, true
 	case "/":
-		ret, cmd := m.handleLogKeySlash()
-		return ret, cmd, true
+		ret := m.handleLogKeySlash()
+		return ret, nil, true
 	case "n":
-		ret, cmd := m.handleLogKeyN()
-		return ret, cmd, true
+		ret := m.handleLogKeyN()
+		return ret, nil, true
 	case "N":
-		ret, cmd := m.handleLogKeyN2()
-		return ret, cmd, true
+		ret := m.handleLogKeyN2()
+		return ret, nil, true
 	case "p":
-		ret, cmd := m.handleLogKeyP()
-		return ret, cmd, true
+		ret := m.handleLogKeyP()
+		return ret, nil, true
 	case "#":
-		ret, cmd := m.handleLogKeyHash()
-		return ret, cmd, true
+		ret := m.handleLogKeyHash()
+		return ret, nil, true
 	case "s":
-		ret, cmd := m.handleLogKeyS()
-		return ret, cmd, true
+		ret := m.handleLogKeyS()
+		return ret, nil, true
 	case "S":
 		ret, cmd := m.handleLogKeyS2()
 		return ret, cmd, true
@@ -408,17 +408,17 @@ func findLastMatchInStr(text, query string) int {
 	return lastCol
 }
 
-func (m Model) handleLogKeyQuestion() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyQuestion() Model {
 	m.helpPreviousMode = modeLogs
 	m.mode = modeHelp
 	m.helpScroll = 0
 	m.helpFilter.Clear()
 	m.helpSearchActive = false
 	m.helpContextMode = "Log Viewer"
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyQ() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyQ() Model {
 	if m.logCancel != nil {
 		m.logCancel()
 		m.logCancel = nil
@@ -435,17 +435,17 @@ func (m Model) handleLogKeyQ() (tea.Model, tea.Cmd) {
 	m.logParentKind = ""
 	m.logParentName = ""
 	m.logVisualMode = false
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyJ() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyJ() Model {
 	m.logFollow = false
 	m.logLineInput = ""
 	if m.logCursor < len(m.logLines)-1 {
 		m.logCursor++
 	}
 	m.ensureLogCursorVisible()
-	return m, nil
+	return m
 }
 
 func (m Model) handleLogKeyK() (tea.Model, tea.Cmd) {
@@ -459,7 +459,7 @@ func (m Model) handleLogKeyK() (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleLogKeyCtrlD() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyCtrlD() Model {
 	m.logFollow = false
 	m.logLineInput = ""
 	m.logCursor += m.logContentHeight() / 2
@@ -467,7 +467,7 @@ func (m Model) handleLogKeyCtrlD() (tea.Model, tea.Cmd) {
 		m.logCursor = len(m.logLines) - 1
 	}
 	m.ensureLogCursorVisible()
-	return m, nil
+	return m
 }
 
 func (m Model) handleLogKeyCtrlU() (tea.Model, tea.Cmd) {
@@ -482,7 +482,7 @@ func (m Model) handleLogKeyCtrlU() (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleLogKeyCtrlF() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyCtrlF() Model {
 	m.logFollow = false
 	m.logLineInput = ""
 	m.logCursor += m.logContentHeight()
@@ -490,7 +490,7 @@ func (m Model) handleLogKeyCtrlF() (tea.Model, tea.Cmd) {
 		m.logCursor = len(m.logLines) - 1
 	}
 	m.ensureLogCursorVisible()
-	return m, nil
+	return m
 }
 
 func (m Model) handleLogKeyCtrlB() (tea.Model, tea.Cmd) {
@@ -505,7 +505,7 @@ func (m Model) handleLogKeyCtrlB() (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleLogKeyG() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyG() Model {
 	if m.logLineInput != "" {
 		lineNum, _ := strconv.Atoi(m.logLineInput)
 		m.logLineInput = ""
@@ -519,7 +519,7 @@ func (m Model) handleLogKeyG() (tea.Model, tea.Cmd) {
 		m.logFollow = true
 	}
 	m.ensureLogCursorVisible()
-	return m, nil
+	return m
 }
 
 func (m Model) handleLogKeyG2() (tea.Model, tea.Cmd) {
@@ -536,21 +536,21 @@ func (m Model) handleLogKeyG2() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleLogKeyH() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyH() Model {
 	m.logLineInput = ""
 	if m.logVisualCurCol > 0 {
 		m.logVisualCurCol--
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyL() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyL() Model {
 	m.logLineInput = ""
 	m.logVisualCurCol++
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyDollar() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyDollar() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		lineLen := len([]rune(m.logLines[m.logCursor]))
@@ -558,10 +558,10 @@ func (m Model) handleLogKeyDollar() (tea.Model, tea.Cmd) {
 			m.logVisualCurCol = lineLen - 1
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyE() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyE() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		lineLen := len([]rune(m.logLines[m.logCursor]))
@@ -579,10 +579,10 @@ func (m Model) handleLogKeyE() (tea.Model, tea.Cmd) {
 			m.logVisualCurCol = newCol
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyB() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyB() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		newCol := prevWordStart(m.logLines[m.logCursor], m.logVisualCurCol)
@@ -599,10 +599,10 @@ func (m Model) handleLogKeyB() (tea.Model, tea.Cmd) {
 			m.logVisualCurCol = max(newCol, 0)
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyV() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyV() Model {
 	m.logLineInput = ""
 	if m.logCursor < 0 {
 		m.logCursor = m.logScroll
@@ -611,10 +611,10 @@ func (m Model) handleLogKeyV() (tea.Model, tea.Cmd) {
 	m.logVisualType = 'V'
 	m.logVisualStart = m.logCursor
 	m.logVisualCol = m.logVisualCurCol
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyV2() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyV2() Model {
 	m.logLineInput = ""
 	if m.logCursor < 0 {
 		m.logCursor = m.logScroll
@@ -623,10 +623,10 @@ func (m Model) handleLogKeyV2() (tea.Model, tea.Cmd) {
 	m.logVisualType = 'v'
 	m.logVisualStart = m.logCursor
 	m.logVisualCol = m.logVisualCurCol
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyCtrlV() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyCtrlV() Model {
 	m.logLineInput = ""
 	if m.logCursor < 0 {
 		m.logCursor = m.logScroll
@@ -635,27 +635,27 @@ func (m Model) handleLogKeyCtrlV() (tea.Model, tea.Cmd) {
 	m.logVisualType = 'B'
 	m.logVisualStart = m.logCursor
 	m.logVisualCol = m.logVisualCurCol
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyF() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyF() Model {
 	m.logLineInput = ""
 	m.logFollow = !m.logFollow
 	if m.logFollow {
 		m.logCursor = len(m.logLines) - 1
 		m.logScroll = m.logMaxScroll()
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyTab() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyTab() Model {
 	m.logLineInput = ""
 	m.logWrap = !m.logWrap
 	m.clampLogScroll()
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyW() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyW() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		lineLen := len([]rune(m.logLines[m.logCursor]))
@@ -673,10 +673,10 @@ func (m Model) handleLogKeyW() (tea.Model, tea.Cmd) {
 			m.logVisualCurCol = newCol
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyW2() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyW2() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		lineLen := len([]rune(m.logLines[m.logCursor]))
@@ -694,10 +694,10 @@ func (m Model) handleLogKeyW2() (tea.Model, tea.Cmd) {
 			m.logVisualCurCol = newCol
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyE2() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyE2() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		lineLen := len([]rune(m.logLines[m.logCursor]))
@@ -715,10 +715,10 @@ func (m Model) handleLogKeyE2() (tea.Model, tea.Cmd) {
 			m.logVisualCurCol = newCol
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyB2() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyB2() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		newCol := prevWORDStart(m.logLines[m.logCursor], m.logVisualCurCol)
@@ -735,52 +735,52 @@ func (m Model) handleLogKeyB2() (tea.Model, tea.Cmd) {
 			m.logVisualCurCol = max(newCol, 0)
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyCaret() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyCaret() Model {
 	m.logLineInput = ""
 	if m.logCursor >= 0 && m.logCursor < len(m.logLines) {
 		m.logVisualCurCol = firstNonWhitespace(m.logLines[m.logCursor])
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeySlash() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeySlash() Model {
 	m.logLineInput = ""
 	m.logSearchActive = true
 	m.logSearchInput.Clear()
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyN() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyN() Model {
 	m.logLineInput = ""
 	m.findNextLogMatch(true)
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyN2() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyN2() Model {
 	m.logLineInput = ""
 	m.findNextLogMatch(false)
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyP() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyP() Model {
 	m.logLineInput = ""
 	m.logHidePrefixes = !m.logHidePrefixes
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyHash() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyHash() Model {
 	m.logLineInput = ""
 	m.logLineNumbers = !m.logLineNumbers
-	return m, nil
+	return m
 }
 
-func (m Model) handleLogKeyS() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyS() Model {
 	m.logLineInput = ""
 	m.logTimestamps = !m.logTimestamps
-	return m, nil
+	return m
 }
 
 func (m Model) handleLogKeyS2() (tea.Model, tea.Cmd) {
@@ -830,13 +830,13 @@ func (m Model) handleLogKeyC() (tea.Model, tea.Cmd) {
 	return m, m.startLogStream()
 }
 
-func (m Model) handleLogKeyZero() (tea.Model, tea.Cmd) {
+func (m Model) handleLogKeyZero() Model {
 	if m.logLineInput != "" {
 		m.logLineInput += "0"
 	} else {
 		m.logVisualCurCol = 0
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) handleLogKeyOther() (tea.Model, tea.Cmd) {

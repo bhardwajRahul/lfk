@@ -13,7 +13,6 @@ import (
 // The overlay shows pod selector, policy types, affected pods, and a visual diagram
 // of ingress/egress rules using box-drawing characters and arrows.
 func RenderNetworkPolicyOverlay(info NetworkPolicyEntry, scroll, width, height int) string {
-	// Styles for the diagram.
 	greenStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSecondary)).Background(SurfaceBg)
 	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true).Background(SurfaceBg)
 	boxBorderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBorder)).Background(SurfaceBg)
@@ -21,30 +20,31 @@ func RenderNetworkPolicyOverlay(info NetworkPolicyEntry, scroll, width, height i
 	cidrStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorOrange)).Background(SurfaceBg)
 	sectionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true).Underline(true).Background(SurfaceBg)
 
-	var lines []string
+	lines := renderNetpolHeader(info, greenStyle, labelStyle, sectionStyle)
+	targetLabel := renderNetpolTargetLabel(info)
+	lines = append(lines, renderNetpolDirectionRules(info, targetLabel, width, sectionStyle, boxBorderStyle, arrowStyle, labelStyle, cidrStyle, greenStyle)...)
+	lines = append(lines, "")
 
-	// Title.
+	return renderScrollableLines(lines, scroll, height)
+}
+
+// renderNetpolHeader renders the title, pod selector, affected pods, and policy types sections.
+func renderNetpolHeader(info NetworkPolicyEntry, greenStyle, labelStyle, sectionStyle lipgloss.Style) []string {
+	var lines []string
 	lines = append(lines, OverlayTitleStyle.Render(fmt.Sprintf("Network Policy: %s", info.Name)))
 	lines = append(lines, OverlayDimStyle.Render(fmt.Sprintf("  Namespace: %s", info.Namespace)))
 	lines = append(lines, "")
 
-	// Pod Selector section.
 	lines = append(lines, sectionStyle.Render("Pod Selector"))
 	if len(info.PodSelector) == 0 {
 		lines = append(lines, OverlayDimStyle.Render("  (all pods in namespace)"))
 	} else {
-		selectorKeys := make([]string, 0, len(info.PodSelector))
-		for k := range info.PodSelector {
-			selectorKeys = append(selectorKeys, k)
-		}
-		sort.Strings(selectorKeys)
-		for _, k := range selectorKeys {
+		for _, k := range sortedKeys(info.PodSelector) {
 			lines = append(lines, fmt.Sprintf("  %s", labelStyle.Render(k+"="+info.PodSelector[k])))
 		}
 	}
 	lines = append(lines, "")
 
-	// Affected Pods count.
 	podCount := len(info.AffectedPods)
 	podCountStr := fmt.Sprintf("%d pod(s)", podCount)
 	if podCount == 0 {
@@ -53,19 +53,16 @@ func RenderNetworkPolicyOverlay(info NetworkPolicyEntry, scroll, width, height i
 	lines = append(lines, fmt.Sprintf("  %s %s",
 		OverlayNormalStyle.Render("Affected Pods:"),
 		greenStyle.Render(podCountStr)))
-	if podCount > 0 && podCount <= 10 {
-		for _, name := range info.AffectedPods {
-			lines = append(lines, fmt.Sprintf("    %s", OverlayDimStyle.Render(name)))
-		}
-	} else if podCount > 10 {
-		for _, name := range info.AffectedPods[:10] {
-			lines = append(lines, fmt.Sprintf("    %s", OverlayDimStyle.Render(name)))
-		}
-		lines = append(lines, fmt.Sprintf("    %s", OverlayDimStyle.Render(fmt.Sprintf("... and %d more", podCount-10))))
+	maxShow := 10
+	shown := min(podCount, maxShow)
+	for _, name := range info.AffectedPods[:shown] {
+		lines = append(lines, fmt.Sprintf("    %s", OverlayDimStyle.Render(name)))
+	}
+	if podCount > maxShow {
+		lines = append(lines, fmt.Sprintf("    %s", OverlayDimStyle.Render(fmt.Sprintf("... and %d more", podCount-maxShow))))
 	}
 	lines = append(lines, "")
 
-	// Policy Types.
 	if len(info.PolicyTypes) > 0 {
 		lines = append(lines, fmt.Sprintf("  %s %s",
 			OverlayNormalStyle.Render("Policy Types:"),
@@ -76,87 +73,88 @@ func RenderNetworkPolicyOverlay(info NetworkPolicyEntry, scroll, width, height i
 			OverlayDimStyle.Render("(none specified)")))
 	}
 	lines = append(lines, "")
+	return lines
+}
 
-	// Build the target box content (reused for all rules).
-	targetLabel := "(all pods)"
-	if len(info.PodSelector) > 0 {
-		targetKeys := make([]string, 0, len(info.PodSelector))
-		for k := range info.PodSelector {
-			targetKeys = append(targetKeys, k)
-		}
-		sort.Strings(targetKeys)
-		parts := make([]string, 0, len(info.PodSelector))
-		for _, k := range targetKeys {
-			parts = append(parts, k+"="+info.PodSelector[k])
-		}
-		targetLabel = strings.Join(parts, "\n")
+// renderNetpolTargetLabel builds the target label from the pod selector.
+func renderNetpolTargetLabel(info NetworkPolicyEntry) string {
+	if len(info.PodSelector) == 0 {
+		return "(all pods)"
 	}
+	keys := sortedKeys(info.PodSelector)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"="+info.PodSelector[k])
+	}
+	return strings.Join(parts, "\n")
+}
 
-	// --- INGRESS RULES ---
-	hasIngress := false
-	for _, pt := range info.PolicyTypes {
-		if pt == "Ingress" {
-			hasIngress = true
-			break
+// hasPolicyType returns true if the policy types list contains the given type.
+func hasPolicyType(types []string, target string) bool {
+	for _, pt := range types {
+		if pt == target {
+			return true
 		}
 	}
+	return false
+}
+
+// renderNetpolDirectionRules renders ingress and egress rule sections.
+func renderNetpolDirectionRules(info NetworkPolicyEntry, targetLabel string, width int, sectionStyle, boxBorderStyle, arrowStyle, labelStyle, cidrStyle, greenStyle lipgloss.Style) []string {
+	var lines []string
+	hasIngress := hasPolicyType(info.PolicyTypes, "Ingress")
+	hasEgress := hasPolicyType(info.PolicyTypes, "Egress")
+
 	if hasIngress || len(info.IngressRules) > 0 {
 		lines = append(lines, sectionStyle.Render("INGRESS RULES"))
 		lines = append(lines, "")
-
 		if len(info.IngressRules) == 0 {
 			lines = append(lines, OverlayWarningStyle.Render("  No ingress rules = all ingress denied"))
 			lines = append(lines, "")
 		}
-
 		for i, rule := range info.IngressRules {
 			lines = append(lines, OverlayNormalStyle.Render(fmt.Sprintf("  Rule %d:", i+1)))
-			ruleLines := renderNetpolRuleDiagram(rule, targetLabel, true, width,
-				boxBorderStyle, arrowStyle, labelStyle, cidrStyle, greenStyle)
-			lines = append(lines, ruleLines...)
+			lines = append(lines, renderNetpolRuleDiagram(rule, targetLabel, true, width,
+				boxBorderStyle, arrowStyle, labelStyle, cidrStyle, greenStyle)...)
 			lines = append(lines, "")
 		}
 	}
 
-	// --- EGRESS RULES ---
-	hasEgress := false
-	for _, pt := range info.PolicyTypes {
-		if pt == "Egress" {
-			hasEgress = true
-			break
-		}
-	}
 	if hasEgress || len(info.EgressRules) > 0 {
 		lines = append(lines, sectionStyle.Render("EGRESS RULES"))
 		lines = append(lines, "")
-
 		if len(info.EgressRules) == 0 {
 			lines = append(lines, OverlayWarningStyle.Render("  No egress rules = all egress denied"))
 			lines = append(lines, "")
 		}
-
 		for i, rule := range info.EgressRules {
 			lines = append(lines, OverlayNormalStyle.Render(fmt.Sprintf("  Rule %d:", i+1)))
-			ruleLines := renderNetpolRuleDiagram(rule, targetLabel, false, width,
-				boxBorderStyle, arrowStyle, labelStyle, cidrStyle, greenStyle)
-			lines = append(lines, ruleLines...)
+			lines = append(lines, renderNetpolRuleDiagram(rule, targetLabel, false, width,
+				boxBorderStyle, arrowStyle, labelStyle, cidrStyle, greenStyle)...)
 			lines = append(lines, "")
 		}
 	}
 
-	// No rules at all.
 	if !hasIngress && !hasEgress && len(info.IngressRules) == 0 && len(info.EgressRules) == 0 {
 		lines = append(lines, OverlayDimStyle.Render("  No policy types or rules defined"))
 		lines = append(lines, "")
 	}
+	return lines
+}
 
-	// Footer.
-	lines = append(lines, "")
+// sortedKeys returns the keys of a map sorted alphabetically.
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
 
-	// Content area height: total height minus hint bar (1 line).
+// renderScrollableLines applies scroll/clamp logic and returns the visible body string.
+func renderScrollableLines(lines []string, scroll, height int) string {
 	maxVisible := max(height-1, 3)
-
-	// Clamp scroll.
 	maxScroll := max(len(lines)-maxVisible, 0)
 	if scroll > maxScroll {
 		scroll = maxScroll
@@ -164,22 +162,15 @@ func RenderNetworkPolicyOverlay(info NetworkPolicyEntry, scroll, width, height i
 	if scroll < 0 {
 		scroll = 0
 	}
-
 	end := min(scroll+maxVisible, len(lines))
 	visible := lines[scroll:end]
-
-	// Pad visible lines to fill the content area so the hint bar stays at the bottom.
 	for len(visible) < maxVisible {
 		visible = append(visible, "")
 	}
-
 	body := strings.Join(visible, "\n")
-
-	// Scroll info (hints moved to the main status bar).
 	if maxScroll > 0 {
 		body += "\n" + DimStyle.Render(fmt.Sprintf(" [%d/%d]", scroll+1, maxScroll+1))
 	}
-
 	return body
 }
 

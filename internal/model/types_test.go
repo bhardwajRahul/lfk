@@ -314,7 +314,7 @@ func TestFlattenedResourceTypesFiltered(t *testing.T) {
 
 // --- MergeWithCRDs ---
 
-func TestMergeWithCRDs(t *testing.T) {
+func TestMergeWithCRDs(t *testing.T) { //nolint:gocyclo
 	t.Run("no CRDs hides CRD-dependent entries", func(t *testing.T) {
 		items := MergeWithCRDs(nil)
 		assert.NotEmpty(t, items)

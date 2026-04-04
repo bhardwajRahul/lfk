@@ -155,8 +155,8 @@ func (m Model) handleEventTimelineOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	}
 
 	// Try movement keys.
-	if ret, cmd, ok := m.handleEventTimelineMovementKey(msg); ok {
-		return ret, cmd
+	if ret, ok := m.handleEventTimelineMovementKey(msg); ok {
+		return ret, nil
 	}
 	// Try action keys.
 	key := msg.String()
@@ -195,7 +195,7 @@ func (m Model) handleEventTimelineOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 }
 
 // handleEventTimelineMovementKey handles cursor/scroll movement keys.
-func (m Model) handleEventTimelineMovementKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleEventTimelineMovementKey(msg tea.KeyMsg) (Model, bool) {
 	key := msg.String()
 	maxIdx := max(len(m.eventTimelineLines)-1, 0)
 	switch key {
@@ -205,63 +205,49 @@ func (m Model) handleEventTimelineMovementKey(msg tea.KeyMsg) (tea.Model, tea.Cm
 			m.eventTimelineCursor++
 		}
 		m.ensureEventCursorVisible()
-		return m, nil, true
+		return m, true
 	case "k", "up":
-		ret, cmd := m.handleEventTimelineOverlayKeyK()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyK(), true
 	case "h", "left":
-		ret, cmd := m.handleEventTimelineOverlayKeyH()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyH(), true
 	case "l", "right":
 		m.eventTimelineLineInput = ""
 		m.eventTimelineCursorCol++
-		return m, nil, true
+		return m, true
 	case "0":
-		ret, cmd := m.handleEventTimelineOverlayKeyZero()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyZero(), true
 	case "$":
-		ret, cmd := m.handleEventTimelineOverlayKeyDollar()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyDollar(), true
 	case "^":
-		ret, cmd := m.handleEventTimelineOverlayKeyCaret()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyCaret(), true
 	case "w":
-		ret, cmd := m.handleEventTimelineOverlayKeyW()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyW(), true
 	case "W":
-		ret, cmd := m.handleEventTimelineOverlayKeyW2()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyW2(), true
 	case "b":
-		ret, cmd := m.handleEventTimelineOverlayKeyB()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyB(), true
 	case "B":
-		ret, cmd := m.handleEventTimelineOverlayKeyB2()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyB2(), true
 	case "e":
-		ret, cmd := m.handleEventTimelineOverlayKeyE()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyE(), true
 	case "E":
-		ret, cmd := m.handleEventTimelineOverlayKeyE2()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyE2(), true
 	case "ctrl+d":
 		m.eventTimelineLineInput = ""
 		m.eventTimelineCursor = min(m.eventTimelineCursor+m.eventContentHeight()/2, maxIdx)
 		m.ensureEventCursorVisible()
-		return m, nil, true
+		return m, true
 	case "ctrl+u":
-		ret, cmd := m.handleEventTimelineOverlayKeyCtrlU()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyCtrlU(), true
 	case "ctrl+f":
 		m.eventTimelineLineInput = ""
 		m.eventTimelineCursor = min(m.eventTimelineCursor+m.eventContentHeight(), maxIdx)
 		m.ensureEventCursorVisible()
-		return m, nil, true
+		return m, true
 	case "ctrl+b":
-		ret, cmd := m.handleEventTimelineOverlayKeyCtrlB()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyCtrlB(), true
 	case "g":
-		ret, cmd := m.handleEventTimelineOverlayKeyG()
-		return ret, cmd, true
+		return m.handleEventTimelineOverlayKeyG(), true
 	case "G":
 		if m.eventTimelineLineInput != "" {
 			lineNum, _ := strconv.Atoi(m.eventTimelineLineInput)
@@ -274,12 +260,12 @@ func (m Model) handleEventTimelineMovementKey(msg tea.KeyMsg) (tea.Model, tea.Cm
 			m.eventTimelineCursor = maxIdx
 		}
 		m.ensureEventCursorVisible()
-		return m, nil, true
+		return m, true
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		m.eventTimelineLineInput += key
-		return m, nil, true
+		return m, true
 	}
-	return m, nil, false
+	return m, false
 }
 
 // handleEventTimelineVisualKey handles keys while visual mode is active
@@ -449,62 +435,6 @@ func (m Model) handleEventTimelineVisualKeyCtrlV() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleEventTimelineVisualKeyK() (tea.Model, tea.Cmd) {
-	if m.eventTimelineCursor > 0 {
-		m.eventTimelineCursor--
-	}
-	m.ensureEventCursorVisible()
-	return m, nil
-}
-
-func (m Model) handleEventTimelineVisualKeyDollar() (tea.Model, tea.Cmd) {
-	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-		lineLen := len([]rune(m.eventTimelineLines[m.eventTimelineCursor]))
-		if lineLen > 0 {
-			m.eventTimelineCursorCol = lineLen - 1
-		}
-	}
-	return m, nil
-}
-
-func (m Model) handleEventTimelineVisualKeyB() (tea.Model, tea.Cmd) {
-	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-		if nc := prevWordStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol); nc >= 0 {
-			m.eventTimelineCursorCol = nc
-		}
-	}
-	return m, nil
-}
-
-func (m Model) handleEventTimelineVisualKeyB2() (tea.Model, tea.Cmd) {
-	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
-		if nc := prevWORDStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol); nc >= 0 {
-			m.eventTimelineCursorCol = nc
-		}
-	}
-	return m, nil
-}
-
-func (m Model) handleEventTimelineVisualKeyG() (tea.Model, tea.Cmd) {
-	if m.pendingG {
-		m.pendingG = false
-		m.eventTimelineCursor = 0
-		m.ensureEventCursorVisible()
-	} else {
-		m.pendingG = true
-	}
-	return m, nil
-}
-
-func (m Model) handleEventTimelineVisualKeyCtrlU() (tea.Model, tea.Cmd) {
-	m.eventTimelineCursor -= m.eventContentHeight() / 2
-	if m.eventTimelineCursor < 0 {
-		m.eventTimelineCursor = 0
-	}
-	m.ensureEventCursorVisible()
-	return m, nil
-}
-
 func (m Model) handleEventTimelineVisualKeyY() (tea.Model, tea.Cmd) {
 	selStart := min(m.eventTimelineVisualStart, m.eventTimelineCursor)
 	selEnd := max(m.eventTimelineVisualStart, m.eventTimelineCursor)
@@ -605,33 +535,33 @@ func (m Model) handleEventTimelineOverlayKeyQ() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleEventTimelineOverlayKeyK() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyK() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor > 0 {
 		m.eventTimelineCursor--
 	}
 	m.ensureEventCursorVisible()
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyH() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyH() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursorCol > 0 {
 		m.eventTimelineCursorCol--
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyZero() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyZero() Model {
 	if m.eventTimelineLineInput != "" {
 		m.eventTimelineLineInput += "0"
-		return m, nil
+		return m
 	}
 	m.eventTimelineCursorCol = 0
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyDollar() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyDollar() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		lineLen := len([]rune(m.eventTimelineLines[m.eventTimelineCursor]))
@@ -639,34 +569,34 @@ func (m Model) handleEventTimelineOverlayKeyDollar() (tea.Model, tea.Cmd) {
 			m.eventTimelineCursorCol = lineLen - 1
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyCaret() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyCaret() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		m.eventTimelineCursorCol = firstNonWhitespace(m.eventTimelineLines[m.eventTimelineCursor])
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyW() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyW() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		m.eventTimelineCursorCol = nextWordStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyW2() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyW2() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		m.eventTimelineCursorCol = nextWORDStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyB() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyB() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		nc := prevWordStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
@@ -674,10 +604,10 @@ func (m Model) handleEventTimelineOverlayKeyB() (tea.Model, tea.Cmd) {
 			m.eventTimelineCursorCol = nc
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyB2() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyB2() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		nc := prevWORDStart(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
@@ -685,46 +615,46 @@ func (m Model) handleEventTimelineOverlayKeyB2() (tea.Model, tea.Cmd) {
 			m.eventTimelineCursorCol = nc
 		}
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyE() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyE() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		m.eventTimelineCursorCol = wordEnd(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyE2() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyE2() Model {
 	m.eventTimelineLineInput = ""
 	if m.eventTimelineCursor >= 0 && m.eventTimelineCursor < len(m.eventTimelineLines) {
 		m.eventTimelineCursorCol = WORDEnd(m.eventTimelineLines[m.eventTimelineCursor], m.eventTimelineCursorCol)
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyCtrlU() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyCtrlU() Model {
 	m.eventTimelineLineInput = ""
 	m.eventTimelineCursor -= m.eventContentHeight() / 2
 	if m.eventTimelineCursor < 0 {
 		m.eventTimelineCursor = 0
 	}
 	m.ensureEventCursorVisible()
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyCtrlB() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyCtrlB() Model {
 	m.eventTimelineLineInput = ""
 	m.eventTimelineCursor -= m.eventContentHeight()
 	if m.eventTimelineCursor < 0 {
 		m.eventTimelineCursor = 0
 	}
 	m.ensureEventCursorVisible()
-	return m, nil
+	return m
 }
 
-func (m Model) handleEventTimelineOverlayKeyG() (tea.Model, tea.Cmd) {
+func (m Model) handleEventTimelineOverlayKeyG() Model {
 	m.eventTimelineLineInput = ""
 	if m.pendingG {
 		m.pendingG = false
@@ -733,7 +663,7 @@ func (m Model) handleEventTimelineOverlayKeyG() (tea.Model, tea.Cmd) {
 	} else {
 		m.pendingG = true
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) handleEventTimelineOverlayKeyV() (tea.Model, tea.Cmd) {

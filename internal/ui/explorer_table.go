@@ -103,6 +103,29 @@ var yamlNumberRe = regexp.MustCompile(
 		`|\.nan|\.NaN|\.NAN)$`, // NaN
 )
 
+// yamlBoolValues contains all YAML boolean literals (1.1 + 1.2).
+var yamlBoolValues = map[string]bool{
+	"true": true, "false": true,
+	"True": true, "False": true,
+	"TRUE": true, "FALSE": true,
+	"yes": true, "no": true,
+	"Yes": true, "No": true,
+	"YES": true, "NO": true,
+	"on": true, "off": true,
+	"On": true, "Off": true,
+	"ON": true, "OFF": true,
+}
+
+// yamlNullValues contains all YAML null literals.
+var yamlNullValues = map[string]bool{
+	"null": true, "~": true, "Null": true, "NULL": true,
+}
+
+// yamlBlockScalarIndicators contains YAML block scalar indicators.
+var yamlBlockScalarIndicators = map[string]bool{
+	"|": true, ">": true, "|-": true, ">-": true, "|+": true, ">+": true,
+}
+
 // styleYAMLValue applies type-aware styling to a YAML value string.
 func styleYAMLValue(val string) string {
 	v := strings.TrimSpace(val)
@@ -114,47 +137,29 @@ func styleYAMLValue(val string) string {
 	lead := val[:len(val)-len(strings.TrimLeft(val, " "))]
 
 	switch {
-	// Null.
-	case v == "null" || v == "~" || v == "Null" || v == "NULL":
+	case yamlNullValues[v]:
 		return lead + YamlNullStyle.Render(v)
-
-	// Boolean (YAML 1.1 + 1.2).
-	case v == "true" || v == "false" ||
-		v == "True" || v == "False" ||
-		v == "TRUE" || v == "FALSE" ||
-		v == "yes" || v == "no" ||
-		v == "Yes" || v == "No" ||
-		v == "YES" || v == "NO" ||
-		v == "on" || v == "off" ||
-		v == "On" || v == "Off" ||
-		v == "ON" || v == "OFF":
+	case yamlBoolValues[v]:
 		return lead + YamlBoolStyle.Render(v)
-
-	// Quoted strings.
-	case (strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`)) ||
-		(strings.HasPrefix(v, "'") && strings.HasSuffix(v, "'")):
+	case isYAMLQuotedString(v):
 		return lead + YamlStringStyle.Render(v)
-
-	// Anchors & aliases.
 	case strings.HasPrefix(v, "&") || strings.HasPrefix(v, "*"):
 		return lead + YamlAnchorStyle.Render(v)
-
-	// Tags.
 	case strings.HasPrefix(v, "!!") || strings.HasPrefix(v, "!"):
 		return lead + YamlTagStyle.Render(v)
-
-	// Block scalar indicators.
-	case v == "|" || v == ">" || v == "|-" || v == ">-" ||
-		v == "|+" || v == ">+":
+	case yamlBlockScalarIndicators[v]:
 		return lead + YamlBlockScalarStyle.Render(v)
-
-	// Numeric values.
 	case yamlNumberRe.MatchString(v):
 		return lead + YamlNumberStyle.Render(v)
 	}
 
-	// Unquoted strings — same color as quoted strings for consistency.
 	return lead + YamlStringStyle.Render(v)
+}
+
+// isYAMLQuotedString returns true if v is a single- or double-quoted string.
+func isYAMLQuotedString(v string) bool {
+	return (strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`)) ||
+		(strings.HasPrefix(v, "'") && strings.HasSuffix(v, "'"))
 }
 
 // isYAMLKey reports whether s looks like a valid YAML mapping key.
@@ -474,7 +479,7 @@ func itemExtraLines(_ *model.Item, _ []extraColumn) int {
 
 // RenderTable renders items in a table format with column headers for resource views.
 // headerLabel is used as the first column header; defaults to "NAME" if empty.
-func RenderTable(headerLabel string, items []model.Item, cursor int, width, height int, loading bool, spinnerView string, errMsg string, showMarker ...bool) string {
+func RenderTable(headerLabel string, items []model.Item, cursor int, width, height int, loading bool, spinnerView string, errMsg string, showMarker ...bool) string { //nolint:gocyclo // rendering function with inherent layout complexity
 	var b strings.Builder
 
 	if len(items) == 0 {

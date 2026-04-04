@@ -102,7 +102,7 @@ type DiffVisualParams struct {
 
 // RenderDiffView renders a side-by-side YAML diff view with search highlighting
 // and fold support.
-func RenderDiffView(left, right, leftName, rightName string, scroll, width, height int, lineNumbers, wrap bool, searchQuery string, foldRegions []DiffFoldRegion, foldState []bool, searchMode bool, searchInput string, cursor int, vp DiffVisualParams) string {
+func RenderDiffView(left, right, leftName, rightName string, scroll, width, height int, lineNumbers, wrap bool, searchQuery string, foldRegions []DiffFoldRegion, foldState []bool, searchMode bool, searchInput string, cursor int, vp DiffVisualParams) string { //nolint:gocyclo // rendering function with inherent layout complexity
 	rawDiffLines := computeDiff(left, right)
 	visLines := BuildVisibleDiffLines(rawDiffLines, foldRegions, foldState)
 
@@ -364,7 +364,7 @@ func RenderDiffView(left, right, leftName, rightName string, scroll, width, heig
 
 // RenderUnifiedDiffView renders a unified diff view of two YAML resources
 // with search highlighting and fold support.
-func RenderUnifiedDiffView(left, right, leftName, rightName string, scroll, width, height int, lineNumbers, wrap bool, searchQuery string, foldRegions []DiffFoldRegion, foldState []bool, searchMode bool, searchInput string, cursor int, vp DiffVisualParams) string {
+func RenderUnifiedDiffView(left, right, leftName, rightName string, scroll, width, height int, lineNumbers, wrap bool, searchQuery string, foldRegions []DiffFoldRegion, foldState []bool, searchMode bool, searchInput string, cursor int, vp DiffVisualParams) string { //nolint:gocyclo // rendering function with inherent layout complexity
 	rawDiffLines := computeDiff(left, right)
 	visLines := BuildVisibleDiffLines(rawDiffLines, foldRegions, foldState)
 

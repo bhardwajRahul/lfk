@@ -185,14 +185,16 @@ var ActiveSessionColumns []string
 // collectExtraColumns discovers which extra columns to show based on item data and config.
 // usedWidth is the width already consumed by fixed columns (excluding name).
 // kind is the resource Kind (e.g. "Pod") used to resolve per-type column overrides.
+// colInfo tracks metadata about a single extra column during collection.
+type colInfo struct {
+	key      string
+	maxValW  int
+	count    int
+	hasArrow bool // true if any value in this column has a trend arrow
+}
+
 func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind string) []extraColumn {
 	// Collect all available column keys and their max value widths.
-	type colInfo struct {
-		key      string
-		maxValW  int
-		count    int
-		hasArrow bool // true if any value in this column has a trend arrow
-	}
 	seen := make(map[string]*colInfo)
 	var order []string
 	for _, item := range items {
@@ -218,99 +220,7 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 		return nil
 	}
 
-	// Determine which columns to include based on config.
-	// Session override takes highest priority, then per-resource-type config.
-	configCols := ColumnsForKind(kind, ActiveContext)
-	var candidates []string
-	switch {
-	case len(ActiveSessionColumns) > 0:
-		for _, key := range ActiveSessionColumns {
-			if _, ok := seen[key]; ok {
-				candidates = append(candidates, key)
-			}
-		}
-	case len(configCols) > 0:
-		if len(configCols) == 1 && configCols[0] == "*" {
-			candidates = order
-		} else {
-			for _, cfgKey := range configCols {
-				if _, ok := seen[cfgKey]; ok {
-					candidates = append(candidates, cfgKey)
-				}
-			}
-		}
-	default:
-		// Auto-detect: show columns that have data for at least 20% of items (or at least 1).
-		// Exclude columns that are too verbose or not useful in a table view.
-		// In fullscreen mode, show more columns (IP, Node, etc.).
-		var blocked map[string]bool
-		// Raw request/limit columns are data-only (used to compute CPU/R, CPU/L, MEM/R, MEM/L).
-		// Always block them from displaying in the table.
-		rawMetricsCols := map[string]bool{
-			"CPU Req": true, "CPU Lim": true, "Mem Req": true, "Mem Lim": true,
-			"CPU Alloc": true, "Mem Alloc": true,
-		}
-		if ActiveFullscreenMode {
-			blocked = map[string]bool{
-				"Health Message": true, "Keys": true,
-				"Service Account": true, "Images": true, "Image": true,
-				// ArgoCD: Health and Sync are redundant with Status field.
-				"Health": true, "Sync": true,
-				"Path": true,
-				// Metadata fields: too verbose for table, shown in detail pane.
-				"Labels": true, "Finalizers": true, "Annotations": true,
-				// PVC: "Used By" is shown in detail pane only.
-				"Used By": true,
-				// Deletion timestamp: shown in detail pane only.
-				"Deletion": true,
-				// Service selectors: shown in detail pane as table.
-				"Selector": true,
-			}
-		} else {
-			blocked = map[string]bool{
-				"IP": true, "Images": true, "Image": true,
-				"Host IP": true, "Pod IP": true, "Cluster IP": true,
-				"Repo": true, "Path": true, "Dest Server": true,
-				"Health Message": true, "Keys": true,
-				"Service Account": true, "Node": true,
-				"QoS": true, "Priority Class": true,
-				// ArgoCD: hide in normal view, show Dest Server/NS only in fullscreen.
-				"Health": true, "Sync": true, "Dest NS": true,
-				"Sync Message": true, "Sync Errors": true,
-				// Nodes: verbose fields, show in fullscreen/details only.
-				"OS": true, "Runtime": true,
-				"Hostname": true, "InternalIP": true, "ExternalIP": true,
-				// Events: Source is too verbose for table view; Message is kept.
-				"Source": true,
-				// Metadata fields: too verbose for table, shown in detail pane.
-				"Labels": true, "Finalizers": true, "Annotations": true,
-				// PVC: "Used By" is shown in detail pane only.
-				"Used By": true,
-				// Deletion timestamp: shown in detail pane only.
-				"Deletion": true,
-				// Service selectors: shown in detail pane as table.
-				"Selector": true,
-			}
-		}
-		for k, v := range rawMetricsCols {
-			blocked[k] = v
-		}
-		threshold := len(items) / 5
-		if threshold < 1 {
-			threshold = 1
-		}
-		// Always-show columns bypass the threshold check.
-		alwaysShow := map[string]bool{"Condition": true}
-		for _, key := range order {
-			if blocked[key] || strings.HasPrefix(key, "__") || strings.HasPrefix(key, "secret:") || strings.HasPrefix(key, "owner:") || strings.HasPrefix(key, "data:") || strings.HasPrefix(key, "condition:") || strings.HasPrefix(key, "step:") {
-				continue
-			}
-			info := seen[key]
-			if info.count >= threshold || alwaysShow[key] {
-				candidates = append(candidates, key)
-			}
-		}
-	}
+	candidates := selectColumnCandidates(seen, order, kind, items)
 
 	if len(candidates) == 0 {
 		return nil
@@ -359,6 +269,101 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 	// readable instead of padding the last extra column.
 
 	return result
+}
+
+// selectColumnCandidates determines which extra columns to display based on
+// session overrides, per-kind config, or auto-detection.
+func selectColumnCandidates(seen map[string]*colInfo, order []string, kind string, items []model.Item) []string {
+	configCols := ColumnsForKind(kind, ActiveContext)
+
+	if len(ActiveSessionColumns) > 0 {
+		var candidates []string
+		for _, key := range ActiveSessionColumns {
+			if _, ok := seen[key]; ok {
+				candidates = append(candidates, key)
+			}
+		}
+		return candidates
+	}
+
+	if len(configCols) > 0 {
+		if len(configCols) == 1 && configCols[0] == "*" {
+			return order
+		}
+		var candidates []string
+		for _, cfgKey := range configCols {
+			if _, ok := seen[cfgKey]; ok {
+				candidates = append(candidates, cfgKey)
+			}
+		}
+		return candidates
+	}
+
+	return autoDetectColumns(seen, order, items)
+}
+
+// autoDetectColumns selects columns based on heuristic thresholds and blocked lists.
+func autoDetectColumns(seen map[string]*colInfo, order []string, items []model.Item) []string {
+	blocked := blockedColumnsForMode()
+	// Raw metrics columns are always blocked.
+	for _, k := range []string{"CPU Req", "CPU Lim", "Mem Req", "Mem Lim", "CPU Alloc", "Mem Alloc"} {
+		blocked[k] = true
+	}
+
+	threshold := len(items) / 5
+	if threshold < 1 {
+		threshold = 1
+	}
+	alwaysShow := map[string]bool{"Condition": true}
+	var candidates []string
+	for _, key := range order {
+		if blocked[key] || isHiddenColumnPrefix(key) {
+			continue
+		}
+		info := seen[key]
+		if info.count >= threshold || alwaysShow[key] {
+			candidates = append(candidates, key)
+		}
+	}
+	return candidates
+}
+
+// isHiddenColumnPrefix returns true if the column key uses a prefix reserved for internal data.
+func isHiddenColumnPrefix(key string) bool {
+	return strings.HasPrefix(key, "__") ||
+		strings.HasPrefix(key, "secret:") ||
+		strings.HasPrefix(key, "owner:") ||
+		strings.HasPrefix(key, "data:") ||
+		strings.HasPrefix(key, "condition:") ||
+		strings.HasPrefix(key, "step:")
+}
+
+// blockedColumnsForMode returns the set of columns blocked in the current display mode.
+func blockedColumnsForMode() map[string]bool {
+	if ActiveFullscreenMode {
+		return map[string]bool{
+			"Health Message": true, "Keys": true,
+			"Service Account": true, "Images": true, "Image": true,
+			"Health": true, "Sync": true, "Path": true,
+			"Labels": true, "Finalizers": true, "Annotations": true,
+			"Used By": true, "Deletion": true, "Selector": true,
+		}
+	}
+	return map[string]bool{
+		"IP": true, "Images": true, "Image": true,
+		"Host IP": true, "Pod IP": true, "Cluster IP": true,
+		"Repo": true, "Path": true, "Dest Server": true,
+		"Health Message": true, "Keys": true,
+		"Service Account": true, "Node": true,
+		"QoS": true, "Priority Class": true,
+		"Health": true, "Sync": true, "Dest NS": true,
+		"Sync Message": true, "Sync Errors": true,
+		"OS": true, "Runtime": true,
+		"Hostname": true, "InternalIP": true, "ExternalIP": true,
+		"Source": true,
+		"Labels": true, "Finalizers": true, "Annotations": true,
+		"Used By": true, "Deletion": true, "Selector": true,
+	}
 }
 
 // getExtraColumnValue retrieves the value for a given column key from an item.

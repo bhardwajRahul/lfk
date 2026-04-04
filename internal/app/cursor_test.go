@@ -1670,11 +1670,9 @@ func TestCov80DirectActionDeleteDeletingNonPod(t *testing.T) {
 func TestCov80OpenActionMenuSingleItem(t *testing.T) {
 	m := basePush80Model()
 	m.setCursor(0)
-	result, cmd := m.openActionMenu()
-	rm := result.(Model)
+	rm := m.openActionMenu()
 	assert.False(t, rm.bulkMode)
 	assert.Equal(t, overlayAction, rm.overlay)
-	assert.Nil(t, cmd)
 }
 
 func TestCov80OpenActionMenuPortForward(t *testing.T) {
@@ -1682,10 +1680,8 @@ func TestCov80OpenActionMenuPortForward(t *testing.T) {
 	m.nav.ResourceType = model.ResourceTypeEntry{Kind: "__port_forwards__"}
 	m.middleItems = []model.Item{{Name: "pf-1", Kind: "__port_forward_entry__"}}
 	m.setCursor(0)
-	result, cmd := m.openActionMenu()
-	rm := result.(Model)
+	rm := m.openActionMenu()
 	assert.Equal(t, overlayAction, rm.overlay)
-	assert.Nil(t, cmd)
 }
 
 func TestCov80OpenActionMenuContainers(t *testing.T) {
@@ -1693,10 +1689,8 @@ func TestCov80OpenActionMenuContainers(t *testing.T) {
 	m.nav.Level = model.LevelContainers
 	m.middleItems = []model.Item{{Name: "container-1", Kind: "Container"}}
 	m.setCursor(0)
-	result, cmd := m.openActionMenu()
-	rm := result.(Model)
+	rm := m.openActionMenu()
 	assert.Equal(t, overlayAction, rm.overlay)
-	assert.Nil(t, cmd)
 }
 
 func TestCov80OpenActionMenuDeletingItem(t *testing.T) {
@@ -1707,8 +1701,7 @@ func TestCov80OpenActionMenuDeletingItem(t *testing.T) {
 		{Name: "pod-deleting", Kind: "Pod", Namespace: "default", Deleting: true},
 	}
 	m.setCursor(0)
-	result, cmd := m.openActionMenu()
-	rm := result.(Model)
+	rm := m.openActionMenu()
 	assert.Equal(t, overlayAction, rm.overlay)
 	// The "Delete" action should be escalated.
 	hasForce := false
@@ -1718,7 +1711,6 @@ func TestCov80OpenActionMenuDeletingItem(t *testing.T) {
 		}
 	}
 	assert.True(t, hasForce)
-	assert.Nil(t, cmd)
 }
 
 func TestCovMouseScrollUpExplorer(t *testing.T) {

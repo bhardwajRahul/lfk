@@ -279,8 +279,7 @@ func TestNetworkPolicyOverlayKeyNavigation(t *testing.T) {
 				width:        80,
 				height:       tt.height,
 			}
-			ret, _ := m.handleNetworkPolicyOverlayKey(tt.key)
-			result := ret.(Model)
+			result := m.handleNetworkPolicyOverlayKey(tt.key)
 			if tt.expectClosed {
 				assert.Equal(t, overlayNone, result.overlay)
 				assert.Nil(t, result.netpolData)
@@ -299,13 +298,11 @@ func TestNetworkPolicyGGJumpsToTop(t *testing.T) {
 		width:        80,
 		height:       40,
 	}
-	ret, _ := m.handleNetworkPolicyOverlayKey(runeKey('g'))
-	result := ret.(Model)
+	result := m.handleNetworkPolicyOverlayKey(runeKey('g'))
 	assert.True(t, result.pendingG)
 	assert.Equal(t, 10, result.netpolScroll) // not yet jumped
 
-	ret2, _ := result.handleNetworkPolicyOverlayKey(runeKey('g'))
-	result2 := ret2.(Model)
+	result2 := result.handleNetworkPolicyOverlayKey(runeKey('g'))
 	assert.False(t, result2.pendingG)
 	assert.Equal(t, 0, result2.netpolScroll)
 }

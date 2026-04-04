@@ -73,8 +73,8 @@ func (m Model) updateResourceMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.updateResourceTypes(msg)
 		return mdl, cmd, true
 	case crdDiscoveryMsg:
-		mdl, cmd := m.updateCrdDiscovery(msg)
-		return mdl, cmd, true
+		mdl := m.updateCrdDiscovery(msg)
+		return mdl, nil, true
 	case resourcesLoadedMsg:
 		mdl, cmd := m.updateResourcesLoaded(msg)
 		return mdl, cmd, true
@@ -94,11 +94,11 @@ func (m Model) updateResourceMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.updateYamlLoaded(msg)
 		return mdl, cmd, true
 	case previewYAMLLoadedMsg:
-		mdl, cmd := m.updatePreviewYAMLLoaded(msg)
-		return mdl, cmd, true
+		mdl := m.updatePreviewYAMLLoaded(msg)
+		return mdl, nil, true
 	case containerPortsLoadedMsg:
-		mdl, cmd := m.updateContainerPortsLoaded(msg)
-		return mdl, cmd, true
+		mdl := m.updateContainerPortsLoaded(msg)
+		return mdl, nil, true
 	case portForwardStartedMsg:
 		mdl, cmd := m.updatePortForwardStarted(msg)
 		return mdl, cmd, true
@@ -109,8 +109,8 @@ func (m Model) updateResourceMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.updatePortForwardUpdate(msg)
 		return mdl, cmd, true
 	case statusMessageExpiredMsg:
-		mdl, cmd := m.updateStatusMessageExpired(msg)
-		return mdl, cmd, true
+		mdl := m.updateStatusMessageExpired(msg)
+		return mdl, nil, true
 	case startupTipMsg:
 		mdl, cmd := m.updateStartupTip(msg)
 		return mdl, cmd, true
@@ -130,23 +130,23 @@ func (m Model) updateResourceMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.updateEventTimeline(msg)
 		return mdl, cmd, true
 	case metricsLoadedMsg:
-		mdl, cmd := m.updateMetricsLoaded(msg)
-		return mdl, cmd, true
+		mdl := m.updateMetricsLoaded(msg)
+		return mdl, nil, true
 	case previewEventsLoadedMsg:
-		mdl, cmd := m.updatePreviewEventsLoaded(msg)
-		return mdl, cmd, true
+		mdl := m.updatePreviewEventsLoaded(msg)
+		return mdl, nil, true
 	case podMetricsEnrichedMsg:
-		mdl, cmd := m.updatePodMetricsEnriched(msg)
-		return mdl, cmd, true
+		mdl := m.updatePodMetricsEnriched(msg)
+		return mdl, nil, true
 	case nodeMetricsEnrichedMsg:
-		mdl, cmd := m.updateNodeMetricsEnriched(msg)
-		return mdl, cmd, true
+		mdl := m.updateNodeMetricsEnriched(msg)
+		return mdl, nil, true
 	case dashboardLoadedMsg:
-		mdl, cmd := m.updateDashboardLoaded(msg)
-		return mdl, cmd, true
+		mdl := m.updateDashboardLoaded(msg)
+		return mdl, nil, true
 	case monitoringDashboardMsg:
-		mdl, cmd := m.updateMonitoringDashboard(msg)
-		return mdl, cmd, true
+		mdl := m.updateMonitoringDashboard(msg)
+		return mdl, nil, true
 	case logContainersLoadedMsg:
 		mdl, cmd := m.updateLogContainersLoaded(msg)
 		return mdl, cmd, true
@@ -278,8 +278,8 @@ func (m Model) updateEditorResultMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.updateExecPTYTick(msg)
 		return mdl, cmd, true
 	case execPTYExitMsg:
-		mdl, cmd := m.updateExecPTYExit(msg)
-		return mdl, cmd, true
+		mdl := m.updateExecPTYExit(msg)
+		return mdl, nil, true
 	case execPTYStartMsg:
 		mdl, cmd := m.updateExecPTYStart(msg)
 		return mdl, cmd, true
@@ -287,8 +287,8 @@ func (m Model) updateEditorResultMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.updateLogLine(msg)
 		return mdl, cmd, true
 	case logHistoryMsg:
-		mdl, cmd := m.updateLogHistory(msg)
-		return mdl, cmd, true
+		mdl := m.updateLogHistory(msg)
+		return mdl, nil, true
 	case logSaveAllMsg:
 		mdl, cmd := m.updateLogSaveAll(msg)
 		return mdl, cmd, true
@@ -380,14 +380,14 @@ func (m Model) updateResourceTypes(msg resourceTypesMsg) (tea.Model, tea.Cmd) {
 	return m, m.loadPreview()
 }
 
-func (m Model) updateCrdDiscovery(msg crdDiscoveryMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateCrdDiscovery(msg crdDiscoveryMsg) Model {
 	if isContextCanceled(msg.err) {
-		return m, nil
+		return m
 	}
 	if msg.err != nil {
 		// CRD discovery failed (permissions, etc.) -- silently ignore.
 		logger.Info("CRD discovery failed", "context", msg.context, "error", msg.err.Error())
-		return m, nil
+		return m
 	}
 	m.discoveredCRDs[msg.context] = msg.entries
 	if m.nav.Context == msg.context {
@@ -415,7 +415,7 @@ func (m Model) updateCrdDiscovery(msg crdDiscoveryMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) updateResourcesLoaded(msg resourcesLoadedMsg) (tea.Model, tea.Cmd) {
@@ -664,16 +664,16 @@ func (m Model) updateYamlLoaded(msg yamlLoadedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updatePreviewYAMLLoaded(msg previewYAMLLoadedMsg) (tea.Model, tea.Cmd) {
+func (m Model) updatePreviewYAMLLoaded(msg previewYAMLLoadedMsg) Model {
 	if msg.gen != m.requestGen {
-		return m, nil // stale response, discard
+		return m // stale response, discard
 	}
 	if msg.err != nil {
 		m.previewYAML = ""
-		return m, nil
+		return m
 	}
 	m.previewYAML = indentYAMLListItems(msg.content)
-	return m, nil
+	return m
 }
 
 func (m Model) updateActionResult(msg actionResultMsg) (tea.Model, tea.Cmd) {
@@ -688,7 +688,7 @@ func (m Model) updateActionResult(msg actionResultMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(m.refreshCurrentLevel(), scheduleStatusClear())
 }
 
-func (m Model) updateContainerPortsLoaded(msg containerPortsLoadedMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateContainerPortsLoaded(msg containerPortsLoadedMsg) Model {
 	m.loading = false
 	if msg.err != nil {
 		// No ports discovered, still open the overlay for manual entry.
@@ -712,7 +712,7 @@ func (m Model) updateContainerPortsLoaded(msg containerPortsLoadedMsg) (tea.Mode
 	}
 	m.portForwardInput.Clear()
 	m.overlay = overlayPortForward
-	return m, nil
+	return m
 }
 
 func (m Model) updatePortForwardStarted(msg portForwardStartedMsg) (tea.Model, tea.Cmd) {
@@ -877,10 +877,10 @@ func (m Model) updateFinalizerRemoveResult(msg finalizerRemoveResultMsg) (tea.Mo
 	return m, tea.Batch(m.refreshCurrentLevel(), scheduleStatusClear())
 }
 
-func (m Model) updateStatusMessageExpired(msg statusMessageExpiredMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateStatusMessageExpired(msg statusMessageExpiredMsg) Model {
 	m.statusMessage = ""
 	m.statusMessageTip = false
-	return m, nil
+	return m
 }
 
 func (m Model) updateStartupTip(msg startupTipMsg) (tea.Model, tea.Cmd) {
@@ -1329,13 +1329,13 @@ func (m Model) updateLogContainersLoaded(msg logContainersLoadedMsg) (tea.Model,
 	return m, nil
 }
 
-func (m Model) updateMetricsLoaded(msg metricsLoadedMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateMetricsLoaded(msg metricsLoadedMsg) Model {
 	if msg.gen != m.requestGen {
-		return m, nil // stale response
+		return m // stale response
 	}
 	if msg.cpuUsed == 0 && msg.memUsed == 0 {
 		m.metricsContent = ""
-		return m, nil
+		return m
 	}
 	// Calculate available width for the metrics bar.
 	usable := m.width - 6
@@ -1349,16 +1349,16 @@ func (m Model) updateMetricsLoaded(msg metricsLoadedMsg) (tea.Model, tea.Cmd) {
 		msg.memUsed, msg.memReq, msg.memLim,
 		innerW,
 	)
-	return m, nil
+	return m
 }
 
-func (m Model) updatePreviewEventsLoaded(msg previewEventsLoadedMsg) (tea.Model, tea.Cmd) {
+func (m Model) updatePreviewEventsLoaded(msg previewEventsLoadedMsg) Model {
 	if msg.gen != m.requestGen {
-		return m, nil // stale response
+		return m // stale response
 	}
 	if len(msg.events) == 0 {
 		m.previewEventsContent = ""
-		return m, nil
+		return m
 	}
 	// Calculate available width for the events section.
 	usable := m.width - 6
@@ -1381,15 +1381,15 @@ func (m Model) updatePreviewEventsLoaded(msg previewEventsLoadedMsg) (tea.Model,
 		}
 	}
 	m.previewEventsContent = ui.RenderPreviewEvents(entries, innerW)
-	return m, nil
+	return m
 }
 
-func (m Model) updatePodMetricsEnriched(msg podMetricsEnrichedMsg) (tea.Model, tea.Cmd) {
+func (m Model) updatePodMetricsEnriched(msg podMetricsEnrichedMsg) Model {
 	if msg.gen != m.requestGen {
-		return m, nil // stale response
+		return m // stale response
 	}
 	if len(msg.metrics) == 0 {
-		return m, nil
+		return m
 	}
 	// Enrich middle items with CPU/Memory usage + percentage columns.
 	for i := range m.middleItems {
@@ -1481,15 +1481,15 @@ func (m Model) updatePodMetricsEnriched(msg podMetricsEnrichedMsg) (tea.Model, t
 	}
 	// Update cache.
 	m.itemCache[m.navKey()] = m.middleItems
-	return m, nil
+	return m
 }
 
-func (m Model) updateNodeMetricsEnriched(msg nodeMetricsEnrichedMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateNodeMetricsEnriched(msg nodeMetricsEnrichedMsg) Model {
 	if msg.gen != m.requestGen {
-		return m, nil
+		return m
 	}
 	if len(msg.metrics) == 0 {
-		return m, nil
+		return m
 	}
 	for i := range m.middleItems {
 		item := &m.middleItems[i]
@@ -1565,7 +1565,7 @@ func (m Model) updateNodeMetricsEnriched(msg nodeMetricsEnrichedMsg) (tea.Model,
 		m.prevNodeMetricsTime = time.Now()
 	}
 	m.itemCache[m.navKey()] = m.middleItems
-	return m, nil
+	return m
 }
 
 func (m Model) updateSecretDataLoaded(msg secretDataLoadedMsg) (tea.Model, tea.Cmd) {
@@ -1583,19 +1583,19 @@ func (m Model) updateSecretDataLoaded(msg secretDataLoadedMsg) (tea.Model, tea.C
 	return m, nil
 }
 
-func (m Model) updateDashboardLoaded(msg dashboardLoadedMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateDashboardLoaded(msg dashboardLoadedMsg) Model {
 	if msg.context == m.nav.Context {
 		m.dashboardPreview = msg.content
 		m.dashboardEventsPreview = msg.events
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) updateMonitoringDashboard(msg monitoringDashboardMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateMonitoringDashboard(msg monitoringDashboardMsg) Model {
 	if msg.context == m.nav.Context {
 		m.monitoringPreview = msg.content
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) updateSecretSaved(msg secretSavedMsg) (tea.Model, tea.Cmd) {
@@ -1757,7 +1757,7 @@ func (m Model) updateExecPTYTick(msg execPTYTickMsg) (tea.Model, tea.Cmd) {
 	return m, m.scheduleExecTick()
 }
 
-func (m Model) updateExecPTYExit(msg execPTYExitMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateExecPTYExit(msg execPTYExitMsg) Model {
 	if msg.ptmx == m.execPTY {
 		m.execDone.Store(true)
 	} else {
@@ -1769,7 +1769,7 @@ func (m Model) updateExecPTYExit(msg execPTYExitMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) updateExecPTYStart(msg execPTYStartMsg) (tea.Model, tea.Cmd) {
@@ -1826,14 +1826,14 @@ func (m Model) updateLogLine(msg logLineMsg) (tea.Model, tea.Cmd) {
 	return m, m.waitForLogLine()
 }
 
-func (m Model) updateLogHistory(msg logHistoryMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateLogHistory(msg logHistoryMsg) Model {
 	m.logLoadingHistory = false
 	if msg.err != nil {
 		m.logHasMoreHistory = false
-		return m, nil
+		return m
 	}
 	if m.mode != modeLogs {
-		return m, nil
+		return m
 	}
 
 	// Find overlap: search for the first 3 current lines in the fetched history.
@@ -1866,7 +1866,7 @@ func (m Model) updateLogHistory(msg logHistoryMsg) (tea.Model, tea.Cmd) {
 
 	if len(newOlderLines) == 0 {
 		m.logHasMoreHistory = false
-		return m, nil
+		return m
 	}
 
 	// Prepend and adjust scroll to maintain view position.
@@ -1883,7 +1883,7 @@ func (m Model) updateLogHistory(msg logHistoryMsg) (tea.Model, tea.Cmd) {
 		m.logHasMoreHistory = false
 	}
 
-	return m, nil
+	return m
 }
 
 func (m Model) updateLogSaveAll(msg logSaveAllMsg) (tea.Model, tea.Cmd) {

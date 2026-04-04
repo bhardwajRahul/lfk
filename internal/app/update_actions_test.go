@@ -99,8 +99,7 @@ func TestOpenActionMenu_DeletingPod_ShowsForceDelete(t *testing.T) {
 		tabs:  []TabState{{}},
 		width: 80, height: 40,
 	}
-	ret, _ := m.openActionMenu()
-	result := ret.(Model)
+	result := m.openActionMenu()
 	assert.Equal(t, overlayAction, result.overlay)
 
 	// Find the Force Delete item in the menu.
@@ -132,8 +131,7 @@ func TestOpenActionMenu_DeletingDeployment_ShowsForceFinalize(t *testing.T) {
 		tabs:  []TabState{{}},
 		width: 80, height: 40,
 	}
-	ret, _ := m.openActionMenu()
-	result := ret.(Model)
+	result := m.openActionMenu()
 	assert.Equal(t, overlayAction, result.overlay)
 
 	found := false
@@ -326,20 +324,16 @@ func TestCov80OpenActionMenuBulkMode(t *testing.T) {
 		"default/pod-1": true,
 		"ns-2/pod-2":    true,
 	}
-	result, cmd := m.openActionMenu()
-	rm := result.(Model)
+	rm := m.openActionMenu()
 	assert.True(t, rm.bulkMode)
 	assert.Equal(t, overlayAction, rm.overlay)
-	assert.Nil(t, cmd)
 }
 
 func TestCov80OpenActionMenuNoKind(t *testing.T) {
 	m := basePush80Model()
 	m.nav.Level = model.LevelClusters
 	m.middleItems = nil
-	result, cmd := m.openActionMenu()
-	_ = result
-	assert.Nil(t, cmd)
+	_ = m.openActionMenu()
 }
 
 func TestCov80BuildActionCtxResources(t *testing.T) {
@@ -525,25 +519,21 @@ func TestCovDirectActionScaleNoItem(t *testing.T) {
 
 func TestCovOpenActionMenuNoSelection(t *testing.T) {
 	m := baseModelActions()
-	result, _ := m.openActionMenu()
-	rm := result.(Model)
+	rm := m.openActionMenu()
 	assert.Equal(t, overlayAction, rm.overlay)
 }
 
 func TestCovOpenActionMenuBulk(t *testing.T) {
 	m := baseModelActions()
 	m.selectedItems["default/pod-1"] = true
-	result, _ := m.openActionMenu()
-	rm := result.(Model)
+	rm := m.openActionMenu()
 	assert.True(t, rm.bulkMode)
 }
 
 func TestCovOpenActionMenuNoMiddleItems(t *testing.T) {
 	m := baseModelActions()
 	m.middleItems = nil
-	result, cmd := m.openActionMenu()
-	_ = result.(Model)
-	assert.Nil(t, cmd)
+	_ = m.openActionMenu()
 }
 
 func TestCovDirectActionDeleteWithDeletingResource(t *testing.T) {

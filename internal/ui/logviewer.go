@@ -16,107 +16,8 @@ var LogSearchHighlightStyle = lipgloss.NewStyle().
 
 // RenderLogViewer renders the full-screen log viewer.
 func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, lineNumbers, timestamps, previous, hidePrefixes bool, title, searchQuery, searchInput string, searchActive, canSwitchPod, canFilterContainers, hasMoreHistory, loadingHistory bool, statusMsg string, statusIsErr bool, cursor int, visualMode bool, visualStart int, visualType rune, visualCol, visualCurCol int) string {
-	// Title bar with status indicators.
-	var indicators []string
-	if follow {
-		indicators = append(indicators, HelpKeyStyle.Render("[FOLLOW]"))
-	}
-	if wrap {
-		indicators = append(indicators, HelpKeyStyle.Render("[WRAP]"))
-	}
-	if lineNumbers {
-		indicators = append(indicators, HelpKeyStyle.Render("[LINE#]"))
-	}
-	if timestamps {
-		indicators = append(indicators, HelpKeyStyle.Render("[TIMESTAMPS]"))
-	}
-	if hidePrefixes {
-		indicators = append(indicators, HelpKeyStyle.Render("[NO PREFIX]"))
-	}
-	if previous {
-		indicators = append(indicators, HelpKeyStyle.Render("[PREVIOUS]"))
-	}
-	if visualMode {
-		switch visualType {
-		case 'v':
-			indicators = append(indicators, HelpKeyStyle.Render("[VISUAL]"))
-		case 'B':
-			indicators = append(indicators, HelpKeyStyle.Render("[VISUAL BLOCK]"))
-		default:
-			indicators = append(indicators, HelpKeyStyle.Render("[VISUAL LINE]"))
-		}
-	}
-	if loadingHistory {
-		indicators = append(indicators, HelpKeyStyle.Render("[LOADING HISTORY...]"))
-	}
-	if searchQuery != "" {
-		indicators = append(indicators, HelpKeyStyle.Render("[/"+searchQuery+"]"))
-	}
-
-	titleText := " " + title + " "
-	if len(indicators) > 0 {
-		titleText += " " + strings.Join(indicators, " ")
-	}
-	lineInfo := BarDimStyle.Render(fmt.Sprintf(" [%d lines]", len(lines)))
-	titleText += lineInfo
-
-	// Constrain title to terminal width to prevent wrapping (which adds extra lines).
-	maxTitleWidth := width - 2 // account for TitleStyle padding
-	if maxTitleWidth < 10 {
-		maxTitleWidth = 10
-	}
-	if ansi.StringWidth(titleText) > maxTitleWidth {
-		titleText = ansi.Truncate(titleText, maxTitleWidth, "…")
-	}
-	titleBar := FillLinesBg(TitleStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(titleText), width, BarBg)
-
-	// Footer: show status message, search input, or key hints.
-	// Use BarDimStyle (not DimStyle) so hint text matches the bar background.
-	var footer string
-	if statusMsg != "" {
-		style := HelpKeyStyle
-		if statusIsErr {
-			style = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorError)).Bold(true).Background(BarBg)
-		}
-		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(style.Render(statusMsg))
-	} else if searchActive {
-		modeInd := SearchModeIndicator(searchInput)
-		prompt := HelpKeyStyle.Render("/") + BarDimStyle.Render(": ") + BarDimStyle.Render(modeInd) + searchInput + BarDimStyle.Render("\u2588") + BarDimStyle.Render("  (enter:apply  esc:cancel)")
-		footer = StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(prompt)
-	} else if visualMode {
-		footer = RenderHintBar([]HintEntry{
-			{Key: "j/k", Desc: "extend"},
-			{Key: "h/l", Desc: "column"},
-			{Key: "y", Desc: "copy"},
-			{Key: "v/V/ctrl+v", Desc: "switch mode"},
-			{Key: "esc", Desc: "cancel"},
-		}, width)
-	} else {
-		hints := []HintEntry{
-			{Key: "q", Desc: "close"},
-			{Key: "j/k", Desc: "move"},
-			{Key: "ctrl+d/u", Desc: "half page"},
-			{Key: "ctrl+f/b", Desc: "page"},
-			{Key: "f", Desc: "follow"},
-			{Key: "tab/z/>", Desc: "wrap"},
-			{Key: "#", Desc: "line#"},
-			{Key: "s", Desc: "timestamps"},
-			{Key: "p", Desc: "prefixes"},
-			{Key: "c", Desc: "previous"},
-			{Key: "v/V/ctrl+v", Desc: "select"},
-			{Key: "/", Desc: "search"},
-			{Key: "n/N", Desc: "next/prev"},
-			{Key: "123G", Desc: "goto"},
-			{Key: "S", Desc: "save"},
-			{Key: "ctrl+s", Desc: "save all"},
-		}
-		if canSwitchPod {
-			hints = append(hints, HintEntry{"\\", "switch pod"})
-		} else if canFilterContainers {
-			hints = append(hints, HintEntry{"\\", "containers"})
-		}
-		footer = RenderHintBar(hints, width)
-	}
+	titleBar := renderLogTitleBar(title, lines, width, follow, wrap, lineNumbers, timestamps, previous, hidePrefixes, visualMode, visualType, loadingHistory, searchQuery)
+	footer := renderLogFooter(width, statusMsg, statusIsErr, searchActive, searchInput, visualMode, canSwitchPod, canFilterContainers)
 
 	// Content area: subtract border top + bottom (2 lines).
 	contentHeight := height - 2
@@ -215,6 +116,103 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	body := borderStyle.Render(bodyContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, titleBar, body, footer)
+}
+
+// renderLogTitleBar builds the title bar with status indicators for the log viewer.
+func renderLogTitleBar(title string, lines []string, width int, follow, wrap, lineNumbers, timestamps, previous, hidePrefixes, visualMode bool, visualType rune, loadingHistory bool, searchQuery string) string {
+	type indicatorFlag struct {
+		enabled bool
+		label   string
+	}
+	flags := []indicatorFlag{
+		{follow, "FOLLOW"},
+		{wrap, "WRAP"},
+		{lineNumbers, "LINE#"},
+		{timestamps, "TIMESTAMPS"},
+		{hidePrefixes, "NO PREFIX"},
+		{previous, "PREVIOUS"},
+		{loadingHistory, "LOADING HISTORY..."},
+	}
+	var indicators []string
+	for _, f := range flags {
+		if f.enabled {
+			indicators = append(indicators, HelpKeyStyle.Render("["+f.label+"]"))
+		}
+	}
+	if visualMode {
+		switch visualType {
+		case 'v':
+			indicators = append(indicators, HelpKeyStyle.Render("[VISUAL]"))
+		case 'B':
+			indicators = append(indicators, HelpKeyStyle.Render("[VISUAL BLOCK]"))
+		default:
+			indicators = append(indicators, HelpKeyStyle.Render("[VISUAL LINE]"))
+		}
+	}
+	if searchQuery != "" {
+		indicators = append(indicators, HelpKeyStyle.Render("[/"+searchQuery+"]"))
+	}
+
+	titleText := " " + title + " "
+	if len(indicators) > 0 {
+		titleText += " " + strings.Join(indicators, " ")
+	}
+	titleText += BarDimStyle.Render(fmt.Sprintf(" [%d lines]", len(lines)))
+
+	maxTitleWidth := max(width-2, 10)
+	if ansi.StringWidth(titleText) > maxTitleWidth {
+		titleText = ansi.Truncate(titleText, maxTitleWidth, "...")
+	}
+	return FillLinesBg(TitleStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(titleText), width, BarBg)
+}
+
+// renderLogFooter builds the footer bar for the log viewer.
+func renderLogFooter(width int, statusMsg string, statusIsErr, searchActive bool, searchInput string, visualMode, canSwitchPod, canFilterContainers bool) string {
+	if statusMsg != "" {
+		style := HelpKeyStyle
+		if statusIsErr {
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorError)).Bold(true).Background(BarBg)
+		}
+		return StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(style.Render(statusMsg))
+	}
+	if searchActive {
+		modeInd := SearchModeIndicator(searchInput)
+		prompt := HelpKeyStyle.Render("/") + BarDimStyle.Render(": ") + BarDimStyle.Render(modeInd) + searchInput + BarDimStyle.Render("\u2588") + BarDimStyle.Render("  (enter:apply  esc:cancel)")
+		return StatusBarBgStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(prompt)
+	}
+	if visualMode {
+		return RenderHintBar([]HintEntry{
+			{Key: "j/k", Desc: "extend"},
+			{Key: "h/l", Desc: "column"},
+			{Key: "y", Desc: "copy"},
+			{Key: "v/V/ctrl+v", Desc: "switch mode"},
+			{Key: "esc", Desc: "cancel"},
+		}, width)
+	}
+	hints := []HintEntry{
+		{Key: "q", Desc: "close"},
+		{Key: "j/k", Desc: "move"},
+		{Key: "ctrl+d/u", Desc: "half page"},
+		{Key: "ctrl+f/b", Desc: "page"},
+		{Key: "f", Desc: "follow"},
+		{Key: "tab/z/>", Desc: "wrap"},
+		{Key: "#", Desc: "line#"},
+		{Key: "s", Desc: "timestamps"},
+		{Key: "p", Desc: "prefixes"},
+		{Key: "c", Desc: "previous"},
+		{Key: "v/V/ctrl+v", Desc: "select"},
+		{Key: "/", Desc: "search"},
+		{Key: "n/N", Desc: "next/prev"},
+		{Key: "123G", Desc: "goto"},
+		{Key: "S", Desc: "save"},
+		{Key: "ctrl+s", Desc: "save all"},
+	}
+	if canSwitchPod {
+		hints = append(hints, HintEntry{"\\", "switch pod"})
+	} else if canFilterContainers {
+		hints = append(hints, HintEntry{"\\", "containers"})
+	}
+	return RenderHintBar(hints, width)
 }
 
 // highlightSearchMatches highlights occurrences of query in each line.

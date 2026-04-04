@@ -714,7 +714,7 @@ func TestListItemBlockHeaderSiblingKeys(t *testing.T) {
 // and a block header (e.g., "- args:") are split into two display lines:
 // a dash line for folding the entire list element and a content line for
 // folding just the block header's content.
-func TestSplitListItemBlockHeader(t *testing.T) {
+func TestSplitListItemBlockHeader(t *testing.T) { //nolint:gocyclo
 	yaml := `spec:
   containers:
     - args:

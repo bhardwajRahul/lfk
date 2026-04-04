@@ -12,7 +12,7 @@ import (
 // RenderResourceSummary renders a table-style detail summary of resource fields,
 // followed by truncated YAML if space permits. It shows metadata that is NOT
 // already visible in the middle column table (Name, Ready, Restarts, Status, Age).
-func RenderResourceSummary(item *model.Item, yaml string, width, height int) string {
+func RenderResourceSummary(item *model.Item, yaml string, width, height int) string { //nolint:gocyclo // rendering function with inherent layout complexity
 	if item == nil || len(item.Columns) == 0 {
 		// No summary data, fall back to YAML.
 		if yaml != "" {

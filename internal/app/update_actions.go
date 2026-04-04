@@ -10,12 +10,12 @@ import (
 	"github.com/janosmiko/lfk/internal/ui"
 )
 
-func (m Model) openActionMenu() (tea.Model, tea.Cmd) {
+func (m Model) openActionMenu() Model {
 	// Bulk mode: when items are selected, show bulk action menu.
 	if m.hasSelection() {
 		selectedList := m.selectedItemsList()
 		if len(selectedList) == 0 {
-			return m, nil
+			return m
 		}
 		m.bulkMode = true
 		m.bulkItems = selectedList
@@ -23,7 +23,7 @@ func (m Model) openActionMenu() (tea.Model, tea.Cmd) {
 		// Build action context from first selected item (for resource type info).
 		kind := m.selectedResourceKind()
 		if kind == "" {
-			return m, nil
+			return m
 		}
 		m.actionCtx = m.buildActionCtx(&selectedList[0], kind)
 
@@ -54,17 +54,17 @@ func (m Model) openActionMenu() (tea.Model, tea.Cmd) {
 		m.overlay = overlayAction
 		m.overlayItems = items
 		m.overlayCursor = 0
-		return m, nil
+		return m
 	}
 
 	kind := m.selectedResourceKind()
 	if kind == "" {
-		return m, nil
+		return m
 	}
 
 	sel := m.selectedMiddleItem()
 	if sel == nil {
-		return m, nil
+		return m
 	}
 
 	m.bulkMode = false
@@ -119,7 +119,7 @@ func (m Model) openActionMenu() (tea.Model, tea.Cmd) {
 	m.overlay = overlayAction
 	m.overlayItems = items
 	m.overlayCursor = 0
-	return m, nil
+	return m
 }
 
 // buildActionCtx creates an actionContext from the current selection, extracting
@@ -353,8 +353,8 @@ func (m Model) executeActionCoreK8s(actionLabel string) (tea.Model, tea.Cmd, boo
 		mdl, cmd := m.executeActionResize()
 		return mdl, cmd, true
 	case "Scale":
-		mdl, cmd := m.executeActionScale()
-		return mdl, cmd, true
+		mdl := m.executeActionScale()
+		return mdl, nil, true
 	case "Restart":
 		mdl, cmd := m.executeActionRestart()
 		return mdl, cmd, true
@@ -1261,10 +1261,10 @@ func (m Model) closeTabOrQuit() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func (m Model) executeActionScale() (tea.Model, tea.Cmd) {
+func (m Model) executeActionScale() Model {
 	m.scaleInput.Clear()
 	m.overlay = overlayScaleInput
-	return m, nil
+	return m
 }
 
 func (m Model) executeActionVulnScan() (tea.Model, tea.Cmd) {

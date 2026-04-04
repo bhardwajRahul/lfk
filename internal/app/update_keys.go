@@ -234,14 +234,14 @@ func (m Model) handleExplorerNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.handleExplorerJumpBottom()
 		return mdl, cmd, true
 	case kb.SelectRange:
-		mdl, cmd := m.handleKeySelectRange()
-		return mdl, cmd, true
+		mdl := m.handleKeySelectRange()
+		return mdl, nil, true
 	case kb.ToggleSelect:
-		mdl, cmd := m.handleKeyToggleSelect()
-		return mdl, cmd, true
+		mdl := m.handleKeyToggleSelect()
+		return mdl, nil, true
 	case kb.SelectAll:
-		mdl, cmd := m.handleKeySelectAll()
-		return mdl, cmd, true
+		mdl := m.handleKeySelectAll()
+		return mdl, nil, true
 	case kb.Left, "left":
 		if m.fullscreenDashboard {
 			m.fullscreenDashboard = false
@@ -345,14 +345,14 @@ func (m Model) handleExplorerUIKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	kb := ui.ActiveKeybindings
 	switch msg.String() {
 	case kb.ThemeSelector:
-		mdl, cmd := m.handleKeyThemeSelector()
-		return mdl, cmd, true
+		mdl := m.handleKeyThemeSelector()
+		return mdl, nil, true
 	case kb.NamespaceSelector:
 		mdl, cmd := m.handleKeyNamespaceSelector()
 		return mdl, cmd, true
 	case kb.ActionMenu:
-		mdl, cmd := m.openActionMenu()
-		return mdl, cmd, true
+		mdl := m.openActionMenu()
+		return mdl, nil, true
 	case kb.WatchMode:
 		mdl, cmd := m.handleKeyWatchMode()
 		return mdl, cmd, true
@@ -363,29 +363,29 @@ func (m Model) handleExplorerUIKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		mdl, cmd := m.handleKeyPinGroup()
 		return mdl, cmd, true
 	case kb.OpenMarks:
-		mdl, cmd := m.handleKeyOpenMarks()
-		return mdl, cmd, true
+		mdl := m.handleKeyOpenMarks()
+		return mdl, nil, true
 	case kb.SetMark:
 		m.pendingMark = true
 		return m, nil, true
 	case kb.Help, "f1":
-		mdl, cmd := m.handleKeyHelp()
-		return mdl, cmd, true
+		mdl := m.handleKeyHelp()
+		return mdl, nil, true
 	case kb.Filter:
-		mdl, cmd := m.handleKeyFilter()
-		return mdl, cmd, true
+		mdl := m.handleKeyFilter()
+		return mdl, nil, true
 	case kb.Search:
-		mdl, cmd := m.handleKeySearch()
-		return mdl, cmd, true
+		mdl := m.handleKeySearch()
+		return mdl, nil, true
 	case kb.CommandBar:
-		mdl, cmd := m.handleKeyCommandBar()
-		return mdl, cmd, true
+		mdl := m.handleKeyCommandBar()
+		return mdl, nil, true
 	case kb.FinalizerSearch:
 		m.openFinalizerSearch()
 		return m, nil, true
 	case kb.ColumnToggle:
-		mdl, cmd := m.handleKeyColumnToggle()
-		return mdl, cmd, true
+		mdl := m.handleKeyColumnToggle()
+		return mdl, nil, true
 	case kb.ResourceMap:
 		mdl, cmd := m.handleExplorerResourceMap()
 		return mdl, cmd, true
@@ -459,7 +459,7 @@ func (m Model) handleExplorerFullscreen() (tea.Model, tea.Cmd) {
 	return m, scheduleStatusClear()
 }
 
-func (m Model) handleKeyThemeSelector() (tea.Model, tea.Cmd) {
+func (m Model) handleKeyThemeSelector() Model {
 	m.schemeEntries = ui.GroupedSchemeEntries()
 	m.schemeCursor = 0
 	m.schemeFilter.Clear()
@@ -478,16 +478,16 @@ func (m Model) handleKeyThemeSelector() (tea.Model, tea.Cmd) {
 		selectIdx++
 	}
 	m.overlay = overlayColorscheme
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeySelectRange() (tea.Model, tea.Cmd) {
+func (m Model) handleKeySelectRange() Model {
 	if m.nav.Level < model.LevelResources {
-		return m, nil
+		return m
 	}
 	items := m.visibleMiddleItems()
 	if len(items) == 0 {
-		return m, nil
+		return m
 	}
 	cur := m.cursor()
 	if m.selectionAnchor < 0 {
@@ -496,7 +496,7 @@ func (m Model) handleKeySelectRange() (tea.Model, tea.Cmd) {
 			m.toggleSelection(*sel)
 			m.selectionAnchor = cur
 		}
-		return m, nil
+		return m
 	}
 	// Select range from anchor to cursor (inclusive).
 	lo, hi := m.selectionAnchor, cur
@@ -506,10 +506,10 @@ func (m Model) handleKeySelectRange() (tea.Model, tea.Cmd) {
 	for i := lo; i <= hi && i < len(items); i++ {
 		m.selectedItems[selectionKey(items[i])] = true
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeyToggleSelect() (tea.Model, tea.Cmd) {
+func (m Model) handleKeyToggleSelect() Model {
 	if m.nav.Level >= model.LevelResources {
 		sel := m.selectedMiddleItem()
 		if sel != nil {
@@ -531,12 +531,12 @@ func (m Model) handleKeyToggleSelect() (tea.Model, tea.Cmd) {
 			c = 0
 		}
 		m.setCursor(c)
-		return m, nil
+		return m
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeySelectAll() (tea.Model, tea.Cmd) {
+func (m Model) handleKeySelectAll() Model {
 	if m.nav.Level >= model.LevelResources {
 		visible := m.visibleMiddleItems()
 		if m.hasSelection() {
@@ -549,9 +549,9 @@ func (m Model) handleKeySelectAll() (tea.Model, tea.Cmd) {
 			}
 		}
 		m.selectionAnchor = -1
-		return m, nil
+		return m
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) handleKeyNextMatch() (tea.Model, tea.Cmd) {
@@ -669,14 +669,14 @@ func (m Model) handleKeyPinGroup() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKeyOpenMarks() (tea.Model, tea.Cmd) {
+func (m Model) handleKeyOpenMarks() Model {
 	m.overlay = overlayBookmarks
 	m.overlayCursor = 0
 	m.bookmarkFilter.Clear()
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeyHelp() (tea.Model, tea.Cmd) {
+func (m Model) handleKeyHelp() Model {
 	m.helpPreviousMode = modeExplorer
 	m.mode = modeHelp
 	m.helpScroll = 0
@@ -689,39 +689,39 @@ func (m Model) handleKeyHelp() (tea.Model, tea.Cmd) {
 	default:
 		m.helpContextMode = "Navigation"
 	}
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeyFilter() (tea.Model, tea.Cmd) {
+func (m Model) handleKeyFilter() Model {
 	m.filterActive = true
 	m.filterInput.Clear()
 	m.filterText = ""
 	m.setCursor(0)
 	m.clampCursor()
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeySearch() (tea.Model, tea.Cmd) {
+func (m Model) handleKeySearch() Model {
 	m.searchActive = true
 	m.searchInput.Clear()
 	m.searchPrevCursor = m.cursor()
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeyCommandBar() (tea.Model, tea.Cmd) {
+func (m Model) handleKeyCommandBar() Model {
 	m.commandBarActive = true
 	m.commandBarInput.Clear()
 	m.commandBarSuggestions = nil
 	m.commandBarSelectedSuggestion = 0
 	m.commandHistory.reset()
-	return m, nil
+	return m
 }
 
-func (m Model) handleKeyColumnToggle() (tea.Model, tea.Cmd) {
+func (m Model) handleKeyColumnToggle() Model {
 	if m.nav.Level >= model.LevelResources {
 		m.openColumnToggle()
 	}
-	return m, nil
+	return m
 }
 
 func (m Model) handleKeySecretToggle() (tea.Model, tea.Cmd) {

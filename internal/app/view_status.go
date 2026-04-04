@@ -254,85 +254,22 @@ func (m Model) statusBar() string {
 // --- Overlay rendering ---
 
 func (m Model) renderOverlay(background string) string {
-	var content string
-	var overlayW, overlayH int
-
+	// Fullscreen overlays bypass the standard overlay rendering.
 	switch m.overlay {
-	case overlayNamespace:
-		content = ui.RenderNamespaceOverlay(m.filteredOverlayItems(), m.overlayFilter.Value, m.overlayCursor, m.namespace, m.allNamespaces, m.selectedNamespaces, m.nsFilterMode)
-		overlayW, overlayH = min(60, m.width-10), min(20, m.height-6)
-	case overlayAction:
-		overlayW = min(70, m.width-10)
-		content = ui.RenderActionOverlay(m.overlayItems, m.overlayCursor, overlayW)
-		overlayH = min(15, m.height-6)
-	case overlayQuitConfirm:
-		content = ui.RenderQuitConfirmOverlay()
-		overlayW, overlayH = min(40, m.width-10), min(7, m.height-6)
-	case overlayConfirm:
-		content = ui.RenderConfirmOverlay(m.confirmAction)
-		overlayW, overlayH = min(50, m.width-10), min(8, m.height-6)
-	case overlayConfirmType:
-		content = ui.RenderConfirmTypeOverlay(m.confirmTitle, m.confirmQuestion, m.confirmTypeInput.Value)
-		overlayW, overlayH = min(55, m.width-10), min(10, m.height-6)
-	case overlayScaleInput:
-		content = ui.RenderScaleOverlay(m.scaleInput.Value)
-		overlayW, overlayH = min(45, m.width-10), min(8, m.height-6)
-	case overlayPVCResize:
-		content = ui.RenderPVCResizeOverlay(m.scaleInput.Value, m.pvcCurrentSize)
-		overlayW, overlayH = min(45, m.width-10), min(10, m.height-6)
-	case overlayPortForward:
-		content = ui.RenderPortForwardOverlay(m.portForwardInput.Value, m.pfAvailablePorts, m.pfPortCursor, m.actionCtx.name)
-		overlayW, overlayH = min(55, m.width-10), min(5+len(m.pfAvailablePorts)+4, m.height-6)
-	case overlayContainerSelect:
-		content = ui.RenderContainerSelectOverlay(m.overlayItems, m.overlayCursor)
-		overlayW, overlayH = min(50, m.width-10), min(15, m.height-6)
-	case overlayPodSelect, overlayLogPodSelect:
-		content = ui.RenderPodSelectOverlay(m.filteredLogPodItems(), m.overlayCursor, m.logPodFilterText, m.logPodFilterActive)
-		overlayW, overlayH = min(60, m.width-10), min(20, m.height-6)
-	case overlayLogContainerSelect:
-		content = ui.RenderLogContainerSelectOverlay(m.filteredLogContainerItems(), m.overlayCursor, m.logSelectedContainers, m.logContainerFilterText, m.logContainerFilterActive, m.logParentKind != "")
-		overlayW, overlayH = min(60, m.width-10), min(len(m.filteredLogContainerItems())+9, m.height-6)
-	case overlayBookmarks:
-		overlayW, overlayH = min(90, m.width-10), min(25, m.height-6)
-		content = ui.RenderBookmarkOverlay(m.bookmarks, m.bookmarkFilter.Value, m.overlayCursor, int(m.bookmarkSearchMode))
-	case overlayTemplates:
-		overlayW, overlayH = min(60, m.width-10), min(25, m.height-6)
-		content = ui.RenderTemplateOverlay(m.filteredTemplates(), m.templateFilter.Value, m.templateCursor, m.templateSearchMode, overlayH)
-	case overlayColorscheme:
-		content = ui.RenderColorschemeOverlay(m.schemeEntries, m.schemeFilter.Value, m.schemeCursor, m.schemeFilterMode)
-		overlayW, overlayH = min(50, m.width-10), min(22, m.height-6)
-	case overlayFilterPreset:
-		content, overlayW, overlayH = m.renderOverlayFilterPreset()
-	case overlayRBAC:
-		content, overlayW, overlayH = m.renderOverlayRBAC()
-	case overlayBatchLabel:
-		content = ui.RenderBatchLabelOverlay(m.batchLabelMode, m.batchLabelInput.Value, m.batchLabelRemove)
-		overlayW, overlayH = min(50, m.width-10), min(12, m.height-6)
-	case overlayPodStartup:
-		content, overlayW, overlayH = m.renderOverlayPodStartup()
-	case overlayQuotaDashboard:
-		content, overlayW, overlayH = m.renderOverlayQuotaDashboard()
-	case overlayEventTimeline:
-		content, overlayW, overlayH = m.renderOverlayEventTimeline()
-	case overlayAlerts:
-		content, overlayW, overlayH = m.renderOverlayAlerts()
+	case overlaySecretEditor, overlayConfigMapEditor, overlayRollback, overlayHelmRollback, overlayLabelEditor, overlayAutoSync:
+		return m.renderOverlayFullscreen(background)
 	case overlayCanI:
 		return m.renderCanIOverlay(background)
 	case overlayCanISubject:
 		return m.renderOverlayCanISubject(background)
-	case overlayExplainSearch:
-		content, overlayW, overlayH = m.renderOverlayExplainSearch()
 	case overlayNetworkPolicy:
 		if result := m.renderOverlayNetworkPolicy(background); result != "" {
 			return result
 		}
-	case overlaySecretEditor, overlayConfigMapEditor, overlayRollback, overlayHelmRollback, overlayLabelEditor, overlayAutoSync:
-		return m.renderOverlayFullscreen(background)
-	case overlayColumnToggle:
-		content, overlayW, overlayH = m.renderOverlayColumnToggle()
-	case overlayFinalizerSearch:
-		content, overlayW, overlayH = m.renderOverlayFinalizerSearch()
-	default:
+	}
+
+	content, overlayW, overlayH, ok := m.renderOverlayContent()
+	if !ok {
 		return background
 	}
 
@@ -347,6 +284,79 @@ func (m Model) renderOverlay(background string) string {
 	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
 	bg := ui.PadToHeight(background, m.height)
 	return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+}
+
+// renderOverlayContent returns the overlay content and dimensions for standard (non-fullscreen) overlays.
+func (m Model) renderOverlayContent() (string, int, int, bool) {
+	switch m.overlay {
+	case overlayNamespace:
+		content := ui.RenderNamespaceOverlay(m.filteredOverlayItems(), m.overlayFilter.Value, m.overlayCursor, m.namespace, m.allNamespaces, m.selectedNamespaces, m.nsFilterMode)
+		return content, min(60, m.width-10), min(20, m.height-6), true
+	case overlayAction:
+		w := min(70, m.width-10)
+		return ui.RenderActionOverlay(m.overlayItems, m.overlayCursor, w), w, min(15, m.height-6), true
+	case overlayQuitConfirm:
+		return ui.RenderQuitConfirmOverlay(), min(40, m.width-10), min(7, m.height-6), true
+	case overlayConfirm:
+		return ui.RenderConfirmOverlay(m.confirmAction), min(50, m.width-10), min(8, m.height-6), true
+	case overlayConfirmType:
+		return ui.RenderConfirmTypeOverlay(m.confirmTitle, m.confirmQuestion, m.confirmTypeInput.Value), min(55, m.width-10), min(10, m.height-6), true
+	case overlayScaleInput:
+		return ui.RenderScaleOverlay(m.scaleInput.Value), min(45, m.width-10), min(8, m.height-6), true
+	case overlayPVCResize:
+		return ui.RenderPVCResizeOverlay(m.scaleInput.Value, m.pvcCurrentSize), min(45, m.width-10), min(10, m.height-6), true
+	case overlayPortForward:
+		content := ui.RenderPortForwardOverlay(m.portForwardInput.Value, m.pfAvailablePorts, m.pfPortCursor, m.actionCtx.name)
+		return content, min(55, m.width-10), min(5+len(m.pfAvailablePorts)+4, m.height-6), true
+	case overlayContainerSelect:
+		return ui.RenderContainerSelectOverlay(m.overlayItems, m.overlayCursor), min(50, m.width-10), min(15, m.height-6), true
+	case overlayPodSelect, overlayLogPodSelect:
+		content := ui.RenderPodSelectOverlay(m.filteredLogPodItems(), m.overlayCursor, m.logPodFilterText, m.logPodFilterActive)
+		return content, min(60, m.width-10), min(20, m.height-6), true
+	case overlayLogContainerSelect:
+		content := ui.RenderLogContainerSelectOverlay(m.filteredLogContainerItems(), m.overlayCursor, m.logSelectedContainers, m.logContainerFilterText, m.logContainerFilterActive, m.logParentKind != "")
+		return content, min(60, m.width-10), min(len(m.filteredLogContainerItems())+9, m.height-6), true
+	case overlayBookmarks:
+		w, h := min(90, m.width-10), min(25, m.height-6)
+		return ui.RenderBookmarkOverlay(m.bookmarks, m.bookmarkFilter.Value, m.overlayCursor, int(m.bookmarkSearchMode)), w, h, true
+	case overlayTemplates:
+		w, h := min(60, m.width-10), min(25, m.height-6)
+		return ui.RenderTemplateOverlay(m.filteredTemplates(), m.templateFilter.Value, m.templateCursor, m.templateSearchMode, h), w, h, true
+	case overlayColorscheme:
+		content := ui.RenderColorschemeOverlay(m.schemeEntries, m.schemeFilter.Value, m.schemeCursor, m.schemeFilterMode)
+		return content, min(50, m.width-10), min(22, m.height-6), true
+	case overlayFilterPreset:
+		c, w, h := m.renderOverlayFilterPreset()
+		return c, w, h, true
+	case overlayRBAC:
+		c, w, h := m.renderOverlayRBAC()
+		return c, w, h, true
+	case overlayBatchLabel:
+		content := ui.RenderBatchLabelOverlay(m.batchLabelMode, m.batchLabelInput.Value, m.batchLabelRemove)
+		return content, min(50, m.width-10), min(12, m.height-6), true
+	case overlayPodStartup:
+		c, w, h := m.renderOverlayPodStartup()
+		return c, w, h, true
+	case overlayQuotaDashboard:
+		c, w, h := m.renderOverlayQuotaDashboard()
+		return c, w, h, true
+	case overlayEventTimeline:
+		c, w, h := m.renderOverlayEventTimeline()
+		return c, w, h, true
+	case overlayAlerts:
+		c, w, h := m.renderOverlayAlerts()
+		return c, w, h, true
+	case overlayExplainSearch:
+		c, w, h := m.renderOverlayExplainSearch()
+		return c, w, h, true
+	case overlayColumnToggle:
+		c, w, h := m.renderOverlayColumnToggle()
+		return c, w, h, true
+	case overlayFinalizerSearch:
+		c, w, h := m.renderOverlayFinalizerSearch()
+		return c, w, h, true
+	}
+	return "", 0, 0, false
 }
 
 func (m Model) renderOverlayFilterPreset() (string, int, int) {

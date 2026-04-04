@@ -202,6 +202,11 @@ func (m Model) handleBookmarkOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleBookmarkNormalMode handles keys when the bookmark overlay is in normal navigation mode.
 func (m Model) handleBookmarkNormalMode(msg tea.KeyMsg, filtered []model.Bookmark) (tea.Model, tea.Cmd) {
+	// Handle navigation/scroll keys.
+	if ret, ok := m.handleBookmarkNavKey(msg, filtered); ok {
+		return ret, nil
+	}
+	// Handle action keys.
 	switch msg.String() {
 	case "esc":
 		m.overlay = overlayNone
@@ -212,37 +217,6 @@ func (m Model) handleBookmarkNormalMode(msg tea.KeyMsg, filtered []model.Bookmar
 		if len(filtered) > 0 && m.overlayCursor >= 0 && m.overlayCursor < len(filtered) {
 			return m.navigateToBookmark(filtered[m.overlayCursor])
 		}
-		return m, nil
-	case "j", "down", "ctrl+n":
-		m.overlayCursor = clampOverlayCursor(m.overlayCursor, 1, len(filtered)-1)
-		return m, nil
-	case "k", "up", "ctrl+p":
-		m.overlayCursor = clampOverlayCursor(m.overlayCursor, -1, len(filtered)-1)
-		return m, nil
-	case "g":
-		if m.pendingG {
-			m.pendingG = false
-			m.overlayCursor = 0
-			return m, nil
-		}
-		m.pendingG = true
-		return m, nil
-	case "G":
-		if len(filtered) > 0 {
-			m.overlayCursor = len(filtered) - 1
-		}
-		return m, nil
-	case "ctrl+d":
-		m.overlayCursor = clampOverlayCursor(m.overlayCursor, 10, len(filtered)-1)
-		return m, nil
-	case "ctrl+u":
-		m.overlayCursor = clampOverlayCursor(m.overlayCursor, -10, len(filtered)-1)
-		return m, nil
-	case "ctrl+f":
-		m.overlayCursor = clampOverlayCursor(m.overlayCursor, 20, len(filtered)-1)
-		return m, nil
-	case "ctrl+b":
-		m.overlayCursor = clampOverlayCursor(m.overlayCursor, -20, len(filtered)-1)
 		return m, nil
 	case "/":
 		m.bookmarkSearchMode = bookmarkModeFilter
@@ -269,13 +243,51 @@ func (m Model) handleBookmarkNormalMode(msg tea.KeyMsg, filtered []model.Bookmar
 	case "ctrl+c":
 		return m.closeTabOrQuit()
 	default:
-		// Slot-key shortcut: pressing a-z, A-Z, or 0-9 jumps directly to that named mark.
 		key := msg.String()
 		if len(key) == 1 && ((key[0] >= 'a' && key[0] <= 'z') || (key[0] >= 'A' && key[0] <= 'Z') || (key[0] >= '0' && key[0] <= '9')) {
 			return m.jumpToSlot(key)
 		}
 	}
 	return m, nil
+}
+
+// handleBookmarkNavKey handles cursor navigation keys in the bookmark overlay.
+func (m Model) handleBookmarkNavKey(msg tea.KeyMsg, filtered []model.Bookmark) (Model, bool) {
+	maxIdx := len(filtered) - 1
+	switch msg.String() {
+	case "j", "down", "ctrl+n":
+		m.overlayCursor = clampOverlayCursor(m.overlayCursor, 1, maxIdx)
+		return m, true
+	case "k", "up", "ctrl+p":
+		m.overlayCursor = clampOverlayCursor(m.overlayCursor, -1, maxIdx)
+		return m, true
+	case "g":
+		if m.pendingG {
+			m.pendingG = false
+			m.overlayCursor = 0
+			return m, true
+		}
+		m.pendingG = true
+		return m, true
+	case "G":
+		if len(filtered) > 0 {
+			m.overlayCursor = maxIdx
+		}
+		return m, true
+	case "ctrl+d":
+		m.overlayCursor = clampOverlayCursor(m.overlayCursor, 10, maxIdx)
+		return m, true
+	case "ctrl+u":
+		m.overlayCursor = clampOverlayCursor(m.overlayCursor, -10, maxIdx)
+		return m, true
+	case "ctrl+f":
+		m.overlayCursor = clampOverlayCursor(m.overlayCursor, 20, maxIdx)
+		return m, true
+	case "ctrl+b":
+		m.overlayCursor = clampOverlayCursor(m.overlayCursor, -20, maxIdx)
+		return m, true
+	}
+	return m, false
 }
 
 // handleBookmarkFilterMode handles keys when the bookmark overlay is in filter input mode.
