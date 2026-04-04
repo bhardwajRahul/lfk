@@ -103,11 +103,54 @@ func (s *stringFilterInput) DeleteWord() {
 	*s.ptr = v[:i+1]
 }
 
+// pasteTarget identifies which input field a pending paste should be inserted into.
+// This avoids storing a pointer to a Model field (which becomes stale after copy).
+type pasteTarget int
+
+const (
+	pasteTargetNone pasteTarget = iota
+	pasteTargetFilter
+	pasteTargetSearch
+	pasteTargetCommandBar
+	pasteTargetOverlayFilter
+	pasteTargetTemplateFilter
+	pasteTargetSchemeFilter
+	pasteTargetBookmarkFilter
+	pasteTargetLogPodFilter
+	pasteTargetLogContainerFilter
+)
+
 // triggerPasteConfirm sets up the paste confirmation overlay for multiline input.
-func (m *Model) triggerPasteConfirm(text string, target FilterInput) {
+func (m *Model) triggerPasteConfirm(text string, target pasteTarget) {
 	m.pendingPaste = text
-	m.pasteTarget = target
+	m.pasteTargetID = target
 	m.overlay = overlayPasteConfirm
+}
+
+// resolvePasteTarget returns the FilterInput for the given paste target ID.
+func (m *Model) resolvePasteTarget(id pasteTarget) FilterInput {
+	switch id {
+	case pasteTargetFilter:
+		return &m.filterInput
+	case pasteTargetSearch:
+		return &m.searchInput
+	case pasteTargetCommandBar:
+		return &m.commandBarInput
+	case pasteTargetOverlayFilter:
+		return &m.overlayFilter
+	case pasteTargetTemplateFilter:
+		return &m.templateFilter
+	case pasteTargetSchemeFilter:
+		return &m.schemeFilter
+	case pasteTargetBookmarkFilter:
+		return &m.bookmarkFilter
+	case pasteTargetLogPodFilter:
+		return &stringFilterInput{ptr: &m.logPodFilterText}
+	case pasteTargetLogContainerFilter:
+		return &stringFilterInput{ptr: &m.logContainerFilterText}
+	default:
+		return nil
+	}
 }
 
 // handlePastedText processes bracketed paste content for a filter input.

@@ -90,7 +90,7 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Paste {
 		text := strings.TrimRight(string(msg.Runes), "\n")
 		if strings.Contains(text, "\n") {
-			m.triggerPasteConfirm(text, &m.filterInput)
+			m.triggerPasteConfirm(text, pasteTargetFilter)
 			return m, nil
 		}
 		if text != "" {
@@ -166,7 +166,7 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Paste {
 		text := strings.TrimRight(string(msg.Runes), "\n")
 		if strings.Contains(text, "\n") {
-			m.triggerPasteConfirm(text, &m.searchInput)
+			m.triggerPasteConfirm(text, pasteTargetSearch)
 			return m, nil
 		}
 		if text != "" {
@@ -396,7 +396,7 @@ func (m Model) handleCommandBarKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Paste {
 		text := strings.TrimRight(string(msg.Runes), "\n")
 		if strings.Contains(text, "\n") {
-			m.triggerPasteConfirm(text, &m.commandBarInput)
+			m.triggerPasteConfirm(text, pasteTargetCommandBar)
 			return m, nil
 		}
 		if text != "" {

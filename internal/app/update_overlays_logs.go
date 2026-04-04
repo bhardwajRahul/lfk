@@ -178,7 +178,7 @@ func (m Model) handleLogPodFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.overlayCursor = 0
 			return m, nil
 		case filterPasteMultiline:
-			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), fi)
+			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), pasteTargetLogPodFilter)
 			return m, nil
 		}
 		return m, nil
@@ -340,7 +340,7 @@ func (m Model) handleLogContainerFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			m.overlayCursor = 0
 			return m, nil
 		case filterPasteMultiline:
-			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), fi)
+			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), pasteTargetLogContainerFilter)
 			return m, nil
 		}
 		return m, nil

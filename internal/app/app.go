@@ -498,7 +498,7 @@ type Model struct {
 	// Pending action waiting for container selection.
 	pendingAction string
 	pendingPaste  string      // multiline paste awaiting confirmation
-	pasteTarget   FilterInput // input to insert into after paste confirm
+	pasteTargetID pasteTarget // identifies which input to insert into after confirm
 
 	// Request generation counter for stale response detection.
 	// Incremented on every navigation change; async messages carry the gen

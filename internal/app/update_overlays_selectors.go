@@ -140,7 +140,7 @@ func (m Model) handleNamespaceFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.overlayCursor = 0
 			return m, nil
 		case filterPasteMultiline:
-			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), &m.overlayFilter)
+			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), pasteTargetOverlayFilter)
 			return m, nil
 		}
 		return m, nil
@@ -239,7 +239,7 @@ func (m Model) handleTemplateFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.templateCursor = 0
 			return m, nil
 		case filterPasteMultiline:
-			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), &m.templateFilter)
+			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), pasteTargetTemplateFilter)
 			return m, nil
 		}
 		return m, nil
@@ -497,7 +497,7 @@ func (m Model) handleColorschemeFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			m.previewSchemeAtCursor(m.filteredSchemeNames())
 			return m, nil
 		case filterPasteMultiline:
-			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), &m.schemeFilter)
+			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), pasteTargetSchemeFilter)
 			return m, nil
 		}
 		return m, nil

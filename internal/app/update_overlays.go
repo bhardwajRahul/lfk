@@ -141,18 +141,18 @@ func (m Model) handlePasteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		m.overlay = overlayNone
-		if m.pasteTarget != nil && m.pendingPaste != "" {
+		if target := m.resolvePasteTarget(m.pasteTargetID); target != nil && m.pendingPaste != "" {
 			flattened := strings.ReplaceAll(strings.TrimRight(m.pendingPaste, "\n"), "\n", " ")
-			m.pasteTarget.Insert(flattened)
+			target.Insert(flattened)
 		}
 		m.pendingPaste = ""
-		m.pasteTarget = nil
+		m.pasteTargetID = pasteTargetNone
 		m.setStatusMessage("Pasted (flattened to single line)", false)
 		return m, scheduleStatusClear()
 	case "n", "N", "esc":
 		m.overlay = overlayNone
 		m.pendingPaste = ""
-		m.pasteTarget = nil
+		m.pasteTargetID = pasteTargetNone
 		m.setStatusMessage("Paste cancelled", false)
 		return m, scheduleStatusClear()
 	}

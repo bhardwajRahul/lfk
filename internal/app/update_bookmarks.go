@@ -299,7 +299,7 @@ func (m Model) handleBookmarkFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.overlayCursor = 0
 			return m, nil
 		case filterPasteMultiline:
-			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), &m.bookmarkFilter)
+			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), pasteTargetBookmarkFilter)
 			return m, nil
 		}
 		return m, nil

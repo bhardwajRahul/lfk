@@ -424,7 +424,7 @@ func (m Model) handleCanISubjectFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			m.overlayCursor = 0
 			return m, nil
 		case filterPasteMultiline:
-			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), &m.overlayFilter)
+			m.triggerPasteConfirm(strings.TrimRight(string(msg.Runes), "\n"), pasteTargetOverlayFilter)
 			return m, nil
 		}
 		return m, nil
@@ -510,7 +510,7 @@ func (m Model) handleCanISearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Paste {
 		text := strings.TrimRight(string(msg.Runes), "\n")
 		if strings.Contains(text, "\n") {
-			m.triggerPasteConfirm(text, &m.canISearchInput)
+			m.triggerPasteConfirm(text, pasteTargetOverlayFilter)
 			return m, nil
 		}
 		if text != "" {
