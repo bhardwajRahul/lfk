@@ -47,7 +47,7 @@ Complete list of all keybindings in `lfk`. All keybindings can be overridden in 
 | `Ctrl+G` | Finalizer search and remove |
 | `@` | Monitoring overview (active Prometheus alerts) |
 | `Q` | Namespace resource quota dashboard |
-| `:` | Open command bar (kubectl/shell commands) |
+| `:` | Command bar: resource jumps (`:pod`, `:dep`), built-ins (`:ns`, `:ctx`, `:set`, `:sort`, `:export`), kubectl (`:k get pod`), shell (`:! cmd`) |
 
 ## Search and Filter
 
@@ -328,25 +328,38 @@ The title bar shows the namespace scope (`ns:...`) used for the permission check
 
 ## Command Bar
 
-Press `:` to open the command bar. It supports both kubectl commands and arbitrary shell commands.
+Press `:` to open the command bar. It supports four types of input:
 
-| Input | Behavior |
-|---|---|
-| `get pods` | Runs `kubectl get pods` with current context/namespace auto-injected |
-| `kubectl get pods -A` | Same as above (explicit `kubectl` prefix is optional) |
-| `helm list` | Runs as a shell command (`sh -c "helm list"`) with `KUBECONFIG` set |
-| `curl http://example.com` | Runs as a shell command |
-| `q` / `quit` | Quits the application |
+| Type | Syntax | Examples |
+|------|--------|---------|
+| Resource jump | `:<type> [namespace...]` | `:pod`, `:dep kube-system`, `:ns prod staging` |
+| Built-in | `:<command> [args]` | `:ns` (navigate), `:ns prod` (filter), `:ctx my-cluster`, `:set wrap`, `:sort Age`, `:export yaml` |
+| Kubectl | `:k <cmd>` or `:kubectl <cmd>` | `:k get pod`, `:kubectl describe svc nginx` |
+| Shell | `:! <command>` | `:! grep error /var/log` |
 
-Autocompletion is available for kubectl commands (subcommands, resource types, resource names, namespaces, flags).
+**Navigation:**
 
 | Key | Action |
-|---|---|
-| `Tab` | Accept suggestion |
-| `Shift+Tab` / `Left` / `Right` | Cycle through suggestions |
-| `Enter` | Execute command |
-| `Esc` / `Ctrl+C` | Cancel |
+|-----|--------|
+| `Tab` | Cycle suggestions forward (auto-fills when exactly 1 match) |
+| `Shift+Tab` | Cycle suggestions backward |
+| `Ctrl+N` / `Down` | Cycle suggestions forward |
+| `Ctrl+P` / `Up` | Cycle suggestions backward |
+| `Ctrl+D` / `Ctrl+U` | Scroll suggestions (half page down/up) |
+| `Ctrl+F` / `Ctrl+B` | Scroll suggestions (full page down/up) |
+| `Ctrl+Space` | Open/refresh suggestions |
+| `Space` / `Right` | Accept ghost text preview |
+| `Enter` | Accept selected suggestion, or execute command when no suggestions |
+| `Esc` | Close suggestions first, then close command bar |
+| `Up` / `Down` | Browse command history (when no suggestions visible) |
 | `Ctrl+W` | Delete word backwards |
+| `Ctrl+A` / `Ctrl+E` | Home / End |
+
+**Notes:**
+- Resource types use singular form (`:pod`, not `:pods`)
+- `:ns` without arguments navigates to Namespaces; with arguments filters to those namespaces
+- Kubectl commands inject `--context` and `-n` from current selection automatically
+- `Ctrl+U` scrolls suggestions when visible, deletes line before cursor when closed
 
 ## General
 

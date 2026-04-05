@@ -81,7 +81,7 @@
 - **Resource sorting** by name, age, or status
 - **Filter and search**: Filter with `f`, search with `/` -- supports substring, regex (auto-detected), and fuzzy (`~` prefix) modes
 - **Abbreviated search**: Type `pvc`, `hpa`, `deploy` etc. to jump to resource types
-- **Command bar** (`:`) with vertical dropdown autocomplete: resource jumps (`:pod`, `:dep`), built-in commands (`:ns`, `:ctx`, `:set`, `:sort`), kubectl with flag/namespace completion, shell commands (`:!`)
+- **Command bar** (`:`) with vertical dropdown autocomplete: resource jumps (`:pod`, `:dep`), built-in commands (`:ns`, `:ctx`, `:set`, `:sort`, `:export`), kubectl with `:k`/`:kubectl` prefix and flag/namespace completion, shell commands (`:!`)
 - **Watch mode**: Auto-refresh resources every 2 seconds (enabled by default)
 - **Owner/controller navigation**: Jump to the owner of any resource with `o`
 - **Events view** with warnings-only filter toggle
@@ -231,6 +231,8 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 
 ## Keybindings
 
+> For the complete keybinding reference (YAML view, log viewer, describe, diff, exec mode, and all sub-modes), see [docs/keybindings.md](docs/keybindings.md). Press `?` or `F1` in-app for the built-in help screen.
+
 ### Navigation
 
 | Key | Action |
@@ -268,7 +270,7 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `I` | API Explorer (browse resource structure interactively) |
 | `U` | RBAC permissions browser (can-i) |
 | `T` | Open theme selector |
-| `:` | Command bar: resource jumps (`:pod`, `:dep`), built-ins (`:ns`, `:ctx`, `:set`), kubectl (`:get pods`), shell (`:! cmd`) |
+| `:` | Command bar: resource jumps (`:pod`, `:dep`), built-ins (`:ns`, `:ctx`, `:set`, `:sort`, `:export`), kubectl (`:k get pod`), shell (`:! cmd`) |
 | `w` | Toggle watch mode (auto-refresh) |
 | `,` | Column visibility toggle (show/hide and reorder columns) |
 | `>` / `<` | Sort by next / previous column |
@@ -283,454 +285,59 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 
 | Key | Action |
 |---|---|
-| `\` | Open namespace selector |
-| `A` | Toggle all-namespaces mode |
-| `x` | Action menu (logs, exec, debug, describe, edit, delete, scale, port-forward, events, etc.) |
-| `L` | View logs for selected resource |
-| `i` | Edit labels/annotations for selected resource |
-| `e` | Edit secret/configmap data |
-| `a` | Create resource from template |
-| `R` | Refresh current view |
-| `v` | Describe selected resource |
-| `D` | Delete resource (force delete Pod/Job if already deleting, force finalize others) |
-| `X` | Force delete with --grace-period=0 (Pod/Job only) |
-| `S` | Export resource YAML to file |
-| `Ctrl+O` | Open ingress host in browser |
-| `y` | Copy resource name to clipboard |
-| `Y` | Copy resource YAML to clipboard |
-| `Ctrl+P` | Apply resource from clipboard (`kubectl apply`) |
+| `x` | Action menu (logs, exec, describe, edit, delete, scale, port-forward, etc.) |
+| `\` / `A` | Namespace selector / toggle all-namespaces |
+| `L` | View logs |
+| `v` | Describe resource |
+| `D` / `X` | Delete / force delete |
+| `y` / `Y` | Copy name / YAML to clipboard |
+| `Space` | Toggle multi-selection (bulk actions via `x`) |
+| `m<key>` / `'` | Set / jump to bookmark |
+| `t` / `]` / `[` | New tab / next / previous |
 
-### Multi-Selection
-
-| Key | Action |
-|---|---|
-| `Space` | Toggle selection on current item |
-| `Ctrl+Space` | Select range from anchor to cursor |
-| `Ctrl+A` | Select / deselect all visible items |
-| `Esc` | Clear selection |
-| `x` | Bulk action menu (delete, force delete, scale, restart, diff) |
-| `d` | Diff: compare YAML of two selected resources |
-
-### Tabs
-
-| Key | Action |
-|---|---|
-| `t` | New tab (clone current) |
-| `]` | Next tab |
-| `[` | Previous tab |
-
-### Bookmarks
-
-| Key | Action |
-|---|---|
-| `m<key>` | Set mark at current location (`a-z`, `0-9`) |
-| `'` | Open bookmarks list (`a-z`/`0-9` jumps to named mark in overlay) |
-| `j` / `k` | Navigate bookmarks (in overlay) |
-| `/` | Filter bookmarks by name (in overlay) |
-| `Enter` | Jump to selected bookmark (in overlay) |
-| `D` | Delete selected bookmark (in overlay) |
-| `Ctrl+X` | Delete all bookmarks (in overlay) |
-
-### In YAML View
-
-| Key | Action |
-|---|---|
-| `j` / `k` | Scroll up/down |
-| `h` / `l` | Move cursor column left/right |
-| `0` / `$` | Move cursor to line start/end |
-| `^` | Move cursor to first non-whitespace |
-| `w` / `b` | Move cursor to next/previous word start |
-| `W` / `B` | Move cursor to next/previous WORD start |
-| `e` | Move cursor to end of word |
-| `E` | Move cursor to end of WORD |
-| `gg` / `G` | Jump to top / bottom |
-| `123G` | Jump to line number |
-| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
-| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
-| `/` | Search in YAML |
-| `n` / `N` | Next / previous search match |
-| `v` | Character visual selection (from cursor column) |
-| `V` | Visual line selection |
-| `Ctrl+V` | Block (column) visual selection |
-| `h` / `l` | Move selection column (in visual mode) |
-| `y` | Copy selected text (in visual mode) |
-| `z` | Toggle fold on section under cursor |
-| `Z` | Toggle all folds (collapse/expand all) |
-| `Ctrl+W` / `>` | Toggle line wrapping |
-| `Ctrl+E` | Edit resource in `$EDITOR` |
-| `q` / `Esc` | Back to explorer |
-
-### In Describe View
-
-| Key | Action |
-|---|---|
-| `j` / `k` | Scroll up/down |
-| `gg` / `G` | Jump to top / bottom |
-| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
-| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
-| `Ctrl+W` / `>` | Toggle line wrapping |
-| `q` / `Esc` | Back to explorer |
-
-### In Log Viewer
-
-| Key | Action |
-|---|---|
-| `j` / `k` | Move cursor up/down |
-| `h` / `l` / `Left` / `Right` | Move cursor column left/right |
-| `0` / `$` | Move cursor to line start/end |
-| `^` | Move cursor to first non-whitespace |
-| `w` / `b` | Move cursor to next/previous word start |
-| `W` / `B` | Move cursor to next/previous WORD start |
-| `e` | Move cursor to end of word |
-| `E` | Move cursor to end of WORD |
-| `gg` / `G` | Jump to top / bottom |
-| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
-| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
-| `f` | Toggle follow mode (auto-scroll) |
-| `Tab` / `z` / `>` | Toggle line wrapping |
-| `#` | Toggle line numbers |
-| `/` | Search in logs |
-| `n` / `N` | Next / previous search match |
-| `123G` | Jump to line number |
-| `s` | Toggle timestamps |
-| `p` | Toggle pod/container prefixes |
-| `c` | Toggle previous container logs |
-| `S` | Save loaded logs to file |
-| `Ctrl+S` | Save all logs to file (full kubectl logs) |
-| `v` | Character visual selection (from cursor column) |
-| `V` | Visual line selection |
-| `Ctrl+V` | Block (column) visual selection |
-| `h` / `l` | Move selection column (in visual mode) |
-| `y` | Copy selected text (in visual mode) |
-| `\` | Switch pod / filter containers |
-| `q` / `Esc` | Close log viewer |
-
-### Exec Mode (embedded terminal)
-
-`Ctrl+]` is a prefix key (like tmux's `Ctrl+b`):
-
-| Key | Action |
-|---|---|
-| `Ctrl+]` `Ctrl+]` | Exit terminal and return to explorer |
-| `Ctrl+]` `]` | Next tab (PTY keeps running in background) |
-| `Ctrl+]` `[` | Previous tab (PTY keeps running in background) |
-| `Ctrl+]` `t` | New tab (clone current context) |
-
-All other keys are forwarded to the PTY process.
-
-### Diff View
-
-| Key | Action |
-|---|---|
-| `j` / `k` | Move cursor up/down |
-| `h` / `l` | Move cursor column left/right |
-| `0` / `$` | Move cursor to line start/end |
-| `^` | Move cursor to first non-whitespace |
-| `w` / `b` | Move cursor to next/previous word start |
-| `W` / `B` | Move cursor to next/previous WORD start |
-| `e` | Move cursor to end of word |
-| `E` | Move cursor to end of WORD |
-| `Tab` | Switch cursor side (side-by-side mode) |
-| `gg` / `G` | Jump to top / bottom |
-| `123G` | Jump to line number |
-| `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
-| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
-| `/` | Search in diff |
-| `n` / `N` | Next / previous search match |
-| `v` | Character visual selection |
-| `V` | Visual line selection |
-| `Ctrl+V` | Block (column) visual selection |
-| `h` / `l` | Move selection column (in visual mode) |
-| `y` | Copy selected text (in visual mode) |
-| `z` | Toggle fold unchanged section at cursor |
-| `Z` | Toggle all folds |
-| `#` | Toggle line numbers |
-| `Ctrl+W` / `>` | Toggle line wrapping |
-| `u` | Toggle unified/side-by-side view |
-| `q` / `Esc` | Back to explorer |
-
-### General
-
-| Key | Action |
-|---|---|
-| `T` | Switch color scheme |
-| `q` | Quit |
-| `Esc` | Go back / quit |
-| `Ctrl+C` | Close tab (quit if last) |
+All views (YAML, logs, describe, diff, exec) use vim-style navigation (`j`/`k`, `gg`/`G`, `Ctrl+D`/`Ctrl+U`, `/` search, `v`/`V` visual selection). See [docs/keybindings.md](docs/keybindings.md) for the full reference.
 
 ## Configuration
 
 Create `~/.config/lfk/config.yaml` to customize the application. All fields are optional; only the values you specify will override the defaults.
 
-### Full Configuration Example
+> For the complete configuration reference, see [docs/config-reference.md](docs/config-reference.md) and [docs/config-example.yaml](docs/config-example.yaml).
+
+### Quick Start
 
 ```yaml
-# Built-in color scheme (overrides default theme; custom theme overrides are applied on top)
-# Options: tokyonight, tokyonight-storm, tokyonight-day, kanagawa-wave, kanagawa-dragon,
-#          bluloco-dark, bluloco-light, nord, gruvbox-dark, gruvbox-light, dracula,
-#          catppuccin-mocha, catppuccin-macchiato, catppuccin-frappe, catppuccin-latte
-colorscheme: tokyonight
+# Color scheme (press T in-app to browse 460+ themes with live preview)
+colorscheme: catppuccin-mocha
 
-# Icon mode: "unicode" (default), "simple" (ASCII), "emoji", "none"
+# Use terminal's own background
+transparent_background: true
+
+# Icon mode: "unicode" (default), "simple", "emoji", "none"
 icons: unicode
 
-# Log file path (default: ~/.local/share/lfk/lfk.log)
-log_path: /tmp/lfk.log
-
-# Show cluster dashboard when entering a context (default: true)
-dashboard: true
-
-# Monitoring endpoints per cluster context (auto-discovered by default)
-# Keys are context names; "default" applies to clusters without explicit config
-monitoring:
-  # my-prod-cluster:
-  #   prometheus:
-  #     namespaces: ["monitoring"]
-  #     services: ["thanos-query"]
-  #     port: "9090"
-  #   alertmanager:
-  #     namespaces: ["monitoring"]
-  #     services: ["alertmanager-main"]
-  #     port: "9093"
-  # default:
-  #   prometheus:
-  #     namespaces: ["monitoring", "observability"]
-  #     services: ["prometheus-server"]
-
-# Per-resource-type column configuration
-# Keys are resource Kind names (case-insensitive)
-# When not set for a kind, columns are auto-detected from item data
-resource_columns:
-  # Pod: ["IP", "Node", "Image", "CPU", "MEM"]
-  # Deployment: ["Replicas", "Available"]
-
-# Per-cluster configuration overrides
-# Keys are kubeconfig context names
-clusters:
-  # my-prod-cluster:
-  #   resource_columns:
-  #     Pod: ["IP", "Node", "Image", "CPU", "MEM"]
-  #     Deployment: ["Replicas", "Available"]
-
-# Custom color theme (Tokyonight-inspired defaults shown)
-theme:
-  primary: "#7aa2f7"       # Blue - borders, headers, breadcrumbs, active columns
-  secondary: "#9ece6a"     # Green - help keys, running status, success markers
-  text: "#c0caf5"          # Light purple - normal text
-  selected_fg: "#1a1b26"   # Dark - selected item foreground
-  selected_bg: "#7aa2f7"   # Blue - selected item background
-  border: "#3b4261"        # Dark blue - inactive borders
-  dimmed: "#565f89"        # Muted purple - help text, placeholders, dimmed items
-  error: "#f7768e"         # Red/Pink - errors, failures, delete confirmations
-  warning: "#e0af68"       # Orange/Yellow - warnings, pending status, namespace indicator
-  purple: "#bb9af7"        # Purple - special values
-  base: "#1a1b26"          # Dark background base
-  bar_bg: "#24283b"        # Slightly lighter bar background (title/status bars)
-  surface: "#1f2335"       # Surface background for overlays
-
-# Custom keybindings for direct actions
+# Custom keybinding overrides (only specify what you want to change)
 keybindings:
-  logs: "L"                # View logs (default: L)
-  refresh: "R"             # Refresh view (default: R)
-  restart: "r"             # Restart resource (action menu only)
-  exec: "s"                # Exec into pod (action menu only)
-  describe: "v"            # Describe resource (default: v)
-  delete: "D"              # Delete resource (default: D)
-  force_delete: "X"        # Force delete resource (default: X)
-  scale: "S"               # Scale resource (default: S)
+  logs: "L"
+  describe: "v"
+  delete: "D"
 
-# Search abbreviations (extend or override built-in abbreviations)
+# Search abbreviations (extend built-in abbreviations for :pod, :dep, etc.)
 abbreviations:
-  po: pod
-  dp: "deployment"
-  dep: deployment
-  deploy: deployment
-  svc: service
-  ing: ingress
-  cm: configmap
-  sec: secret
-  ns: namespace
-  no: node
-  pvc: persistentvolumeclaim
-  pv: persistentvolume
-  sc: storageclass
-  sa: serviceaccount
-  hpa: horizontalpodautoscaler
-  vpa: verticalpodautoscaler
-  ds: daemonset
-  sts: statefulset
-  rs: replicaset
-  cj: cronjob
-  job: job
-  crd: customresourcedefinition
-  ev: event
-  rb: rolebinding
-  crb: clusterrolebinding
-  cr: clusterrole
-  role: role
-  limit: limitrange
-  quota: resourcequota
-  pdb: poddisruptionbudget
-  ep: endpoint
-  eps: endpointslice
-  netpol: networkpolicy
-  rc: replicationcontroller
+  myapp: myapplications
 ```
 
 ### Search Modes
 
-All search and filter inputs (explorer filter `f`, search `/`, YAML search, log search, diff search, and all overlay filters) support three modes, auto-detected from the query string:
+All search and filter inputs support three modes, auto-detected from the query string:
 
-| Mode | Syntax | Example | Description |
-|---|---|---|---|
-| Substring | plain text | `nginx` | Case-insensitive substring match (default) |
-| Regex | auto-detected | `err[0-9]+` | When query contains regex metacharacters (`.` `*` `+` `?` `^` `$` `{` `}` `(` `)` `\|` `[` `]`), compiled as case-insensitive regex. Falls back to substring if regex is invalid |
-| Fuzzy | `~` prefix | `~deplymnt` | Each character must appear in order; results sorted by match quality in explorer filter |
-| Literal | `\` prefix | `\err.*` | Forces substring mode, treating metacharacters as literal text |
-
-The search bar shows `[RE]` for regex mode and `[~]` for fuzzy mode.
-
-**Clipboard paste**: All search and filter inputs accept pasted text from the system clipboard (`Cmd+V` on macOS, `Ctrl+Shift+V` on Linux). If the pasted text contains multiple lines, a confirmation dialog appears before inserting (content is flattened to a single line).
-
-```yaml
-# Custom actions per resource type (appear in action menu after built-in actions)
-# Template variables: {name}, {namespace}, {context}, {kind}, {<ColumnKey>}
-custom_actions:
-  # Pod:
-  #   - label: "SSH to Node"
-  #     command: "ssh {Node}"
-  #     key: "S"
-  #     description: "SSH into the pod's node"
-  # Deployment:
-  #   - label: "Rollout History"
-  #     command: "kubectl rollout history deployment/{name} -n {namespace} --context {context}"
-  #     key: "H"
-  #     description: "Show rollout history"
-
-# Pin CRD API groups after built-in categories (also manageable in-app with 'p' key)
-# pinned_groups:
-#   - karpenter.sh
-#   - monitoring.coreos.com
-#   - argoproj.io
-
-# Show random tips on startup (default: true)
-# tips: false
-
-# Exec/shell terminal mode: "pty" (embedded in TUI, default) or "exec" (takes over terminal)
-# terminal: pty
-
-# Number of log lines to load initially (scroll up to load more)
-# log_tail_lines: 1000
-
-# Show quit confirmation on ctrl+c (default: true)
-# confirm_on_exit: true
-
-# Number of lines to keep visible above/below the cursor (default: 5)
-# scrolloff: 5
-```
-
-> For detailed documentation, see [`docs/config-reference.md`](docs/config-reference.md), [`docs/config-example.yaml`](docs/config-example.yaml), and [`docs/keybindings.md`](docs/keybindings.md).
-
-### Built-in Color Schemes
-
-Over 460 built-in color schemes are available, generated from [ghostty terminal themes](https://github.com/ghostty-org/ghostty). Set one in your config:
-
-```yaml
-colorscheme: catppuccin-mocha
-```
-
-Popular schemes: `tokyonight` (default), `dracula`, `nord`, `catppuccin-mocha`, `rose-pine`, `gruvbox-dark`, `everforest-dark`, `one-half-dark`, `ayu-dark`, `nightfox`, `github-dark`, `solarized-dark`, and many more.
-
-Press `T` at runtime to browse all themes interactively with live preview. Set `colorscheme` in your config to make it permanent. Custom `theme` overrides are applied on top.
-
-To use your terminal's own background instead of the theme's:
-
-```yaml
-transparent_background: true
-```
-
-### Theme Configuration
-
-All theme colors accept CSS hex color codes. Only specify the colors you want to change; unspecified colors keep their defaults.
-
-| Key | Default | Description |
+| Mode | Syntax | Example |
 |---|---|---|
-| `primary` | `#7aa2f7` | Borders, headers, breadcrumbs, active column highlight |
-| `secondary` | `#9ece6a` | Help keys, running/success status, selection markers |
-| `text` | `#c0caf5` | Normal text color |
-| `selected_fg` | `#1a1b26` | Foreground of selected/highlighted items |
-| `selected_bg` | `#7aa2f7` | Background of selected/highlighted items |
-| `border` | `#3b4261` | Inactive column borders |
-| `dimmed` | `#565f89` | Placeholder text, help descriptions, dimmed items |
-| `error` | `#f7768e` | Error messages, failed status, delete confirmations |
-| `warning` | `#e0af68` | Warning messages, pending status, namespace indicator |
-| `purple` | `#bb9af7` | Special values |
-| `base` | `#1a1b26` | Dark background base |
-| `bar_bg` | `#24283b` | Title and status bar backgrounds |
-| `surface` | `#1f2335` | Overlay background (namespace selector, action menu, etc.) |
+| Substring | plain text | `nginx` |
+| Regex | auto-detected | `err[0-9]+` |
+| Fuzzy | `~` prefix | `~deplymnt` |
+| Literal | `\` prefix | `\err.*` |
 
-### Keybinding Overrides
-
-All keybindings can be overridden in the config file. Only specify the keys you want to change -- defaults apply for everything else. See [`docs/keybindings.md`](docs/keybindings.md) for the full list.
-
-| Config Key | Default | Action |
-|---|---|---|
-| `logs` | `L` | View logs for selected resource |
-| `refresh` | `R` | Refresh current view |
-| `describe` | `v` | Describe selected resource |
-| `delete` | `D` | Delete resource (force delete Pod/Job if already deleting) |
-| `force_delete` | `X` | Force delete with --grace-period=0 (Pod/Job only) |
-| `scale` | `S` | Scale resource (deployments, statefulsets, daemonsets) |
-| `edit` | `E` | Edit selected resource in $EDITOR |
-| `label_editor` | `i` | Edit labels/annotations |
-| `secret_editor` | `e` | Secret/ConfigMap editor |
-| `column_toggle` | `,` | Column visibility toggle |
-| `sort_next` | `>` | Sort by next column |
-| `sort_prev` | `<` | Sort by previous column |
-| `sort_flip` | `=` | Toggle sort direction |
-| `sort_reset` | `-` | Reset sort to default |
-| `error_log` | `!` | Error log overlay |
-| `finalizer_search` | `ctrl+g` | Finalizer search and remove |
-| `terminal_toggle` | `ctrl+t` | Toggle terminal mode (pty/exec) |
-
-## Architecture
-
-```
-.
-+-- main.go                    # Entry point
-+-- internal/
-|   +-- app/
-|   |   +-- app.go             # Bubbletea model, view rendering, state
-|   |   +-- update.go          # Message handling, key bindings, navigation
-|   |   +-- commands.go        # Async commands (kubectl, shell, clipboard, custom actions)
-|   |   +-- bookmarks.go       # Bookmark persistence
-|   |   +-- session.go         # Session persistence (last context/namespace/resource)
-|   +-- k8s/
-|   |   +-- client.go          # Kubernetes API client, owner resolution, CRD discovery
-|   +-- model/
-|   |   +-- types.go           # Resource types, actions, navigation state
-|   |   +-- templates.go       # Resource creation templates
-|   +-- ui/
-|   |   +-- explorer.go        # Column and table rendering
-|   |   +-- overlay.go         # Overlay rendering (namespace, actions, bookmarks, etc.)
-|   |   +-- styles.go          # Lipgloss styles and color palette
-|   |   +-- theme.go           # Config file loading, theme/keybinding customization
-|   |   +-- colorschemes.go    # Color scheme lookup and grouping
-|   |   +-- colorschemes_gen.go # Generated 460+ themes from ghostty
-|   |   +-- help.go            # Help screen rendering
-|   |   +-- logviewer.go       # Log viewer rendering
-|   +-- logger/
-|       +-- logger.go          # Application logging
-+-- go.mod
-+-- go.sum
-```
-
-## Dependencies
-
-- [bubbletea](https://github.com/charmbracelet/bubbletea) - TUI framework
-- [lipgloss](https://github.com/charmbracelet/lipgloss) - Styling
-- [client-go](https://github.com/kubernetes/client-go) - Kubernetes API client
-- [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml) - YAML marshalling
+**Clipboard paste**: All search, filter, and command bar inputs accept pasted text (`Cmd+V` on macOS, `Ctrl+Shift+V` on Linux). Multiline paste shows a confirmation dialog.
 
 ## Contributing
 
@@ -796,25 +403,6 @@ The application follows a standard Go project layout:
 4. Ensure the project builds cleanly (`go build ./...`)
 5. Commit your changes with a descriptive message
 6. Push to your fork and open a Pull Request
-
-## Dependencies
-
-### Core
-
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — Terminal styling and layout
-- [Bubbles](https://github.com/charmbracelet/bubbles) — TUI components (spinner)
-
-### Kubernetes
-
-- [client-go](https://github.com/kubernetes/client-go) — Kubernetes API client
-- [k8s.io/api](https://github.com/kubernetes/api) — Kubernetes API types
-- [k8s.io/apimachinery](https://github.com/kubernetes/apimachinery) — Kubernetes API machinery
-
-### Other
-
-- [testify](https://github.com/stretchr/testify) — Testing assertions
-- [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml) — YAML marshaling
 
 ## Support
 
