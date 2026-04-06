@@ -23,9 +23,12 @@ RUN CGO_ENABLED=0 go build -ldflags "\
 # Runtime stage
 FROM alpine:3.23
 
-RUN apk add --no-cache ca-certificates helm kubectl
-
-RUN addgroup -S lfk && adduser -S lfk -G lfk
+RUN apk add --no-cache \
+    ca-certificates \
+    helm \
+    kubectl \
+    && addgroup -S lfk \
+    && adduser -S lfk -G lfk
 
 COPY --from=builder /lfk /usr/local/bin/lfk
 ENV TERM=xterm-256color

@@ -1,8 +1,11 @@
 FROM alpine:3.23
 
-RUN apk add --no-cache ca-certificates helm kubectl
-
-RUN addgroup -S lfk && adduser -S lfk -G lfk
+RUN apk add --no-cache \
+    ca-certificates \
+    helm \
+    kubectl \
+    && addgroup -S lfk \
+    && adduser -S lfk -G lfk
 
 COPY lfk /usr/local/bin/lfk
 
