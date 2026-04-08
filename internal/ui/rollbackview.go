@@ -81,7 +81,13 @@ type HelmRevision struct {
 }
 
 // RenderHelmRollbackOverlay renders the Helm release revision history picker for rollback.
-func RenderHelmRollbackOverlay(revisions []HelmRevision, cursor int, screenWidth, screenHeight int) string {
+// When loading is true the overlay shows a loading placeholder instead of the
+// empty-state message so users do not see a misleading "No revisions found"
+// while the helm history subprocess is still running.
+func RenderHelmRollbackOverlay(revisions []HelmRevision, cursor int, screenWidth, screenHeight int, loading bool) string {
+	if loading {
+		return OverlayStyle.Render(DimStyle.Render("Loading Helm release history..."))
+	}
 	if len(revisions) == 0 {
 		return OverlayStyle.Render(DimStyle.Render("No revisions found"))
 	}

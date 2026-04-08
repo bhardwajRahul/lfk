@@ -927,6 +927,10 @@ func TestPush4HandleKeyPendingMarkInvalid(t *testing.T) {
 }
 
 func TestPush4HandleKeyPendingBookmarkConfirmYes(t *testing.T) {
+	// Confirming a pending bookmark goes through saveBookmark which persists
+	// to bookmarksFilePath(); without this isolation the test would overwrite
+	// the developer's real ~/.local/state/lfk/bookmarks.yaml file.
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	m := basePush4Model()
 	m.nav.Level = model.LevelResources
 	m.nav.ResourceType = model.ResourceTypeEntry{DisplayName: "Pods", Kind: "Pod", Resource: "pods"}
@@ -938,6 +942,9 @@ func TestPush4HandleKeyPendingBookmarkConfirmYes(t *testing.T) {
 }
 
 func TestPush4HandleKeyPendingBookmarkCancel(t *testing.T) {
+	// The cancel branch does not persist, but isolating XDG_STATE_HOME is
+	// cheap insurance against future refactors that might add a save call.
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	m := basePush4Model()
 	bm := model.Bookmark{Name: "test", Slot: "a"}
 	m.pendingBookmark = &bm

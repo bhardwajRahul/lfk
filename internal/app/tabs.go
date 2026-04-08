@@ -32,6 +32,10 @@ func (m *Model) popLeft() {
 }
 
 // clearRight resets the right column and YAML preview so stale data doesn't linger.
+// Every caller of clearRight is a navigation transition that will dispatch a
+// new preview load, so we arm previewLoading here to keep the right pane's
+// spinner visible during the gap. Without this, navigateParent/navigateChild
+// and other transitions briefly render "No resources found".
 func (m *Model) clearRight() {
 	m.rightItems = nil
 	m.yamlContent = ""
@@ -41,6 +45,7 @@ func (m *Model) clearRight() {
 	m.previewEventsContent = ""
 	m.resourceTree = nil
 	m.mapView = false
+	m.previewLoading = true
 }
 
 // selectedResourceKind returns the Kind of the currently selected resource,

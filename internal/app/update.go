@@ -349,6 +349,9 @@ func (m Model) updateEditorResultMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case helmRevisionListMsg:
 		mdl, cmd := m.updateHelmRevisionList(msg)
 		return mdl, cmd, true
+	case helmHistoryListMsg:
+		mdl, cmd := m.updateHelmHistoryList(msg)
+		return mdl, cmd, true
 	case helmRollbackDoneMsg:
 		mdl, cmd := m.updateHelmRollbackDone(msg)
 		return mdl, cmd, true
@@ -520,6 +523,7 @@ func (m Model) updateResourcesLoaded(msg resourcesLoadedMsg) (tea.Model, tea.Cmd
 }
 
 func (m Model) updateResourcesLoadedPreview(msg resourcesLoadedMsg) (tea.Model, tea.Cmd) {
+	m.previewLoading = false
 	m.rightItems = msg.items
 	// Filter events in children view to warnings-only when enabled.
 	if m.warningEventsOnly && len(m.rightItems) > 0 && m.rightItems[0].Kind == "Event" {
@@ -551,7 +555,7 @@ func (m Model) updateResourcesLoadedMain(msg resourcesLoadedMsg) (tea.Model, tea
 	if len(msg.items) == 0 {
 		logger.Info("No resources found", "resourceType", m.nav.ResourceType.Kind, "namespace", m.namespace)
 	}
-	prevName, prevNs, prevExtra := m.cursorItemKey()
+	prevName, prevNs, prevExtra, prevKind := m.cursorItemKey()
 
 	kind := m.nav.ResourceType.Kind
 	if (kind == "Pod" || kind == "Node") && len(m.middleItems) > 0 {
@@ -573,10 +577,18 @@ func (m Model) updateResourcesLoadedMain(msg resourcesLoadedMsg) (tea.Model, tea
 		}
 		m.pendingTarget = ""
 	} else {
-		m.restoreCursorToItem(prevName, prevNs, prevExtra)
+		m.restoreCursorToItem(prevName, prevNs, prevExtra, prevKind)
 	}
 	var cmds []tea.Cmd
-	cmds = append(cmds, m.loadPreview())
+	// Mark the preview pane as loading so the right column shows the
+	// spinner during the gap between the main list arriving (which cleared
+	// the global loading flag) and the preview load completing. Without
+	// this the right pane briefly renders "No resources found".
+	previewCmd := m.loadPreview()
+	if previewCmd != nil {
+		m.previewLoading = true
+		cmds = append(cmds, previewCmd)
+	}
 	switch kind {
 	case "Pod":
 		cmds = append(cmds, m.loadPodMetricsForList())
@@ -636,10 +648,11 @@ func (m Model) updateOwnedLoaded(msg ownedLoadedMsg) (tea.Model, tea.Cmd) {
 		msg.items = filtered
 	}
 	if msg.forPreview {
+		m.previewLoading = false
 		m.rightItems = msg.items
 		return m, nil
 	}
-	prevName, prevNs, prevExtra := m.cursorItemKey()
+	prevName, prevNs, prevExtra, prevKind := m.cursorItemKey()
 	m.middleItems = msg.items
 	m.itemCache[m.navKey()] = m.middleItems
 	// Re-apply active filter preset on owned refresh (same as resourcesLoadedMsg).
@@ -654,8 +667,13 @@ func (m Model) updateOwnedLoaded(msg ownedLoadedMsg) (tea.Model, tea.Cmd) {
 		m.middleItems = filtered
 		m.itemCache[m.navKey()] = m.middleItems
 	}
-	m.restoreCursorToItem(prevName, prevNs, prevExtra)
-	return m, m.loadPreview()
+	m.restoreCursorToItem(prevName, prevNs, prevExtra, prevKind)
+	// Mark the preview pane as loading (see updateResourcesLoadedMain).
+	previewCmd := m.loadPreview()
+	if previewCmd != nil {
+		m.previewLoading = true
+	}
+	return m, previewCmd
 }
 
 func (m Model) updateResourceTreeLoaded(msg resourceTreeLoadedMsg) (tea.Model, tea.Cmd) {
@@ -688,13 +706,19 @@ func (m Model) updateContainersLoaded(msg containersLoadedMsg) (tea.Model, tea.C
 	}
 	m.err = nil
 	if msg.forPreview {
+		m.previewLoading = false
 		m.rightItems = msg.items
 		return m, nil
 	}
 	m.middleItems = msg.items
 	m.itemCache[m.navKey()] = m.middleItems
 	m.clampCursor()
-	return m, m.loadPreview()
+	// Mark the preview pane as loading (see updateResourcesLoadedMain).
+	previewCmd := m.loadPreview()
+	if previewCmd != nil {
+		m.previewLoading = true
+	}
+	return m, previewCmd
 }
 
 func (m Model) updateNamespacesLoaded(msg namespacesLoadedMsg) (tea.Model, tea.Cmd) {
@@ -1790,13 +1814,33 @@ func (m Model) updateRollbackDone(msg rollbackDoneMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateHelmRevisionList(msg helmRevisionListMsg) (tea.Model, tea.Cmd) {
+	m.helmRevisionsLoading = false
 	if msg.err != nil {
 		m.setErrorFromErr("Error loading Helm revisions: ", msg.err)
+		m.overlay = overlayNone
 		return m, scheduleStatusClear()
 	}
 	m.helmRollbackRevisions = msg.revisions
 	m.helmRollbackCursor = 0
 	m.overlay = overlayHelmRollback
+	return m, nil
+}
+
+// updateHelmHistoryList handles the helmHistoryListMsg. On error the overlay
+// is closed (reset to overlayNone) because executeActionHelmHistory opened it
+// optimistically before the fetch completed. On success the revisions are
+// populated and the overlay stays open. The shared helmRevisionsLoading flag
+// is cleared in either case so the loading placeholder disappears.
+func (m Model) updateHelmHistoryList(msg helmHistoryListMsg) (tea.Model, tea.Cmd) {
+	m.helmRevisionsLoading = false
+	if msg.err != nil {
+		m.setErrorFromErr("Error loading Helm history: ", msg.err)
+		m.overlay = overlayNone
+		return m, scheduleStatusClear()
+	}
+	m.helmHistoryRevisions = msg.revisions
+	m.helmHistoryCursor = 0
+	m.overlay = overlayHelmHistory
 	return m, nil
 }
 

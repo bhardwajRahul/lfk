@@ -357,6 +357,40 @@ func (m Model) handleHelmRollbackOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	return m, nil
 }
 
+// handleHelmHistoryOverlayKey handles keyboard input for the read-only Helm
+// history overlay. It mirrors the rollback overlay navigation but has no
+// destructive Enter binding — Enter is a no-op so the user cannot accidentally
+// trigger a rollback from the history view.
+func (m Model) handleHelmHistoryOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.overlay = overlayNone
+		m.helmHistoryRevisions = nil
+		return m, nil
+	case "j", "down":
+		m.helmHistoryCursor = clampOverlayCursor(m.helmHistoryCursor, 1, len(m.helmHistoryRevisions)-1)
+		return m, nil
+	case "k", "up":
+		m.helmHistoryCursor = clampOverlayCursor(m.helmHistoryCursor, -1, len(m.helmHistoryRevisions)-1)
+		return m, nil
+	case "ctrl+d":
+		m.helmHistoryCursor = clampOverlayCursor(m.helmHistoryCursor, 10, len(m.helmHistoryRevisions)-1)
+		return m, nil
+	case "ctrl+u":
+		m.helmHistoryCursor = clampOverlayCursor(m.helmHistoryCursor, -10, len(m.helmHistoryRevisions)-1)
+		return m, nil
+	case "ctrl+f":
+		m.helmHistoryCursor = clampOverlayCursor(m.helmHistoryCursor, 20, len(m.helmHistoryRevisions)-1)
+		return m, nil
+	case "ctrl+b":
+		m.helmHistoryCursor = clampOverlayCursor(m.helmHistoryCursor, -20, len(m.helmHistoryRevisions)-1)
+		return m, nil
+	case "ctrl+c":
+		return m.closeTabOrQuit()
+	}
+	return m, nil
+}
+
 // handleColorschemeOverlayKey handles keyboard input for the color scheme selector overlay.
 func (m Model) handleColorschemeOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.schemeFilterMode {

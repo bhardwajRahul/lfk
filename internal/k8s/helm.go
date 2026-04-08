@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -33,6 +35,7 @@ func (c *Client) GetHelmReleases(ctx context.Context, contextName, namespace str
 		name      string
 		namespace string
 		labels    map[string]string
+		data      map[string][]byte
 		created   time.Time
 	}
 
@@ -44,7 +47,13 @@ func (c *Client) GetHelmReleases(ctx context.Context, contextName, namespace str
 			return nil, fmt.Errorf("listing helm secrets: %w", listErr)
 		}
 		for _, s := range list.Items {
-			secrets = append(secrets, secretInfo{s.Name, s.Namespace, s.Labels, s.CreationTimestamp.Time})
+			secrets = append(secrets, secretInfo{
+				name:      s.Name,
+				namespace: s.Namespace,
+				labels:    s.Labels,
+				data:      s.Data,
+				created:   s.CreationTimestamp.Time,
+			})
 		}
 	} else {
 		list, listErr := cs.CoreV1().Secrets(namespace).List(ctx, listOpts)
@@ -52,7 +61,13 @@ func (c *Client) GetHelmReleases(ctx context.Context, contextName, namespace str
 			return nil, fmt.Errorf("listing helm secrets: %w", listErr)
 		}
 		for _, s := range list.Items {
-			secrets = append(secrets, secretInfo{s.Name, s.Namespace, s.Labels, s.CreationTimestamp.Time})
+			secrets = append(secrets, secretInfo{
+				name:      s.Name,
+				namespace: s.Namespace,
+				labels:    s.Labels,
+				data:      s.Data,
+				created:   s.CreationTimestamp.Time,
+			})
 		}
 	}
 
@@ -62,6 +77,7 @@ func (c *Client) GetHelmReleases(ctx context.Context, contextName, namespace str
 		namespace string
 		status    string
 		version   string
+		data      map[string][]byte
 		created   time.Time
 	}
 
@@ -82,6 +98,7 @@ func (c *Client) GetHelmReleases(ctx context.Context, contextName, namespace str
 				namespace: s.namespace,
 				status:    relStatus,
 				version:   relVersion,
+				data:      s.data,
 				created:   s.created,
 			}
 		}
@@ -106,11 +123,59 @@ func (c *Client) GetHelmReleases(ctx context.Context, contextName, namespace str
 		if namespace == "" {
 			ti.Namespace = rel.namespace
 		}
+		ti.Columns = buildHelmReleaseColumns(rel.data, rel.name, status)
 		items = append(items, ti)
 	}
 
 	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 	return items, nil
+}
+
+// buildHelmReleaseColumns builds the detail columns for a helm release list item.
+// It tries to decode the gzipped release blob stored in the secret data; on
+// failure it logs a warning and returns an empty slice so the list still renders.
+func buildHelmReleaseColumns(data map[string][]byte, relName, displayStatus string) []model.KeyValue {
+	raw, ok := data["release"]
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	info, err := decodeHelmReleaseSecret(raw)
+	if err != nil {
+		logger.Warn("Helm: failed to decode release blob; using label-only data", "release", relName, "error", err)
+		return nil
+	}
+	cols := []model.KeyValue{
+		{Key: "Chart", Value: info.ChartName},
+		{Key: "Chart Version", Value: info.ChartVersion},
+		{Key: "App Version", Value: info.AppVersion},
+		{Key: "Revision", Value: strconv.Itoa(info.Revision)},
+		{Key: "Status", Value: displayStatus},
+	}
+	if !info.LastDeployed.IsZero() {
+		cols = append(cols, model.KeyValue{Key: "Last Deployed", Value: formatAge(time.Since(info.LastDeployed))})
+	}
+	if desc := stripControlChars(info.Description); desc != "" {
+		cols = append(cols, model.KeyValue{Key: "Description", Value: desc})
+	}
+	return cols
+}
+
+// stripControlChars removes ASCII control characters (except tab) from a
+// string. Used to sanitize free-text fields sourced from Kubernetes secret
+// data before rendering them in the TUI, so a release with embedded ANSI
+// escapes or other control sequences cannot corrupt the terminal state.
+func stripControlChars(s string) string {
+	if s == "" {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r >= 0x20 || r == '\t' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // GetHelmReleaseYAML returns a summary YAML for a Helm release.
@@ -164,17 +229,83 @@ func (c *Client) getHelmManagedResources(ctx context.Context, contextName, names
 		return nil, err
 	}
 
-	// Try multiple label selectors: standard Helm label first, then legacy "release" label.
+	// Primary discovery path: parse the rendered manifest stored inside the
+	// latest helm release secret. This covers every kind the chart actually
+	// installs (including cluster-scoped and custom resources) regardless of
+	// whether chart authors set instance labels uniformly.
+	if items, ok := c.collectHelmResourcesFromManifest(ctx, cs, namespace, releaseName); ok {
+		return items, nil
+	}
+
+	// Fallback: label-based discovery for legacy releases whose manifest is
+	// missing or undecodable. This preserves backwards compatibility with the
+	// pre-manifest path.
+	return c.collectHelmResourcesByLabels(ctx, cs, namespace, releaseName), nil
+}
+
+// collectHelmResourcesFromManifest reads the latest helm release secret for
+// releaseName, decodes it, parses its manifest, and returns one Item per
+// resource declared in the manifest. Known workload kinds in the release's
+// namespace are enriched with live ready counts by merging with the output of
+// the existing collectHelm* helpers. The second return value is false when no
+// usable manifest could be loaded, signalling the caller to fall back to
+// label-based discovery.
+func (c *Client) collectHelmResourcesFromManifest(ctx context.Context, cs kubernetes.Interface, namespace, releaseName string) ([]model.Item, bool) {
+	secret, ok := findLatestHelmReleaseSecret(ctx, cs, namespace, releaseName)
+	if !ok {
+		return nil, false
+	}
+
+	raw, ok := secret.Data["release"]
+	if !ok || len(raw) == 0 {
+		return nil, false
+	}
+	info, err := decodeHelmReleaseSecret(raw)
+	if err != nil {
+		logger.Warn("Helm: failed to decode release blob; falling back to label-based discovery", "release", releaseName, "error", err)
+		return nil, false
+	}
+	if info.Manifest == "" {
+		return nil, false
+	}
+	refs, err := parseHelmManifest(info.Manifest)
+	if err != nil {
+		logger.Warn("Helm: failed to parse release manifest; falling back to label-based discovery", "release", releaseName, "error", err)
+		return nil, false
+	}
+	if len(refs) == 0 {
+		return nil, false
+	}
+
+	items, mergeIndex := buildItemsFromManifestRefs(refs, namespace)
+
+	// Enrich workload kinds with live status (Ready column) by merging with
+	// the existing label-based collectors, matching on Kind+Name.
+	enrichHelmWorkloadStatus(ctx, cs, namespace, releaseName, items, mergeIndex)
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Kind != items[j].Kind {
+			return items[i].Kind < items[j].Kind
+		}
+		return items[i].Name < items[j].Name
+	})
+	return items, true
+}
+
+// collectHelmResourcesByLabels is the legacy label-based discovery path,
+// retained verbatim as a fallback for releases whose manifest field is
+// missing, empty, or undecodable.
+func (c *Client) collectHelmResourcesByLabels(ctx context.Context, cs kubernetes.Interface, namespace, releaseName string) []model.Item {
 	labelSelectors := []string{
 		"app.kubernetes.io/instance=" + releaseName,
 		"release=" + releaseName,
 	}
 
-	seen := make(map[string]bool) // dedup key: Kind/Name
+	seen := make(map[string]bool)
 	var items []model.Item
 
 	for _, labelSelector := range labelSelectors {
-		logger.Debug("Helm: listing managed resources", "selector", labelSelector, "namespace", namespace)
+		logger.Debug("Helm: listing managed resources (label fallback)", "selector", labelSelector, "namespace", namespace)
 		opts := metav1.ListOptions{LabelSelector: labelSelector}
 
 		collectHelmDeployments(&items, seen, cs, ctx, namespace, opts)
@@ -193,7 +324,117 @@ func (c *Client) getHelmManagedResources(ctx context.Context, contextName, names
 		}
 		return items[i].Name < items[j].Name
 	})
-	return items, nil
+	return items
+}
+
+// findLatestHelmReleaseSecret returns the newest helm release secret for the
+// given release name in namespace, or ok=false if none exists. The latest is
+// determined by CreationTimestamp.
+func findLatestHelmReleaseSecret(ctx context.Context, cs kubernetes.Interface, namespace, releaseName string) (corev1.Secret, bool) {
+	opts := metav1.ListOptions{LabelSelector: "owner=helm,name=" + releaseName}
+	list, err := cs.CoreV1().Secrets(namespace).List(ctx, opts)
+	if err != nil || len(list.Items) == 0 {
+		return corev1.Secret{}, false
+	}
+	latest := list.Items[0]
+	for _, s := range list.Items[1:] {
+		if s.CreationTimestamp.After(latest.CreationTimestamp.Time) {
+			latest = s
+		}
+	}
+	return latest, true
+}
+
+// buildItemsFromManifestRefs converts parsed manifest refs into model.Items.
+// Instead of setting per-kind icons, it populates Columns with KIND and
+// APIVERSION key-value pairs so the explorer renders them as table columns
+// (matching the ArgoCD Application children pattern). Cross-namespace
+// resources display as "namespace/name" so the user can tell at a glance
+// which resources live outside the release's own namespace.
+// The second return value is an index keyed by real Kind+Namespace+Name that
+// lets the caller match items to live resources without depending on the
+// display-name transform applied to the Name field.
+func buildItemsFromManifestRefs(refs []ManifestResourceRef, releaseNamespace string) ([]model.Item, map[string]int) {
+	items := make([]model.Item, 0, len(refs))
+	index := make(map[string]int, len(refs))
+	for _, ref := range refs {
+		displayName := ref.Name
+		if ref.Namespace != "" && ref.Namespace != releaseNamespace {
+			displayName = ref.Namespace + "/" + ref.Name
+		}
+		items = append(items, model.Item{
+			Name:      displayName,
+			Namespace: ref.Namespace,
+			Kind:      ref.Kind,
+			Extra:     ref.APIVersion,
+			Columns: []model.KeyValue{
+				{Key: "KIND", Value: ref.Kind},
+				{Key: "APIVERSION", Value: ref.APIVersion},
+			},
+		})
+		index[helmRefKey(ref.Kind, ref.Namespace, ref.Name)] = len(items) - 1
+	}
+	return items, index
+}
+
+// helmRefKey builds a stable merge key for a manifest ref or a live resource.
+// Namespace is included so cross-namespace resources with colliding names
+// (same kind + same name in different namespaces) merge correctly.
+func helmRefKey(kind, namespace, name string) string {
+	return kind + "/" + namespace + "/" + name
+}
+
+// enrichHelmWorkloadStatus merges live ready counts into manifest-derived
+// items for known workload kinds in the release's namespace. It reuses the
+// existing collectHelm* helpers so any fields they populate (Ready, Age,
+// Status, CreatedAt) are carried over without duplicating the logic. The
+// mergeIndex is keyed by Kind+Namespace+Name against the canonical ref
+// identity so the display-name transform applied to the Name field does not
+// break matching.
+func enrichHelmWorkloadStatus(ctx context.Context, cs kubernetes.Interface, namespace, releaseName string, items []model.Item, mergeIndex map[string]int) {
+	if len(mergeIndex) == 0 {
+		return
+	}
+	// Collect live workloads in the release namespace using every known
+	// selector. The final empty selector picks up workloads that are in the
+	// manifest but don't carry instance labels — exactly the Cilium-style
+	// case we're fixing.
+	labelSelectors := []string{
+		"app.kubernetes.io/instance=" + releaseName,
+		"release=" + releaseName,
+		"",
+	}
+
+	seen := make(map[string]bool)
+	var live []model.Item
+	for _, selector := range labelSelectors {
+		opts := metav1.ListOptions{LabelSelector: selector}
+		collectHelmDeployments(&live, seen, cs, ctx, namespace, opts)
+		collectHelmStatefulSets(&live, seen, cs, ctx, namespace, opts)
+		collectHelmDaemonSets(&live, seen, cs, ctx, namespace, opts)
+	}
+	if len(live) == 0 {
+		return
+	}
+	for _, l := range live {
+		// collectHelm* helpers fetch from `namespace`, so every live item is
+		// in that namespace even though Item.Namespace is left unset.
+		key := helmRefKey(l.Kind, namespace, l.Name)
+		idx, ok := mergeIndex[key]
+		if !ok {
+			continue
+		}
+		items[idx].Ready = l.Ready
+		if l.Status != "" {
+			items[idx].Status = l.Status
+		}
+		if l.Age != "" {
+			items[idx].Age = l.Age
+		}
+		if !l.CreatedAt.IsZero() {
+			items[idx].CreatedAt = l.CreatedAt
+		}
+	}
 }
 
 // collectHelmDeployments lists Deployments matching opts and appends them (with status/ready) to items.

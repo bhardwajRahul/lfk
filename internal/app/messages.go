@@ -255,6 +255,14 @@ type helmRevisionListMsg struct {
 	err       error
 }
 
+// helmHistoryListMsg carries the list of Helm release revisions for the
+// read-only history overlay. It is parallel to helmRevisionListMsg but routed
+// to a different overlay so the user can browse without any rollback action.
+type helmHistoryListMsg struct {
+	revisions []ui.HelmRevision
+	err       error
+}
+
 // helmRollbackDoneMsg carries the result of a Helm rollback operation.
 type helmRollbackDoneMsg struct {
 	err error

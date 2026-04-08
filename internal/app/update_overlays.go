@@ -69,6 +69,9 @@ func (m Model) handleOverlayKeyPrimary(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool
 	case overlayHelmRollback:
 		mdl, cmd := m.handleHelmRollbackOverlayKey(msg)
 		return mdl, cmd, true
+	case overlayHelmHistory:
+		mdl, cmd := m.handleHelmHistoryOverlayKey(msg)
+		return mdl, cmd, true
 	case overlayLabelEditor:
 		mdl, cmd := m.handleLabelEditorKey(msg)
 		return mdl, cmd, true

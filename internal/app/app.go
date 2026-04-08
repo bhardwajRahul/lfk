@@ -55,6 +55,7 @@ const (
 	overlayRollback
 	overlayLabelEditor
 	overlayHelmRollback
+	overlayHelmHistory
 	overlayColorscheme
 	overlayFilterPreset
 	overlayRBAC
@@ -305,6 +306,14 @@ type Model struct {
 
 	// Loading indicator.
 	loading bool
+
+	// previewLoading is set true when a preview load is in flight for the
+	// right pane. It is independent from `loading` so that the right pane
+	// can keep showing its spinner during the gap between the main list
+	// load completing (which clears `loading`) and the preview load
+	// completing. Without this the right pane briefly renders
+	// "No resources found" between the two transitions.
+	previewLoading bool
 
 	// Spinner for loading animation.
 	spinner spinner.Model
@@ -610,6 +619,17 @@ type Model struct {
 	// Helm rollback overlay state.
 	helmRollbackRevisions []ui.HelmRevision
 	helmRollbackCursor    int
+
+	// Helm history (read-only) overlay state.
+	helmHistoryRevisions []ui.HelmRevision
+	helmHistoryCursor    int
+
+	// helmRevisionsLoading is shared between the helm rollback and history
+	// overlays. It is set to true when the helm history subprocess is
+	// dispatched and cleared when the result (success or error) arrives so
+	// the overlay can show a loading placeholder instead of flashing the
+	// empty-state message.
+	helmRevisionsLoading bool
 
 	// Label/annotation editor state.
 	labelData         *model.LabelAnnotationData

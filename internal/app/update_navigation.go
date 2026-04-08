@@ -54,17 +54,27 @@ func (m Model) moveCursor(delta int) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Clear right column to show loading state while new preview loads.
-	m.rightItems = nil
-	m.previewYAML = ""
-	m.previewScroll = 0
-	m.loading = true
+	m.invalidatePreviewForCursorChange()
 	// Reload resource map if active.
 	if m.mapView {
 		m.resourceTree = nil
 		return m, tea.Batch(m.loadPreview(), m.loadResourceTree())
 	}
 	return m, m.loadPreview()
+}
+
+// invalidatePreviewForCursorChange resets the right-column state and bumps
+// requestGen so any in-flight preview load triggered by the previous cursor
+// position is discarded by its message handler instead of being applied to
+// the wrong selection (which causes stale items to appear, followed by a
+// brief "No resources found" flash before the new load returns).
+func (m *Model) invalidatePreviewForCursorChange() {
+	m.requestGen++
+	m.rightItems = nil
+	m.previewYAML = ""
+	m.previewScroll = 0
+	m.loading = true
+	m.previewLoading = true
 }
 
 func (m Model) navigateParent() (tea.Model, tea.Cmd) {

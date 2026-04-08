@@ -84,6 +84,30 @@ func TestCov80LoadHelmRevisionsNoHelm(t *testing.T) {
 	assert.Contains(t, hmsg.err.Error(), "helm not found")
 }
 
+func TestCov80LoadHelmHistoryNoHelm(t *testing.T) {
+	m := basePush80Model()
+	t.Setenv("PATH", "/nonexistent")
+	m.actionCtx = actionContext{
+		context:   "test-ctx",
+		name:      "my-release",
+		namespace: "default",
+	}
+	cmd := m.loadHelmHistory()
+	require.NotNil(t, cmd)
+	msg := cmd()
+	hmsg, ok := msg.(helmHistoryListMsg)
+	require.True(t, ok)
+	assert.Error(t, hmsg.err)
+	assert.Contains(t, hmsg.err.Error(), "helm not found")
+}
+
+func TestCov80FetchHelmHistoryExecError(t *testing.T) {
+	// Point helmPath at /bin/false so exec.Command fails non-zero exit.
+	revs, err := fetchHelmHistory("/bin/false", "my-release", "default", "test-ctx", "")
+	assert.Error(t, err)
+	assert.Nil(t, revs)
+}
+
 func TestCov80LoadYAMLNilSel(t *testing.T) {
 	m := basePush80Model()
 	m.middleItems = nil

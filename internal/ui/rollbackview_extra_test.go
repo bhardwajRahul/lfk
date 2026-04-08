@@ -83,7 +83,7 @@ func TestRenderRollbackOverlay(t *testing.T) {
 
 func TestRenderHelmRollbackOverlay(t *testing.T) {
 	t.Run("empty revisions shows message", func(t *testing.T) {
-		result := RenderHelmRollbackOverlay(nil, 0, 100, 40)
+		result := RenderHelmRollbackOverlay(nil, 0, 100, 40, false)
 		assert.Contains(t, result, "No revisions found")
 	})
 
@@ -106,7 +106,7 @@ func TestRenderHelmRollbackOverlay(t *testing.T) {
 				Updated:     "2024-01-14 10:00:00",
 			},
 		}
-		result := RenderHelmRollbackOverlay(revisions, 0, 120, 40)
+		result := RenderHelmRollbackOverlay(revisions, 0, 120, 40, false)
 		assert.Contains(t, result, "Rollback Helm Release")
 		assert.Contains(t, result, "REV")
 		assert.Contains(t, result, "STATUS")
@@ -124,7 +124,7 @@ func TestRenderHelmRollbackOverlay(t *testing.T) {
 			{Revision: 2, Status: "deployed", Chart: "app-1.0"},
 			{Revision: 1, Status: "superseded", Chart: "app-0.9"},
 		}
-		result := RenderHelmRollbackOverlay(revisions, 1, 120, 40)
+		result := RenderHelmRollbackOverlay(revisions, 1, 120, 40, false)
 		assert.Contains(t, result, "app-0.9")
 	})
 
@@ -133,7 +133,7 @@ func TestRenderHelmRollbackOverlay(t *testing.T) {
 		revisions := []HelmRevision{
 			{Revision: 1, Status: "deployed", Chart: "app-1.0"},
 		}
-		result := RenderHelmRollbackOverlay(revisions, 0, 100, 40)
+		result := RenderHelmRollbackOverlay(revisions, 0, 100, 40, false)
 		assert.Contains(t, result, "Rollback Helm Release")
 	})
 }

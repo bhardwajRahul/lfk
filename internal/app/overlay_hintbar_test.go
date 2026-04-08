@@ -54,6 +54,7 @@ func TestOverlayHintBar_ReturnsNonEmpty(t *testing.T) {
 		{"ConfigMapEditorEditing", overlayConfigMapEditor, func(m *Model) { m.configMapEditing = true }, "save"},
 		{"Rollback", overlayRollback, nil, "rollback"},
 		{"HelmRollback", overlayHelmRollback, nil, "rollback"},
+		{"HelmHistory", overlayHelmHistory, nil, "close"},
 		{"LabelEditor", overlayLabelEditor, nil, "nav"},
 		{"LabelEditorEditing", overlayLabelEditor, func(m *Model) { m.labelEditing = true }, "save"},
 		{"CanI", overlayCanI, nil, "navigate"},

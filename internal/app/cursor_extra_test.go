@@ -182,7 +182,7 @@ func TestRestoreCursorToItemWithExtra(t *testing.T) {
 		},
 	}
 	m.setCursor(0)
-	m.restoreCursorToItem("svc-a", "", "LoadBalancer")
+	m.restoreCursorToItem("svc-a", "", "LoadBalancer", "")
 	assert.Equal(t, 1, m.cursor())
 }
 

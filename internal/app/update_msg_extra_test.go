@@ -1166,6 +1166,31 @@ func TestUpdateHelmRevisionListSuccess(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
+// --- helmHistoryListMsg ---
+
+func TestUpdateHelmHistoryListError(t *testing.T) {
+	m := baseModel()
+	m.overlay = overlayHelmHistory
+
+	result, cmd := m.Update(helmHistoryListMsg{err: errors.New("not found")})
+	mdl := result.(Model)
+	assert.True(t, mdl.statusMessageErr)
+	assert.Equal(t, overlayNone, mdl.overlay)
+	assert.NotNil(t, cmd)
+}
+
+func TestUpdateHelmHistoryListSuccess(t *testing.T) {
+	m := baseModel()
+
+	revisions := []ui.HelmRevision{{Revision: 1}, {Revision: 2}}
+	result, cmd := m.Update(helmHistoryListMsg{revisions: revisions})
+	mdl := result.(Model)
+	assert.Equal(t, overlayHelmHistory, mdl.overlay)
+	assert.Len(t, mdl.helmHistoryRevisions, 2)
+	assert.Equal(t, 0, mdl.helmHistoryCursor)
+	assert.Nil(t, cmd)
+}
+
 // --- dashboardLoadedMsg ---
 
 func TestUpdateDashboardLoadedSameContext(t *testing.T) {

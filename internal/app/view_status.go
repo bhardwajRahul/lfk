@@ -276,7 +276,7 @@ func (m Model) statusBar() string {
 func (m Model) renderOverlay(background string) string {
 	// Fullscreen overlays bypass the standard overlay rendering.
 	switch m.overlay {
-	case overlaySecretEditor, overlayConfigMapEditor, overlayRollback, overlayHelmRollback, overlayLabelEditor, overlayAutoSync:
+	case overlaySecretEditor, overlayConfigMapEditor, overlayRollback, overlayHelmRollback, overlayHelmHistory, overlayLabelEditor, overlayAutoSync:
 		return m.renderOverlayFullscreen(background)
 	case overlayCanI:
 		return m.renderCanIOverlay(background)
@@ -512,7 +512,9 @@ func (m Model) renderOverlayFullscreen(background string) string {
 	case overlayRollback:
 		overlay = ui.RenderRollbackOverlay(m.rollbackRevisions, m.rollbackCursor, m.width, m.height)
 	case overlayHelmRollback:
-		overlay = ui.RenderHelmRollbackOverlay(m.helmRollbackRevisions, m.helmRollbackCursor, m.width, m.height)
+		overlay = ui.RenderHelmRollbackOverlay(m.helmRollbackRevisions, m.helmRollbackCursor, m.width, m.height, m.helmRevisionsLoading)
+	case overlayHelmHistory:
+		overlay = ui.RenderHelmHistoryOverlay(m.helmHistoryRevisions, m.helmHistoryCursor, m.width, m.height, m.helmRevisionsLoading)
 	case overlayLabelEditor:
 		overlay = ui.RenderLabelEditorOverlay(
 			m.labelData, m.labelCursor, m.labelTab,

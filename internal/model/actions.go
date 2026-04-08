@@ -253,6 +253,7 @@ func actionsForWorkloadKind(kind string) ([]ActionMenuItem, bool) {
 			{Label: "Diff", Description: "Compare default vs user-supplied values", Key: "d"},
 			{Label: "Upgrade", Description: "Upgrade release to latest chart version", Key: "U"},
 			{Label: "Rollback", Description: "Rollback to previous revision", Key: "R"},
+			{Label: "History", Description: "Show release revision history", Key: "h"},
 			{Label: "Describe", Description: "Show release info", Key: "v"},
 			{Label: "Delete", Description: "Uninstall this release", Key: "D"},
 			{Label: "Debug Pod", Description: "Run standalone alpine debug pod in namespace", Key: "b"},

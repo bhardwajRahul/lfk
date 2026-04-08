@@ -375,6 +375,18 @@ func TestRenderOverlayHelmRollback(t *testing.T) {
 	assert.NotEmpty(t, result)
 }
 
+func TestRenderOverlayHelmHistory(t *testing.T) {
+	m := baseOverlayModel()
+	m.overlay = overlayHelmHistory
+	m.helmHistoryRevisions = []ui.HelmRevision{
+		{Revision: 2, Chart: "nginx-1.1.0", Status: "deployed"},
+		{Revision: 1, Chart: "nginx-1.0.0", Status: "superseded"},
+	}
+	bg := strings.Repeat("bg\n", 10)
+	result := m.renderOverlay(bg)
+	assert.NotEmpty(t, result)
+}
+
 func TestRenderOverlayLabelEditor(t *testing.T) {
 	m := baseOverlayModel()
 	m.overlay = overlayLabelEditor

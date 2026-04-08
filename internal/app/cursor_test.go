@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sync"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -88,25 +89,27 @@ func TestCursorItemKey(t *testing.T) {
 		m := Model{
 			nav: model.NavigationState{Level: model.LevelResources},
 			middleItems: []model.Item{
-				{Name: "pod-a", Namespace: "ns-1", Extra: "extra-a"},
-				{Name: "pod-b", Namespace: "ns-2", Extra: "extra-b"},
+				{Name: "pod-a", Namespace: "ns-1", Extra: "extra-a", Kind: "Pod"},
+				{Name: "pod-b", Namespace: "ns-2", Extra: "extra-b", Kind: "Pod"},
 			},
 		}
 		m.setCursor(1)
-		name, ns, extra := m.cursorItemKey()
+		name, ns, extra, kind := m.cursorItemKey()
 		assert.Equal(t, "pod-b", name)
 		assert.Equal(t, "ns-2", ns)
 		assert.Equal(t, "extra-b", extra)
+		assert.Equal(t, "Pod", kind)
 	})
 
 	t.Run("returns empty strings when no items", func(t *testing.T) {
 		m := Model{
 			nav: model.NavigationState{Level: model.LevelResources},
 		}
-		name, ns, extra := m.cursorItemKey()
+		name, ns, extra, kind := m.cursorItemKey()
 		assert.Empty(t, name)
 		assert.Empty(t, ns)
 		assert.Empty(t, extra)
+		assert.Empty(t, kind)
 	})
 
 	t.Run("returns empty strings when cursor out of range", func(t *testing.T) {
@@ -115,10 +118,11 @@ func TestCursorItemKey(t *testing.T) {
 			middleItems: []model.Item{{Name: "only"}},
 		}
 		m.setCursor(5)
-		name, ns, extra := m.cursorItemKey()
+		name, ns, extra, kind := m.cursorItemKey()
 		assert.Empty(t, name)
 		assert.Empty(t, ns)
 		assert.Empty(t, extra)
+		assert.Empty(t, kind)
 	})
 }
 
@@ -129,13 +133,13 @@ func TestRestoreCursorToItem(t *testing.T) {
 		m := Model{
 			nav: model.NavigationState{Level: model.LevelResources},
 			middleItems: []model.Item{
-				{Name: "pod-a", Namespace: "ns-1"},
-				{Name: "pod-b", Namespace: "ns-2"},
-				{Name: "pod-c", Namespace: "ns-3"},
+				{Name: "pod-a", Namespace: "ns-1", Kind: "Pod"},
+				{Name: "pod-b", Namespace: "ns-2", Kind: "Pod"},
+				{Name: "pod-c", Namespace: "ns-3", Kind: "Pod"},
 			},
 		}
 		m.setCursor(0)
-		m.restoreCursorToItem("pod-c", "ns-3", "")
+		m.restoreCursorToItem("pod-c", "ns-3", "", "Pod")
 		assert.Equal(t, 2, m.cursor())
 	})
 
@@ -147,7 +151,7 @@ func TestRestoreCursorToItem(t *testing.T) {
 			},
 		}
 		m.setCursor(10)
-		m.restoreCursorToItem("gone", "", "")
+		m.restoreCursorToItem("gone", "", "", "")
 		assert.Equal(t, 0, m.cursor())
 	})
 
@@ -159,8 +163,30 @@ func TestRestoreCursorToItem(t *testing.T) {
 			},
 		}
 		m.setCursor(5)
-		m.restoreCursorToItem("", "", "")
+		m.restoreCursorToItem("", "", "", "")
 		assert.Equal(t, 0, m.cursor())
+	})
+
+	// TestKindDistinguishesSameNameItems is the regression for the
+	// "ServiceAccount cursor jumps one element up" bug. ArgoCD applications
+	// often deploy multiple resources sharing the same name+namespace+extra
+	// (Deployment, Service, ConfigMap, ServiceAccount all named "myapp"
+	// in namespace "default", all with extra "/v1"). Without Kind in the
+	// match, restoreCursorToItem returned the first match — typically a
+	// resource one slot above the user's actual selection.
+	t.Run("kind distinguishes same-name same-extra items", func(t *testing.T) {
+		m := Model{
+			nav: model.NavigationState{Level: model.LevelOwned},
+			middleItems: []model.Item{
+				{Name: "myapp", Namespace: "default", Extra: "/v1", Kind: "Deployment"},
+				{Name: "myapp", Namespace: "default", Extra: "/v1", Kind: "Service"},
+				{Name: "myapp", Namespace: "default", Extra: "/v1", Kind: "ConfigMap"},
+				{Name: "myapp", Namespace: "default", Extra: "/v1", Kind: "ServiceAccount"},
+			},
+		}
+		m.setCursor(0)
+		m.restoreCursorToItem("myapp", "default", "/v1", "ServiceAccount")
+		assert.Equal(t, 3, m.cursor(), "ServiceAccount must match its own slot, not the first item with the same name")
 	})
 }
 
@@ -1048,6 +1074,147 @@ func TestCov80MoveCursorByOne(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
+// TestRefreshOwnedAtLevelOwnedPreservesCursor verifies that a non-preview
+// ownedLoadedMsg arriving while the cursor is at index N (because the user
+// has navigated down) does not reset the cursor to 0. The handler must use
+// the prev cursor item key to restore the cursor in the new items list.
+func TestRefreshOwnedAtLevelOwnedPreservesCursor(t *testing.T) {
+	m := Model{
+		nav: model.NavigationState{
+			Level:   model.LevelOwned,
+			Context: "test-ctx",
+			ResourceType: model.ResourceTypeEntry{
+				Kind:     "Application",
+				Resource: "applications",
+			},
+			ResourceName: "my-app",
+		},
+		tabs:           []TabState{{}},
+		selectedItems:  make(map[string]bool),
+		cursorMemory:   make(map[string]int),
+		itemCache:      make(map[string][]model.Item),
+		discoveredCRDs: make(map[string][]model.ResourceTypeEntry),
+		width:          80,
+		height:         40,
+		execMu:         &sync.Mutex{},
+		requestGen:     1,
+	}
+	items := []model.Item{
+		{Name: "child-1", Kind: "Deployment", Namespace: "default", Extra: "apps/v1"},
+		{Name: "child-2", Kind: "Service", Namespace: "default", Extra: "v1"},
+		{Name: "child-3", Kind: "ConfigMap", Namespace: "default", Extra: "v1"},
+		{Name: "child-4", Kind: "Secret", Namespace: "default", Extra: "v1"},
+		{Name: "child-5", Kind: "Deployment", Namespace: "default", Extra: "apps/v1"},
+	}
+	m.middleItems = items
+	m.setCursor(3) // simulate user has navigated to child-4
+
+	// A non-preview ownedLoadedMsg arrives (e.g. from refreshCurrentLevel).
+	// The cursor should remain on child-4, not reset to 0.
+	result, _ := m.Update(ownedLoadedMsg{items: items, gen: m.requestGen})
+	rm := result.(Model)
+	assert.Equal(t, 3, rm.cursor(), "refresh ownedLoadedMsg must preserve cursor position")
+
+	// Even with statuses changed (simulating live status diff), cursor must
+	// hold because matching is on name/namespace/extra.
+	updated := append([]model.Item(nil), items...)
+	updated[3].Status = "Different"
+	result, _ = rm.Update(ownedLoadedMsg{items: updated, gen: rm.requestGen})
+	rm = result.(Model)
+	assert.Equal(t, 3, rm.cursor(), "status change must not reset cursor")
+}
+
+// TestMoveCursorAtLevelOwnedKeepsCursorPosition reproduces the user-reported
+// bug where navigating down the children of an ArgoCD application or Helm
+// release with j/k caused the cursor to jump back to the first element. The
+// movement should advance the cursor and keep it there even after subsequent
+// gen-bumped preview loads or stale ownedLoadedMsg arrivals.
+func TestMoveCursorAtLevelOwnedKeepsCursorPosition(t *testing.T) {
+	m := Model{
+		nav: model.NavigationState{
+			Level:   model.LevelOwned,
+			Context: "test-ctx",
+			ResourceType: model.ResourceTypeEntry{
+				Kind:     "Application",
+				Resource: "applications",
+			},
+			ResourceName: "my-app",
+		},
+		tabs:           []TabState{{}},
+		selectedItems:  make(map[string]bool),
+		cursorMemory:   make(map[string]int),
+		itemCache:      make(map[string][]model.Item),
+		discoveredCRDs: make(map[string][]model.ResourceTypeEntry),
+		width:          80,
+		height:         40,
+		execMu:         &sync.Mutex{},
+		requestGen:     1,
+	}
+	items := []model.Item{
+		{Name: "child-1", Kind: "Deployment", Namespace: "default", Extra: "apps/v1"},
+		{Name: "child-2", Kind: "Service", Namespace: "default", Extra: "v1"},
+		{Name: "child-3", Kind: "ConfigMap", Namespace: "default", Extra: "v1"},
+		{Name: "child-4", Kind: "Secret", Namespace: "default", Extra: "v1"},
+		{Name: "child-5", Kind: "Deployment", Namespace: "default", Extra: "apps/v1"},
+	}
+	m.middleItems = items
+
+	// Step through the children one j press at a time, simulating an
+	// arriving stale ownedLoadedMsg between each press to mimic what
+	// happens when a refresh load completes during rapid navigation.
+	m.setCursor(0)
+	for want := 1; want <= 4; want++ {
+		result, _ := m.moveCursor(1)
+		m = result.(Model)
+		assert.Equalf(t, want, m.cursor(), "after pressing j %d times the cursor must be at index %d", want, want)
+
+		// Simulate a stale (gen mismatched) ownedLoadedMsg arriving.
+		staleResult, _ := m.Update(ownedLoadedMsg{items: items, gen: 0})
+		m = staleResult.(Model)
+		assert.Equalf(t, want, m.cursor(), "stale ownedLoadedMsg must not reset cursor (was at %d after %d presses)", want, want)
+
+		// Simulate a fresh ownedLoadedMsg matching the current gen.
+		freshResult, _ := m.Update(ownedLoadedMsg{items: items, gen: m.requestGen})
+		m = freshResult.(Model)
+		assert.Equalf(t, want, m.cursor(), "fresh ownedLoadedMsg with matching gen must preserve cursor (was at %d after %d presses)", want, want)
+	}
+}
+
+// TestMoveCursorBumpsRequestGenAndDiscardsStalePreview locks in the navigation
+// flicker fix. Without the requestGen bump in moveCursor, an in-flight preview
+// load triggered by the previous cursor position would still match the
+// current generation when its message arrived, causing stale items to appear
+// in the right pane (or a brief "No resources found" flash if the previous
+// selection was empty) before the new load returned.
+func TestMoveCursorBumpsRequestGenAndDiscardsStalePreview(t *testing.T) {
+	m := basePush80Model()
+	m.setCursor(0)
+	prevGen := m.requestGen
+
+	// Simulate a preview load dispatched at the previous cursor position.
+	stalePreviewGen := prevGen
+
+	// Move the cursor: this must bump requestGen so the in-flight preview
+	// response captured at stalePreviewGen is discarded on arrival.
+	result, _ := m.moveCursor(1)
+	rm := result.(Model)
+	assert.Greater(t, rm.requestGen, prevGen, "moveCursor must bump requestGen")
+	assert.True(t, rm.loading, "moveCursor must set loading=true")
+	assert.Nil(t, rm.rightItems, "moveCursor must clear rightItems")
+
+	// The stale preview response now arrives — it must NOT populate rightItems
+	// or clear the loading flag, because its gen no longer matches.
+	stale := ownedLoadedMsg{
+		items:      []model.Item{{Name: "stale-from-prev-cursor"}},
+		forPreview: true,
+		gen:        stalePreviewGen,
+	}
+	after, _ := rm.Update(stale)
+	am := after.(Model)
+	assert.True(t, am.loading, "stale preview must not clear loading flag")
+	assert.Nil(t, am.rightItems, "stale preview must not populate rightItems")
+}
+
 func TestCov80MoveCursorEmptyItems(t *testing.T) {
 	m := basePush80Model()
 	m.middleItems = nil
@@ -1808,27 +1975,30 @@ func TestCovCursorItemKey(t *testing.T) {
 	m := baseModelCov()
 	m.cursors = [5]int{}
 	m.middleItems = []model.Item{
-		{Name: "pod-1", Namespace: "ns1", Extra: "ref1"},
-		{Name: "pod-2", Namespace: "ns2", Extra: "ref2"},
+		{Name: "pod-1", Namespace: "ns1", Extra: "ref1", Kind: "Pod"},
+		{Name: "pod-2", Namespace: "ns2", Extra: "ref2", Kind: "Pod"},
 	}
 	m.setCursor(0)
-	name, ns, extra := m.cursorItemKey()
+	name, ns, extra, kind := m.cursorItemKey()
 	assert.Equal(t, "pod-1", name)
 	assert.Equal(t, "ns1", ns)
 	assert.Equal(t, "ref1", extra)
+	assert.Equal(t, "Pod", kind)
 
 	m.setCursor(1)
-	name, ns, extra = m.cursorItemKey()
+	name, ns, extra, kind = m.cursorItemKey()
 	assert.Equal(t, "pod-2", name)
 	assert.Equal(t, "ns2", ns)
 	assert.Equal(t, "ref2", extra)
+	assert.Equal(t, "Pod", kind)
 
 	// Out of bounds.
 	m.setCursor(10)
-	name, ns, extra = m.cursorItemKey()
+	name, ns, extra, kind = m.cursorItemKey()
 	assert.Empty(t, name)
 	assert.Empty(t, ns)
 	assert.Empty(t, extra)
+	assert.Empty(t, kind)
 }
 
 func TestCovRestoreCursorToItem(t *testing.T) {
@@ -1840,16 +2010,16 @@ func TestCovRestoreCursorToItem(t *testing.T) {
 		{Name: "c", Namespace: "ns3"},
 	}
 
-	m.restoreCursorToItem("b", "ns2", "")
+	m.restoreCursorToItem("b", "ns2", "", "")
 	assert.Equal(t, 1, m.cursor())
 
 	// Item gone: clamp.
-	m.restoreCursorToItem("missing", "ns4", "")
+	m.restoreCursorToItem("missing", "ns4", "", "")
 	assert.LessOrEqual(t, m.cursor(), 2)
 
 	// Empty name: just clamp.
 	m.setCursor(100)
-	m.restoreCursorToItem("", "", "")
+	m.restoreCursorToItem("", "", "", "")
 	assert.LessOrEqual(t, m.cursor(), 2)
 }
 

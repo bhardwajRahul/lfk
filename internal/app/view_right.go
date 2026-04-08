@@ -306,7 +306,7 @@ func (m Model) renderRightOwned(width, height int) string {
 
 func (m Model) renderRightDefault(width, height int) string {
 	if len(m.rightItems) == 0 {
-		if m.loading {
+		if m.loading || m.previewLoading {
 			return ui.DimStyle.Render(m.spinner.View() + " Loading...")
 		}
 		return ui.DimStyle.Render("No resources found")

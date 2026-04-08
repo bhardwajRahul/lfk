@@ -408,7 +408,7 @@ The action menu (`x` key) shows context-specific actions based on the resource t
 `s` Sync, `a` Sync (Apply Only), `f` Diff, `R` Refresh, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
 
 ### Helm Release Actions
-`u` Values, `A` All Values, `E` Edit Values, `R` Rollback, `v` Describe, `D` Delete, `b` Debug Pod, `V` Events
+`u` Values, `A` All Values, `E` Edit Values, `d` Diff, `U` Upgrade, `R` Rollback, `h` History, `v` Describe, `D` Delete, `b` Debug Pod, `V` Events
 
 ### Ingress Actions
 `o` Open in Browser, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events

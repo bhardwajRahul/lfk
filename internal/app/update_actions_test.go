@@ -9,6 +9,7 @@ import (
 
 	"github.com/janosmiko/lfk/internal/k8s"
 	"github.com/janosmiko/lfk/internal/model"
+	"github.com/janosmiko/lfk/internal/ui"
 )
 
 func TestDirectActionDelete_DeletingPod_ForceDeletes(t *testing.T) {
@@ -948,9 +949,56 @@ func TestCovExecuteActionRollbackDeployment(t *testing.T) {
 func TestCovExecuteActionRollbackHelmRelease(t *testing.T) {
 	m := testModelExec()
 	m.actionCtx.kind = "HelmRelease"
+	m.actionCtx.name = "my-release"
+	m.actionCtx.namespace = "default"
 	result, cmd := m.executeAction("Rollback")
+	mdl := result.(Model)
+	// Helm rollback opens the overlay optimistically in a loading state so
+	// the user gets immediate feedback while helm history runs.
+	assert.Equal(t, overlayHelmRollback, mdl.overlay)
+	assert.Equal(t, 0, mdl.helmRollbackCursor)
+	assert.Nil(t, mdl.helmRollbackRevisions)
+	assert.True(t, mdl.helmRevisionsLoading)
 	assert.NotNil(t, cmd)
-	_ = result
+}
+
+func TestCovExecuteActionHistoryHelmRelease(t *testing.T) {
+	m := testModelExec()
+	m.actionCtx.kind = "HelmRelease"
+	m.actionCtx.name = "my-release"
+	m.actionCtx.namespace = "default"
+	result, cmd := m.executeAction("History")
+	mdl := result.(Model)
+	assert.Equal(t, overlayHelmHistory, mdl.overlay)
+	assert.Equal(t, 0, mdl.helmHistoryCursor)
+	assert.Nil(t, mdl.helmHistoryRevisions)
+	assert.True(t, mdl.helmRevisionsLoading)
+	assert.NotNil(t, cmd)
+}
+
+func TestHelmRevisionListClearsLoadingFlag(t *testing.T) {
+	m := testModelExec()
+	m.helmRevisionsLoading = true
+	result, _ := m.updateHelmRevisionList(helmRevisionListMsg{
+		revisions: []ui.HelmRevision{{Revision: 1, Status: "deployed"}},
+	})
+	mdl := result.(Model)
+	assert.False(t, mdl.helmRevisionsLoading)
+	assert.Equal(t, overlayHelmRollback, mdl.overlay)
+	assert.Len(t, mdl.helmRollbackRevisions, 1)
+}
+
+func TestHelmHistoryListClearsLoadingFlag(t *testing.T) {
+	m := testModelExec()
+	m.helmRevisionsLoading = true
+	m.overlay = overlayHelmHistory
+	result, _ := m.updateHelmHistoryList(helmHistoryListMsg{
+		revisions: []ui.HelmRevision{{Revision: 1, Status: "deployed"}},
+	})
+	mdl := result.(Model)
+	assert.False(t, mdl.helmRevisionsLoading)
+	assert.Equal(t, overlayHelmHistory, mdl.overlay)
+	assert.Len(t, mdl.helmHistoryRevisions, 1)
 }
 
 func TestCovExecuteActionVulnScan(t *testing.T) {

@@ -491,8 +491,27 @@ func (m Model) executeActionExtended(actionLabel string) (tea.Model, tea.Cmd, bo
 	case "Upgrade":
 		mdl, cmd := m.executeActionUpgrade()
 		return mdl, cmd, true
+	case "History":
+		mdl, cmd := m.executeActionHelmHistory()
+		return mdl, cmd, true
 	}
 	return m, nil, false
+}
+
+// executeActionHelmHistory handles the read-only "History" action for HelmRelease.
+// It opens the history overlay in a loading state and issues a command to
+// fetch revisions. The overlay shows a loading placeholder until the fetch
+// completes so the user never sees a misleading empty-state message.
+func (m Model) executeActionHelmHistory() (tea.Model, tea.Cmd) {
+	ns := m.actionCtx.namespace
+	name := m.actionCtx.name
+	ctx := m.actionCtx.context
+	m.addLogEntry("DBG", fmt.Sprintf("$ helm history %s -n %s --kube-context %s -o json", name, ns, ctx))
+	m.overlay = overlayHelmHistory
+	m.helmHistoryCursor = 0
+	m.helmHistoryRevisions = nil
+	m.helmRevisionsLoading = true
+	return m, m.loadHelmHistory()
 }
 
 // executeActionLogs handles the "Logs" action.
@@ -690,13 +709,21 @@ func (m Model) executeActionRestart() (tea.Model, tea.Cmd) {
 	return m, m.restartResource()
 }
 
-// executeActionRollback handles the "Rollback" action.
+// executeActionRollback handles the "Rollback" action. For HelmRelease it
+// opens the rollback overlay optimistically in a loading state so the user
+// gets immediate feedback while the helm history subprocess runs in the
+// background. For other kinds the overlay is opened by the message handler
+// when the deployment revisions arrive.
 func (m Model) executeActionRollback() (tea.Model, tea.Cmd) {
 	ns := m.actionCtx.namespace
 	name := m.actionCtx.name
 	ctx := m.actionCtx.context
 	if m.actionCtx.kind == "HelmRelease" {
 		m.addLogEntry("DBG", fmt.Sprintf("$ helm history %s -n %s --kube-context %s -o json", name, ns, ctx))
+		m.overlay = overlayHelmRollback
+		m.helmRollbackCursor = 0
+		m.helmRollbackRevisions = nil
+		m.helmRevisionsLoading = true
 		return m, m.loadHelmRevisions()
 	}
 	m.addLogEntry("DBG", fmt.Sprintf("$ kubectl rollout undo deployment %s -n %s --context %s", name, ns, ctx))

@@ -739,6 +739,8 @@ func TestActionsForKind(t *testing.T) {
 		labels := actionLabels(actions)
 		assert.Contains(t, labels, "Describe")
 		assert.Contains(t, labels, "Delete")
+		assert.Contains(t, labels, "History")
+		assert.Contains(t, labels, "Rollback")
 		assert.NotContains(t, labels, "Edit")
 	})
 

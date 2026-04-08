@@ -73,6 +73,11 @@ func (m Model) overlayHintBarDialog() string {
 			{Key: "Enter", Desc: "rollback"},
 			{Key: "esc", Desc: "cancel"},
 		})
+	case overlayHelmHistory:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "jk", Desc: "nav"},
+			{Key: "esc", Desc: "close"},
+		})
 	}
 	return ""
 }

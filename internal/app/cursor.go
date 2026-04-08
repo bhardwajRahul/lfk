@@ -57,27 +57,32 @@ func (m *Model) clampCursor() {
 }
 
 // cursorItemKey returns a stable identifier for the currently selected visible item.
-// Returns empty strings if no item is selected.
-func (m *Model) cursorItemKey() (name, namespace, extra string) {
+// Returns empty strings if no item is selected. Kind is included in the
+// identity so that resources sharing the same name+namespace+extra (e.g. an
+// ArgoCD application that creates a Deployment, Service, ConfigMap and
+// ServiceAccount all named "myapp" — all in the same namespace, all with
+// extra "/v1" derived from group/version only) can still be told apart when
+// the cursor is restored after a refresh.
+func (m *Model) cursorItemKey() (name, namespace, extra, kind string) {
 	visible := m.visibleMiddleItems()
 	c := m.cursor()
 	if c >= 0 && c < len(visible) {
-		return visible[c].Name, visible[c].Namespace, visible[c].Extra
+		return visible[c].Name, visible[c].Namespace, visible[c].Extra, visible[c].Kind
 	}
-	return "", "", ""
+	return "", "", "", ""
 }
 
 // restoreCursorToItem adjusts the cursor to point at the item matching the given
-// name/namespace/extra in the current visible items. Falls back to clampCursor
-// if the item is no longer in the list.
-func (m *Model) restoreCursorToItem(name, namespace, extra string) {
-	if name == "" && extra == "" {
+// name/namespace/extra/kind in the current visible items. Falls back to
+// clampCursor if the item is no longer in the list.
+func (m *Model) restoreCursorToItem(name, namespace, extra, kind string) {
+	if name == "" && extra == "" && kind == "" {
 		m.clampCursor()
 		return
 	}
 	visible := m.visibleMiddleItems()
 	for i, item := range visible {
-		if item.Name == name && item.Namespace == namespace && item.Extra == extra {
+		if item.Name == name && item.Namespace == namespace && item.Extra == extra && item.Kind == kind {
 			m.setCursor(i)
 			return
 		}

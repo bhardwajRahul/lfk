@@ -1060,6 +1060,22 @@ func TestFinal2UpdateResourcesLoadedMsg(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
+// TestFinal2UpdateResourcesLoadedMsgPreviewLoadingArmed locks in the fix for
+// the navigation flicker: when the main resource list arrives, the right
+// pane's previewLoading flag must be set so the spinner keeps showing during
+// the gap between the main list arriving and the preview load completing.
+// Without this the right pane briefly renders "No resources found".
+func TestFinal2UpdateResourcesLoadedMsgPreviewLoadingArmed(t *testing.T) {
+	m := baseFinalModel()
+	m.loading = true
+	m.previewLoading = false
+	m.requestGen = 1
+	items := []model.Item{{Name: "pod-1", Namespace: "default"}}
+	result, _ := m.Update(resourcesLoadedMsg{items: items, gen: 1})
+	rm := result.(Model)
+	assert.True(t, rm.previewLoading, "previewLoading must be armed when main list arrives so the right pane keeps showing the spinner")
+}
+
 func TestFinal2UpdateResourcesLoadedMsgStale(t *testing.T) {
 	m := baseFinalModel()
 	m.requestGen = 2

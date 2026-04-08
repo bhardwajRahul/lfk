@@ -573,6 +573,88 @@ func TestHelmRollbackOverlayCtrlDPageDown(t *testing.T) {
 	assert.Equal(t, 10, result.helmRollbackCursor)
 }
 
+// --- handleHelmHistoryOverlayKey ---
+
+func TestHelmHistoryOverlayEscCloses(t *testing.T) {
+	m := Model{
+		overlay:              overlayHelmHistory,
+		helmHistoryRevisions: []ui.HelmRevision{{Revision: 1}},
+		tabs:                 []TabState{{}},
+		width:                80,
+		height:               40,
+	}
+	ret, _ := m.handleHelmHistoryOverlayKey(specialKey(tea.KeyEsc))
+	result := ret.(Model)
+	assert.Equal(t, overlayNone, result.overlay)
+	assert.Nil(t, result.helmHistoryRevisions)
+}
+
+func TestHelmHistoryOverlayJKNavigation(t *testing.T) {
+	revisions := []ui.HelmRevision{{Revision: 1}, {Revision: 2}, {Revision: 3}}
+	m := Model{
+		overlay:              overlayHelmHistory,
+		helmHistoryRevisions: revisions,
+		helmHistoryCursor:    0,
+		tabs:                 []TabState{{}},
+		width:                80,
+		height:               40,
+	}
+
+	ret, _ := m.handleHelmHistoryOverlayKey(runeKey('j'))
+	result := ret.(Model)
+	assert.Equal(t, 1, result.helmHistoryCursor)
+
+	ret2, _ := result.handleHelmHistoryOverlayKey(runeKey('k'))
+	result2 := ret2.(Model)
+	assert.Equal(t, 0, result2.helmHistoryCursor)
+}
+
+func TestHelmHistoryOverlayPageNavigation(t *testing.T) {
+	revisions := make([]ui.HelmRevision, 30)
+	m := Model{
+		overlay:              overlayHelmHistory,
+		helmHistoryRevisions: revisions,
+		helmHistoryCursor:    0,
+		tabs:                 []TabState{{}},
+		width:                80,
+		height:               40,
+	}
+	ret, _ := m.handleHelmHistoryOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlD})
+	result := ret.(Model)
+	assert.Equal(t, 10, result.helmHistoryCursor)
+
+	ret, _ = result.handleHelmHistoryOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlU})
+	result = ret.(Model)
+	assert.Equal(t, 0, result.helmHistoryCursor)
+
+	ret, _ = result.handleHelmHistoryOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlF})
+	result = ret.(Model)
+	assert.Equal(t, 20, result.helmHistoryCursor)
+
+	ret, _ = result.handleHelmHistoryOverlayKey(tea.KeyMsg{Type: tea.KeyCtrlB})
+	result = ret.(Model)
+	assert.Equal(t, 0, result.helmHistoryCursor)
+}
+
+func TestHelmHistoryOverlayEnterIsNoop(t *testing.T) {
+	// Enter must NOT trigger a rollback from the history view. The overlay
+	// stays open and no command is returned.
+	revisions := []ui.HelmRevision{{Revision: 1}, {Revision: 2}}
+	m := Model{
+		overlay:              overlayHelmHistory,
+		helmHistoryRevisions: revisions,
+		helmHistoryCursor:    1,
+		tabs:                 []TabState{{}},
+		width:                80,
+		height:               40,
+	}
+	ret, cmd := m.handleHelmHistoryOverlayKey(specialKey(tea.KeyEnter))
+	result := ret.(Model)
+	assert.Equal(t, overlayHelmHistory, result.overlay)
+	assert.Equal(t, 1, result.helmHistoryCursor)
+	assert.Nil(t, cmd)
+}
+
 // --- handleLogPodFilterMode ---
 
 func TestLogPodFilterModeEscExits(t *testing.T) {

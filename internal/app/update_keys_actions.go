@@ -181,10 +181,7 @@ func (m Model) handleExplorerActionKeyPageDown() (tea.Model, tea.Cmd, bool) {
 	}
 	m.setCursor(c)
 	m.syncExpandedGroup()
-	m.rightItems = nil
-	m.previewYAML = ""
-	m.previewScroll = 0
-	m.loading = true
+	m.invalidatePreviewForCursorChange()
 	return m, m.loadPreview(), true
 }
 
@@ -208,10 +205,7 @@ func (m Model) handleExplorerActionKeyPageUp() (tea.Model, tea.Cmd, bool) {
 	}
 	m.setCursor(c)
 	m.syncExpandedGroup()
-	m.rightItems = nil
-	m.previewYAML = ""
-	m.previewScroll = 0
-	m.loading = true
+	m.invalidatePreviewForCursorChange()
 	return m, m.loadPreview(), true
 }
 
@@ -233,10 +227,7 @@ func (m Model) handleExplorerActionKeyPageForward() (tea.Model, tea.Cmd, bool) {
 	}
 	m.setCursor(c)
 	m.syncExpandedGroup()
-	m.rightItems = nil
-	m.previewYAML = ""
-	m.previewScroll = 0
-	m.loading = true
+	m.invalidatePreviewForCursorChange()
 	return m, m.loadPreview(), true
 }
 
@@ -260,10 +251,7 @@ func (m Model) handleExplorerActionKeyPageBack() (tea.Model, tea.Cmd, bool) {
 	}
 	m.setCursor(c)
 	m.syncExpandedGroup()
-	m.rightItems = nil
-	m.previewYAML = ""
-	m.previewScroll = 0
-	m.loading = true
+	m.invalidatePreviewForCursorChange()
 	return m, m.loadPreview(), true
 }
 
