@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -304,6 +305,21 @@ func (m Model) handleSecretEditorEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		activeInput = keyInput
 	}
 
+	// Handle paste events (Cmd+V on macOS, Ctrl+Shift+V on Linux) by
+	// inserting the pasted text at the cursor. Newlines are stripped from
+	// the key field but kept in the value field.
+	if msg.Paste {
+		text := string(msg.Runes)
+		if col == 0 {
+			text = strings.ReplaceAll(text, "\n", "")
+			text = strings.ReplaceAll(text, "\r", "")
+		}
+		if text != "" {
+			activeInput.Insert(text)
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "esc":
 		m.secretEditing = false
@@ -439,6 +455,21 @@ func (m Model) handleConfigMapEditorEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		activeInput = keyInput
 	}
 
+	// Handle paste events (Cmd+V on macOS, Ctrl+Shift+V on Linux) by
+	// inserting the pasted text at the cursor. Newlines are stripped from
+	// the key field but kept in the value field.
+	if msg.Paste {
+		text := string(msg.Runes)
+		if col == 0 {
+			text = strings.ReplaceAll(text, "\n", "")
+			text = strings.ReplaceAll(text, "\r", "")
+		}
+		if text != "" {
+			activeInput.Insert(text)
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "esc":
 		m.configMapEditing = false
@@ -512,25 +543,41 @@ func (m Model) handleLabelEditorEditKey(msg tea.KeyMsg, currentKeys []string, cu
 		activeInput = keyInput
 	}
 
+	// Handle paste events (Cmd+V on macOS, Ctrl+Shift+V on Linux) by
+	// inserting the pasted text at the cursor. Newlines are stripped from
+	// the key field but kept in the value field.
+	if msg.Paste {
+		text := string(msg.Runes)
+		if col == 0 {
+			text = strings.ReplaceAll(text, "\n", "")
+			text = strings.ReplaceAll(text, "\r", "")
+		}
+		if text != "" {
+			activeInput.Insert(text)
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "esc":
 		m.labelEditing = false
 		m.labelEditColumn = -1
 		return m, nil
 	case "ctrl+s":
-		if col == 0 {
-			oldKey := currentKeys[m.labelCursor]
-			newKey := keyInput.Value
-			if newKey != "" && newKey != oldKey {
-				val := currentData[oldKey]
-				delete(currentData, oldKey)
-				currentData[newKey] = val
-				currentKeys[m.labelCursor] = newKey
-			}
-		} else {
-			key := currentKeys[m.labelCursor]
-			currentData[key] = valInput.Value
+		// Commit both the key and the value edits at once, regardless of
+		// which column is currently active. This lets the user type a new
+		// key, tab to the value column, type a value, and save — without
+		// silently losing the key edit that happened before the tab.
+		oldKey := currentKeys[m.labelCursor]
+		newKey := keyInput.Value
+		if newKey == "" {
+			newKey = oldKey
 		}
+		if newKey != oldKey {
+			delete(currentData, oldKey)
+			currentKeys[m.labelCursor] = newKey
+		}
+		currentData[newKey] = valInput.Value
 		if m.labelTab == 0 {
 			m.labelData.LabelKeys = currentKeys
 			m.labelData.Labels = currentData
