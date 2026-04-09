@@ -184,19 +184,26 @@ func (m Model) hasSplitPreview() bool {
 }
 
 // renderDetailsOnly renders the details portion (without children table) for the right column.
+// The returned string contains a "DETAILS" header line followed by the summary
+// body, and fits within the requested height (body capped at height-1 to
+// reserve one line for the header).
 func (m Model) renderDetailsOnly(width, height int) string {
 	sel := m.selectedMiddleItem()
 	detailsHeader := ui.DimStyle.Bold(true).Render("DETAILS")
+	bodyHeight := height - 1
+	if bodyHeight < 1 {
+		bodyHeight = 1
+	}
 	var bottomContent string
 	if sel != nil && len(sel.Columns) > 0 {
-		bottomContent = ui.RenderResourceSummary(sel, "", width, height)
+		bottomContent = ui.RenderResourceSummary(sel, "", width, bodyHeight)
 	} else {
 		yaml := m.previewYAML
 		if yaml == "" {
 			yaml = m.yamlContent
 		}
 		if yaml != "" {
-			bottomContent = ui.RenderYAMLContent(m.maskYAMLIfSecret(yaml), width, height)
+			bottomContent = ui.RenderYAMLContent(m.maskYAMLIfSecret(yaml), width, bodyHeight)
 		} else {
 			bottomContent = ui.DimStyle.Render("No details available")
 		}
