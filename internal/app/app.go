@@ -544,7 +544,7 @@ type Model struct {
 	warningEventsOnly bool
 
 	// Discovered CRDs per context: keyed by context name.
-	discoveredCRDs map[string][]model.ResourceTypeEntry
+	discoveredResources map[string][]model.ResourceTypeEntry
 
 	// Preview scroll offset for the right column.
 	previewScroll int
@@ -842,7 +842,7 @@ func NewModel(client *k8s.Client) Model {
 		selectedItems:       make(map[string]bool),
 		selectionAnchor:     -1,
 		yamlCollapsed:       make(map[string]bool),
-		discoveredCRDs:      make(map[string][]model.ResourceTypeEntry),
+		discoveredResources: make(map[string][]model.ResourceTypeEntry),
 		allGroupsExpanded:   true,
 		warningEventsOnly:   true,
 		diffLineNumbers:     true,

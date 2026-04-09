@@ -647,12 +647,10 @@ func (m Model) renderErrorLogOverlay(background string) string {
 	if m.errorLogFullscreen {
 		// Fullscreen: use full terminal dimensions, no overlay border.
 		content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, m.height-1, m.showDebugLogs, vp)
-		// Pad to full height so there's no background bleed.
-		lines := strings.Split(content, "\n")
-		for len(lines) < m.height-1 {
-			lines = append(lines, "")
-		}
-		return strings.Join(lines[:m.height-1], "\n")
+		// Truncate each line to terminal width so long messages do not wrap
+		// and push content off the bottom of the screen.
+		content = clampErrorLogLines(content, m.width, m.height-1)
+		return content
 	}
 
 	overlayW := min(140, m.width-4)
@@ -664,9 +662,38 @@ func (m Model) renderErrorLogOverlay(background string) string {
 		overlayH = 3
 	}
 
-	content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, overlayH, m.showDebugLogs, vp)
-	content = ui.FillLinesBg(content, overlayW-4, ui.SurfaceBg)
+	// OverlayStyle adds 2 border + 2*2 horizontal padding + 2*1 vertical padding,
+	// so the inner content area is overlayW-6 wide and overlayH-4 tall. Render
+	// only that many lines so lipgloss does not expand the overlay to fit
+	// overflowing content.
+	innerW := overlayW - 6
+	innerH := overlayH - 4
+	if innerW < 1 {
+		innerW = 1
+	}
+	if innerH < 1 {
+		innerH = 1
+	}
+	content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, innerH, m.showDebugLogs, vp)
+	content = clampErrorLogLines(content, innerW, innerH)
+	content = ui.FillLinesBg(content, innerW, ui.SurfaceBg)
 	overlay := ui.OverlayStyle.Width(overlayW).Height(overlayH).Render(content)
 	bg := ui.PadToHeight(background, m.height)
 	return ui.PlaceOverlay(m.width, m.height, overlay, bg)
+}
+
+// clampErrorLogLines truncates each line of content to maxW visual columns
+// and caps the total line count at maxH. Lines that exceed maxW are cut with
+// a trailing "~" marker via ui.Truncate; extra lines beyond maxH are dropped.
+// This prevents long error messages from wrapping and pushing the overlay
+// past its allocated height.
+func clampErrorLogLines(content string, maxW, maxH int) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) > maxH {
+		lines = lines[:maxH]
+	}
+	for i, line := range lines {
+		lines[i] = ui.Truncate(line, maxW)
+	}
+	return strings.Join(lines, "\n")
 }

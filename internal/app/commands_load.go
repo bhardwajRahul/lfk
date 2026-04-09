@@ -43,25 +43,28 @@ func (m Model) loadContexts() tea.Msg {
 }
 
 func (m Model) loadResourceTypes() tea.Cmd {
-	crds := m.discoveredCRDs[m.nav.Context]
+	kctx := m.nav.Context
+	discovered := m.discoveredResources[kctx]
+	var items []model.Item
+	if len(discovered) > 0 {
+		items = model.BuildSidebarItems(discovered)
+	} else {
+		items = model.BuildSidebarItems(model.SeedResources())
+	}
 	return func() tea.Msg {
-		if len(crds) > 0 {
-			return resourceTypesMsg{items: model.MergeWithCRDs(crds)}
-		}
-		// No CRDs discovered yet: hide ArgoCD and Gateway API (require CRDs), show Helm (uses helm binary).
-		// Pass nil availableGroups so individual CRD-dependent entries (e.g. VPA) are also hidden.
-		return resourceTypesMsg{items: model.FlattenedResourceTypesFiltered(nil)}
+		return resourceTypesMsg{items: items}
 	}
 }
 
-// discoverCRDs launches async CRD discovery for the given context.
-// Uses context.Background() instead of m.reqCtx because CRD discovery should
-// not be cancelled by navigation actions (cancelAndReset).
-func (m Model) discoverCRDs(contextName string) tea.Cmd {
+// discoverAPIResources launches async API resource discovery for the given
+// context via Client.DiscoverAPIResources. Uses context.Background() instead
+// of m.reqCtx because discovery should not be cancelled by navigation
+// actions (cancelAndReset). Results are delivered via apiResourceDiscoveryMsg.
+func (m Model) discoverAPIResources(contextName string) tea.Cmd {
 	client := m.client
 	return func() tea.Msg {
-		entries, err := client.DiscoverCRDs(context.Background(), contextName)
-		return crdDiscoveryMsg{context: contextName, entries: entries, err: err}
+		entries, err := client.DiscoverAPIResources(context.Background(), contextName)
+		return apiResourceDiscoveryMsg{context: contextName, entries: entries, err: err}
 	}
 }
 
@@ -87,7 +90,7 @@ func (m Model) loadResources(forPreview bool) tea.Cmd {
 		if sel == nil {
 			return nil
 		}
-		found, ok := model.FindResourceTypeIn(sel.Extra, m.discoveredCRDs[kctx])
+		found, ok := model.FindResourceTypeIn(sel.Extra, m.discoveredResources[kctx])
 		if !ok {
 			return nil
 		}
@@ -206,14 +209,34 @@ func (m Model) loadNamespaces() tea.Cmd {
 // it falls back to constructing a ResourceTypeEntry from the item's Extra
 // metadata (which may contain "group/version" from ArgoCD status) and the
 // Kind. Returns false if the type cannot be resolved.
+//
+// When sel.Extra carries a "group/version" hint (e.g. helm manifest items
+// expose the rendered apiVersion there), the lookup is biased toward the
+// matching APIGroup so that two CRDs sharing the same Kind name but living
+// in different API groups (e.g. VaultDynamicSecret in secrets.hashicorp.com
+// vs. generators.external-secrets.io) resolve to the right CRD instead of
+// whichever one was iterated first.
 func (m Model) resolveOwnedResourceType(sel *model.Item) (model.ResourceTypeEntry, bool) {
 	if sel == nil {
 		return model.ResourceTypeEntry{}, false
 	}
 	kctx := m.nav.Context
-	crds := m.discoveredCRDs[kctx]
+	crds := m.discoveredResources[kctx]
 
-	// First try to find by Kind in built-in types and discovered CRDs.
+	// If Extra carries an apiVersion ("group/version"), prefer matching by
+	// Kind+APIGroup so duplicate Kind names across API groups resolve to
+	// the right CRD. Core types (Extra="v1") have no group component and
+	// fall through to the Kind-only lookup below.
+	if sel.Extra != "" && sel.Kind != "" {
+		parts := strings.SplitN(sel.Extra, "/", 2)
+		if len(parts) == 2 && parts[0] != "" {
+			if rt, ok := model.FindResourceTypeByKindAndGroup(sel.Kind, parts[0], crds); ok {
+				return rt, true
+			}
+		}
+	}
+
+	// Try to find by Kind in built-in types and discovered CRDs.
 	if rt, ok := model.FindResourceTypeByKind(sel.Kind, crds); ok {
 		return rt, true
 	}
@@ -222,24 +245,6 @@ func (m Model) resolveOwnedResourceType(sel *model.Item) (model.ResourceTypeEntr
 	if sel.Extra != "" {
 		if rt, ok := model.FindResourceTypeIn(sel.Extra, crds); ok {
 			return rt, true
-		}
-	}
-
-	// Fallback: if Extra contains "group/version" (from ArgoCD status.resources),
-	// construct a ResourceTypeEntry by deriving the plural resource name from Kind.
-	if sel.Extra != "" && sel.Kind != "" {
-		parts := strings.SplitN(sel.Extra, "/", 2)
-		if len(parts) == 2 {
-			group := parts[0]
-			version := parts[1]
-			resource := strings.ToLower(sel.Kind) + "s"
-			return model.ResourceTypeEntry{
-				Kind:       sel.Kind,
-				APIGroup:   group,
-				APIVersion: version,
-				Resource:   resource,
-				Namespaced: true,
-			}, true
 		}
 	}
 

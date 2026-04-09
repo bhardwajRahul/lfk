@@ -376,7 +376,7 @@ func (m Model) navigateToBookmark(bm model.Bookmark) (tea.Model, tea.Cmd) {
 		effectiveContext = m.nav.Context
 	}
 
-	rt, ok := model.FindResourceTypeIn(bm.ResourceType, m.discoveredCRDs[effectiveContext])
+	rt, ok := model.FindResourceTypeIn(bm.ResourceType, m.discoveredResources[effectiveContext])
 	if !ok {
 		m.setStatusMessage("Resource type not found in current cluster", true)
 		return m, scheduleStatusClear()
@@ -434,10 +434,10 @@ func (m Model) navigateToBookmark(bm model.Bookmark) (tea.Model, tea.Cmd) {
 	// Load contexts as the base left column.
 	contexts, _ := m.client.GetContexts()
 	var resourceTypes []model.Item
-	if crds := m.discoveredCRDs[effectiveContext]; len(crds) > 0 {
-		resourceTypes = model.MergeWithCRDs(crds)
+	if discovered := m.discoveredResources[effectiveContext]; len(discovered) > 0 {
+		resourceTypes = model.BuildSidebarItems(discovered)
 	} else {
-		resourceTypes = model.FlattenedResourceTypes()
+		resourceTypes = model.BuildSidebarItems(model.SeedResources())
 	}
 
 	// Set up history: at LevelResources, leftItemsHistory has [contexts], leftItems = resourceTypes.
@@ -519,18 +519,18 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 	m.leftItems = contexts
 
 	// Load resource types for the middle column.
-	m.middleItems = model.FlattenedResourceTypes()
+	m.middleItems = model.BuildSidebarItems(model.SeedResources())
 	m.itemCache[m.navKey()] = m.middleItems
 	m.clearRight()
 
 	// Restore namespace settings from session.
 	applySessionNamespaces(&m, sess.AllNamespaces, sess.Namespace, sess.SelectedNamespaces)
 
-	cmds := []tea.Cmd{m.discoverCRDs(sess.Context)}
+	cmds := []tea.Cmd{m.discoverAPIResources(sess.Context)}
 
 	// If a resource type was saved, navigate deeper.
 	if sess.ResourceType != "" {
-		rt, ok := model.FindResourceType(sess.ResourceType)
+		rt, ok := model.FindResourceTypeIn(sess.ResourceType, m.discoveredResources[sess.Context])
 		if ok {
 			// Save cursor position at the resource types level so navigating
 			// back (h) restores the cursor to the correct resource type.
@@ -586,7 +586,7 @@ func (m Model) restoreMultiTabSession(sess *SessionState, contexts []model.Item)
 	// Build TabState entries for every tab.
 	tabs := make([]TabState, 0, len(sess.Tabs))
 	for i, st := range sess.Tabs {
-		tab := buildSessionTabState(&st)
+		tab := buildSessionTabState(&st, m.discoveredResources[st.Context])
 		if i != activeIdx {
 			// Non-active tabs are lazily loaded on first switch.
 			tab.needsLoad = true
@@ -610,8 +610,10 @@ func (m Model) restoreMultiTabSession(sess *SessionState, contexts []model.Item)
 
 // buildSessionTabState creates a TabState with navigation fields populated
 // from a SessionTab. The tab has no loaded items yet; those are fetched
-// when the tab becomes active (needsLoad).
-func buildSessionTabState(st *SessionTab) TabState {
+// when the tab becomes active (needsLoad). The discovered parameter
+// provides the resource types known for the tab's context so the saved
+// ResourceType can be resolved to a concrete GVR.
+func buildSessionTabState(st *SessionTab, discovered []model.ResourceTypeEntry) TabState {
 	tab := TabState{
 		nav: model.NavigationState{
 			Context: st.Context,
@@ -645,7 +647,7 @@ func buildSessionTabState(st *SessionTab) TabState {
 
 	// Resource type and navigation level.
 	if st.ResourceType != "" {
-		rt, ok := model.FindResourceType(st.ResourceType)
+		rt, ok := model.FindResourceTypeIn(st.ResourceType, discovered)
 		if ok {
 			tab.nav.ResourceType = rt
 			tab.nav.Level = model.LevelResources

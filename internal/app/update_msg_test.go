@@ -429,10 +429,10 @@ func TestPush2UpdateWatchTickMsgNotActive(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
-func TestPush2UpdateCrdDiscoveryMsg(t *testing.T) {
+func TestPush2UpdateAPIResourceDiscoveryMsg(t *testing.T) {
 	m := basePush80v2Model()
 	m.nav.Level = model.LevelResourceTypes
-	msg := crdDiscoveryMsg{
+	msg := apiResourceDiscoveryMsg{
 		context: "test-ctx",
 		entries: []model.ResourceTypeEntry{
 			{Kind: "MyCRD", Resource: "mycrds"},
@@ -440,18 +440,18 @@ func TestPush2UpdateCrdDiscoveryMsg(t *testing.T) {
 	}
 	result, _ := m.Update(msg)
 	rm := result.(Model)
-	assert.NotEmpty(t, rm.discoveredCRDs["test-ctx"])
+	assert.NotEmpty(t, rm.discoveredResources["test-ctx"])
 }
 
-func TestPush2UpdateCrdDiscoveryMsgDiffContext(t *testing.T) {
+func TestPush2UpdateAPIResourceDiscoveryMsgDiffContext(t *testing.T) {
 	m := basePush80v2Model()
-	msg := crdDiscoveryMsg{
+	msg := apiResourceDiscoveryMsg{
 		context: "other-ctx",
 		entries: []model.ResourceTypeEntry{{Kind: "X"}},
 	}
 	result, _ := m.Update(msg)
 	rm := result.(Model)
-	assert.NotEmpty(t, rm.discoveredCRDs["other-ctx"])
+	assert.NotEmpty(t, rm.discoveredResources["other-ctx"])
 }
 
 func TestPush2UpdateActionResultMsg(t *testing.T) {
@@ -1448,9 +1448,9 @@ func TestFinal2UpdateCRDDiscoveryMsgDeeperLevel(t *testing.T) {
 		{Kind: "Pod", Resource: "pods", APIVersion: "v1"},
 		{Kind: "CustomResource", Resource: "crs", APIGroup: "example.com", APIVersion: "v1"},
 	}
-	result, _ := m.Update(crdDiscoveryMsg{context: "test-ctx", entries: entries})
+	result, _ := m.Update(apiResourceDiscoveryMsg{context: "test-ctx", entries: entries})
 	rm := result.(Model)
-	assert.Contains(t, rm.discoveredCRDs, "test-ctx")
+	assert.Contains(t, rm.discoveredResources, "test-ctx")
 }
 
 func TestFinal2UpdateSpinnerTick(t *testing.T) {
@@ -1689,20 +1689,20 @@ func TestFinalUpdateCRDDiscoveryMsg(t *testing.T) {
 	m := baseFinalModel()
 	m.nav.Level = model.LevelResourceTypes
 	entries := []model.ResourceTypeEntry{{Kind: "CustomResource", Resource: "crs"}}
-	result, _ := m.Update(crdDiscoveryMsg{context: "test-ctx", entries: entries})
+	result, _ := m.Update(apiResourceDiscoveryMsg{context: "test-ctx", entries: entries})
 	rm := result.(Model)
-	assert.Contains(t, rm.discoveredCRDs, "test-ctx")
+	assert.Contains(t, rm.discoveredResources, "test-ctx")
 }
 
 func TestFinalUpdateCRDDiscoveryMsgError(t *testing.T) {
 	m := baseFinalModel()
-	result, _ := m.Update(crdDiscoveryMsg{context: "test-ctx", err: assert.AnError})
+	result, _ := m.Update(apiResourceDiscoveryMsg{context: "test-ctx", err: assert.AnError})
 	_ = result.(Model)
 }
 
 func TestFinalUpdateCRDDiscoveryMsgCanceled(t *testing.T) {
 	m := baseFinalModel()
-	result, _ := m.Update(crdDiscoveryMsg{err: context.Canceled})
+	result, _ := m.Update(apiResourceDiscoveryMsg{err: context.Canceled})
 	_ = result.(Model)
 }
 
@@ -2002,12 +2002,12 @@ func TestCovUpdateCRDDiscovery(t *testing.T) {
 	m := baseModelUpdate()
 	m.nav.Level = model.LevelResourceTypes
 	m.nav.Context = "ctx-1"
-	result, _ := m.Update(crdDiscoveryMsg{
+	result, _ := m.Update(apiResourceDiscoveryMsg{
 		context: "ctx-1",
 		entries: []model.ResourceTypeEntry{{Kind: "MyResource", Resource: "myresources"}},
 	})
 	rm := result.(Model)
-	assert.NotNil(t, rm.discoveredCRDs["ctx-1"])
+	assert.NotNil(t, rm.discoveredResources["ctx-1"])
 }
 
 func TestCovUpdateCRDDiscoveryDeeper(t *testing.T) {
@@ -2015,17 +2015,17 @@ func TestCovUpdateCRDDiscoveryDeeper(t *testing.T) {
 	m.nav.Level = model.LevelResources
 	m.nav.Context = "ctx-1"
 	m.nav.ResourceType = model.ResourceTypeEntry{Kind: "Pod", Resource: "pods", APIVersion: "v1"}
-	result, _ := m.Update(crdDiscoveryMsg{
+	result, _ := m.Update(apiResourceDiscoveryMsg{
 		context: "ctx-1",
 		entries: []model.ResourceTypeEntry{{Kind: "Pod", Resource: "pods"}},
 	})
 	rm := result.(Model)
-	assert.NotNil(t, rm.discoveredCRDs["ctx-1"])
+	assert.NotNil(t, rm.discoveredResources["ctx-1"])
 }
 
 func TestCovUpdateCRDDiscoveryError(t *testing.T) {
 	m := baseModelUpdate()
-	result, _ := m.Update(crdDiscoveryMsg{
+	result, _ := m.Update(apiResourceDiscoveryMsg{
 		context: "ctx-1",
 		err:     errors.New("forbidden"),
 	})
@@ -2034,7 +2034,7 @@ func TestCovUpdateCRDDiscoveryError(t *testing.T) {
 
 func TestCovUpdateCRDDiscoveryCanceled(t *testing.T) {
 	m := baseModelUpdate()
-	result, cmd := m.Update(crdDiscoveryMsg{
+	result, cmd := m.Update(apiResourceDiscoveryMsg{
 		err: context.Canceled,
 	})
 	assert.Nil(t, cmd)
@@ -2044,12 +2044,12 @@ func TestCovUpdateCRDDiscoveryCanceled(t *testing.T) {
 func TestCovUpdateCRDDiscoveryDifferentContext(t *testing.T) {
 	m := baseModelUpdate()
 	m.nav.Context = "ctx-1"
-	result, _ := m.Update(crdDiscoveryMsg{
+	result, _ := m.Update(apiResourceDiscoveryMsg{
 		context: "ctx-2",
 		entries: []model.ResourceTypeEntry{{Kind: "MyResource", Resource: "myresources"}},
 	})
 	rm := result.(Model)
-	assert.NotNil(t, rm.discoveredCRDs["ctx-2"])
+	assert.NotNil(t, rm.discoveredResources["ctx-2"])
 }
 
 func TestCovUpdateResourcesLoaded(t *testing.T) {

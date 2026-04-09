@@ -190,7 +190,7 @@ func TestBookmarkToSlot_ContextAwareFlag(t *testing.T) {
 
 // customCRDResourceType returns a CRD-based ResourceTypeEntry that won't match
 // any built-in resource types. This ensures FindResourceTypeIn only succeeds
-// when the correct cluster's discoveredCRDs contains it.
+// when the correct cluster's discoveredResources contains it.
 func customCRDResourceType() model.ResourceTypeEntry {
 	return model.ResourceTypeEntry{
 		Kind:        "Widget",
@@ -214,7 +214,7 @@ func TestNavigateToBookmark_LocalKeepsContext(t *testing.T) {
 		nav: model.NavigationState{
 			Context: "cluster-A",
 		},
-		discoveredCRDs: map[string][]model.ResourceTypeEntry{
+		discoveredResources: map[string][]model.ResourceTypeEntry{
 			"cluster-A": {crd},
 			"cluster-B": {}, // cluster-B does NOT have the CRD
 		},
@@ -246,7 +246,7 @@ func TestNavigateToBookmark_LocalKeepsContext_FailsInWrongCluster(t *testing.T) 
 		nav: model.NavigationState{
 			Context: "cluster-A",
 		},
-		discoveredCRDs: map[string][]model.ResourceTypeEntry{
+		discoveredResources: map[string][]model.ResourceTypeEntry{
 			"cluster-A": {}, // cluster-A does NOT have the CRD
 			"cluster-B": {crd},
 		},
@@ -280,7 +280,7 @@ func TestNavigateToBookmark_GlobalSwitchesContext(t *testing.T) {
 		nav: model.NavigationState{
 			Context: "cluster-A",
 		},
-		discoveredCRDs: map[string][]model.ResourceTypeEntry{
+		discoveredResources: map[string][]model.ResourceTypeEntry{
 			"cluster-A": {}, // cluster-A does NOT have the CRD
 			"cluster-B": {crd},
 		},
@@ -311,7 +311,7 @@ func TestNavigateToBookmark_GlobalFailsInWrongCluster(t *testing.T) {
 		nav: model.NavigationState{
 			Context: "cluster-A",
 		},
-		discoveredCRDs: map[string][]model.ResourceTypeEntry{
+		discoveredResources: map[string][]model.ResourceTypeEntry{
 			"cluster-A": {crd},
 			"cluster-B": {}, // cluster-B does NOT have the CRD
 		},
@@ -425,13 +425,13 @@ func TestSaveBookmark_OverwriteDoesNotCorruptOriginal(t *testing.T) {
 
 func TestNavigateToBookmark_LocalResourceNotFound(t *testing.T) {
 	// Use a custom CRD ref that doesn't exist anywhere.
-	// With an empty discoveredCRDs for the current cluster, the function
+	// With an empty discoveredResources for the current cluster, the function
 	// should return the "not found" error.
 	m := Model{
 		nav: model.NavigationState{
 			Context: "cluster-A",
 		},
-		discoveredCRDs: map[string][]model.ResourceTypeEntry{
+		discoveredResources: map[string][]model.ResourceTypeEntry{
 			"cluster-A": {},
 		},
 	}
@@ -572,7 +572,7 @@ func TestCovBuildSessionTabState(t *testing.T) {
 		AllNamespaces: false,
 		ResourceType:  "",
 	}
-	tab := buildSessionTabState(st)
+	tab := buildSessionTabState(st, nil)
 	assert.Equal(t, "my-ctx", tab.nav.Context)
 	assert.Equal(t, "my-ns", tab.namespace)
 	assert.Equal(t, model.LevelResourceTypes, tab.nav.Level)
@@ -583,13 +583,13 @@ func TestCovBuildSessionTabStateAllNS(t *testing.T) {
 		Context:       "my-ctx",
 		AllNamespaces: true,
 	}
-	tab := buildSessionTabState(st)
+	tab := buildSessionTabState(st, nil)
 	assert.True(t, tab.allNamespaces)
 }
 
 func TestCovBuildSessionTabStateNoContext(t *testing.T) {
 	st := &SessionTab{}
-	tab := buildSessionTabState(st)
+	tab := buildSessionTabState(st, nil)
 	assert.Equal(t, model.LevelClusters, tab.nav.Level)
 }
 
@@ -599,7 +599,7 @@ func TestCovBuildSessionTabStateWithSelectedNS(t *testing.T) {
 		Namespace:          "ns1",
 		SelectedNamespaces: []string{"ns1", "ns2"},
 	}
-	tab := buildSessionTabState(st)
+	tab := buildSessionTabState(st, nil)
 	assert.True(t, tab.selectedNamespaces["ns1"])
 	assert.True(t, tab.selectedNamespaces["ns2"])
 }
@@ -628,6 +628,11 @@ func TestFinal2RestoreSingleTabSessionContextNotFound(t *testing.T) {
 
 func TestFinal2RestoreSingleTabSessionWithResourceType(t *testing.T) {
 	m := baseFinalModel()
+	// Pre-populate discoveredResources so restoreSingleTabSession can resolve the
+	// saved ResourceType ref against the parameter-only Find* lookup.
+	m.discoveredResources["test-ctx"] = []model.ResourceTypeEntry{
+		{Kind: "Pod", APIGroup: "", APIVersion: "v1", Resource: "pods", Namespaced: true},
+	}
 	sess := &SessionState{
 		Context:      "test-ctx",
 		Namespace:    "default",
@@ -642,6 +647,11 @@ func TestFinal2RestoreSingleTabSessionWithResourceType(t *testing.T) {
 
 func TestFinal2RestoreSingleTabSessionWithResourceName(t *testing.T) {
 	m := baseFinalModel()
+	// Pre-populate discoveredResources so restoreSingleTabSession can resolve the
+	// saved ResourceType ref against the parameter-only Find* lookup.
+	m.discoveredResources["test-ctx"] = []model.ResourceTypeEntry{
+		{Kind: "Pod", APIGroup: "", APIVersion: "v1", Resource: "pods", Namespaced: true},
+	}
 	sess := &SessionState{
 		Context:      "test-ctx",
 		Namespace:    "default",
@@ -1107,7 +1117,13 @@ func TestFinalBuildSessionTabState(t *testing.T) {
 		Namespace:    "ns-1",
 		ResourceType: "/v1/pods",
 	}
-	tab := buildSessionTabState(&st)
+	// Provide the discovered resource type so the saved ResourceType ref
+	// can be resolved; without this, tab.nav.Level falls back to
+	// LevelResourceTypes because FindResourceTypeIn iterates the parameter only.
+	discovered := []model.ResourceTypeEntry{
+		{Kind: "Pod", APIGroup: "", APIVersion: "v1", Resource: "pods", Namespaced: true},
+	}
+	tab := buildSessionTabState(&st, discovered)
 	assert.Equal(t, "ctx-1", tab.nav.Context)
 	assert.Equal(t, model.LevelResources, tab.nav.Level)
 }
@@ -1116,13 +1132,13 @@ func TestFinalBuildSessionTabStateNoResourceType(t *testing.T) {
 	st := SessionTab{
 		Context: "ctx-1",
 	}
-	tab := buildSessionTabState(&st)
+	tab := buildSessionTabState(&st, nil)
 	assert.Equal(t, model.LevelResourceTypes, tab.nav.Level)
 }
 
 func TestFinalBuildSessionTabStateNoContext(t *testing.T) {
 	st := SessionTab{}
-	tab := buildSessionTabState(&st)
+	tab := buildSessionTabState(&st, nil)
 	assert.Equal(t, model.LevelClusters, tab.nav.Level)
 }
 
@@ -1131,7 +1147,7 @@ func TestFinalBuildSessionTabStateAllNamespaces(t *testing.T) {
 		Context:       "ctx-1",
 		AllNamespaces: true,
 	}
-	tab := buildSessionTabState(&st)
+	tab := buildSessionTabState(&st, nil)
 	assert.True(t, tab.allNamespaces)
 }
 
@@ -1141,7 +1157,7 @@ func TestFinalBuildSessionTabStateSelectedNS(t *testing.T) {
 		Namespace:          "ns1",
 		SelectedNamespaces: []string{"ns1", "ns2"},
 	}
-	tab := buildSessionTabState(&st)
+	tab := buildSessionTabState(&st, nil)
 	assert.True(t, tab.selectedNamespaces["ns1"])
 	assert.True(t, tab.selectedNamespaces["ns2"])
 }
@@ -1151,7 +1167,7 @@ func TestFinalBuildSessionTabStateNSOnly(t *testing.T) {
 		Context:   "ctx-1",
 		Namespace: "ns1",
 	}
-	tab := buildSessionTabState(&st)
+	tab := buildSessionTabState(&st, nil)
 	assert.Equal(t, "ns1", tab.namespace)
 	assert.True(t, tab.selectedNamespaces["ns1"])
 }
@@ -1170,7 +1186,7 @@ func TestFinalNavigateToBookmarkResourceNotFound(t *testing.T) {
 func TestFinalNavigateToBookmarkAllNamespaces(t *testing.T) {
 	m := baseFinalModel()
 	podRT := model.ResourceTypeEntry{Kind: "Pod", Resource: "pods", APIVersion: "v1", Namespaced: true}
-	m.discoveredCRDs["test-ctx"] = []model.ResourceTypeEntry{podRT}
+	m.discoveredResources["test-ctx"] = []model.ResourceTypeEntry{podRT}
 	bm := model.Bookmark{
 		ResourceType: podRT.ResourceRef(),
 		Namespace:    "",
@@ -1184,7 +1200,7 @@ func TestFinalNavigateToBookmarkAllNamespaces(t *testing.T) {
 func TestFinalNavigateToBookmarkMultiNS(t *testing.T) {
 	m := baseFinalModel()
 	podRT := model.ResourceTypeEntry{Kind: "Pod", Resource: "pods", APIVersion: "v1", Namespaced: true}
-	m.discoveredCRDs["test-ctx"] = []model.ResourceTypeEntry{podRT}
+	m.discoveredResources["test-ctx"] = []model.ResourceTypeEntry{podRT}
 	bm := model.Bookmark{
 		ResourceType: podRT.ResourceRef(),
 		Namespaces:   []string{"ns1", "ns2"},
@@ -1199,7 +1215,7 @@ func TestFinalNavigateToBookmarkMultiNS(t *testing.T) {
 func TestFinalNavigateToBookmarkSingleNS(t *testing.T) {
 	m := baseFinalModel()
 	podRT := model.ResourceTypeEntry{Kind: "Pod", Resource: "pods", APIVersion: "v1", Namespaced: true}
-	m.discoveredCRDs["test-ctx"] = []model.ResourceTypeEntry{podRT}
+	m.discoveredResources["test-ctx"] = []model.ResourceTypeEntry{podRT}
 	bm := model.Bookmark{
 		ResourceType: podRT.ResourceRef(),
 		Namespace:    "production",
@@ -1214,7 +1230,7 @@ func TestFinalNavigateToBookmarkGlobal(t *testing.T) {
 	m := baseFinalModel()
 	// Context-aware bookmarks switch context. CRD must have matching ResourceRef.
 	podRT := model.ResourceTypeEntry{Kind: "Pod", Resource: "pods", APIVersion: "v1", Namespaced: true}
-	m.discoveredCRDs["prod-ctx"] = []model.ResourceTypeEntry{podRT}
+	m.discoveredResources["prod-ctx"] = []model.ResourceTypeEntry{podRT}
 	bm := model.Bookmark{
 		ResourceType: podRT.ResourceRef(),
 		Context:      "prod-ctx",
@@ -1229,7 +1245,7 @@ func TestFinalNavigateToBookmarkGlobal(t *testing.T) {
 func TestFinalNavigateToBookmarkSingleNamespaceInList(t *testing.T) {
 	m := baseFinalModel()
 	podRT := model.ResourceTypeEntry{Kind: "Pod", Resource: "pods", APIVersion: "v1", Namespaced: true}
-	m.discoveredCRDs["test-ctx"] = []model.ResourceTypeEntry{podRT}
+	m.discoveredResources["test-ctx"] = []model.ResourceTypeEntry{podRT}
 	bm := model.Bookmark{
 		ResourceType: podRT.ResourceRef(),
 		Namespaces:   []string{"only-ns"},
@@ -1277,7 +1293,7 @@ func TestFinalHandleBookmarkSlotJump(t *testing.T) {
 	m.overlay = overlayBookmarks
 	m.bookmarkSearchMode = bookmarkModeNormal
 	m.bookmarks = []model.Bookmark{{Name: "bm", Slot: "x"}}
-	m.discoveredCRDs["test-ctx"] = []model.ResourceTypeEntry{
+	m.discoveredResources["test-ctx"] = []model.ResourceTypeEntry{
 		{Kind: "Pod", Resource: "pods", APIVersion: "v1", Namespaced: true},
 	}
 	// Pressing a slot key that doesn't exist should show error.

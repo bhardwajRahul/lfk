@@ -176,8 +176,8 @@ type quotaLoadedMsg struct {
 	err    error
 }
 
-// crdDiscoveryMsg carries the result of CRD discovery for a cluster context.
-type crdDiscoveryMsg struct {
+// apiResourceDiscoveryMsg delivers the result of DiscoverAPIResources.
+type apiResourceDiscoveryMsg struct {
 	context string
 	entries []model.ResourceTypeEntry
 	err     error

@@ -390,10 +390,10 @@ func (m *Model) navigateToPortForwards() {
 	// Build the correct left column state for LevelResources.
 	contexts, _ := m.client.GetContexts()
 	var resourceTypes []model.Item
-	if crds := m.discoveredCRDs[m.nav.Context]; len(crds) > 0 {
-		resourceTypes = model.MergeWithCRDs(crds)
+	if discovered := m.discoveredResources[m.nav.Context]; len(discovered) > 0 {
+		resourceTypes = model.BuildSidebarItems(discovered)
 	} else {
-		resourceTypes = model.FlattenedResourceTypes()
+		resourceTypes = model.BuildSidebarItems(model.SeedResources())
 	}
 
 	m.nav.ResourceType = model.ResourceTypeEntry{
@@ -674,9 +674,9 @@ func (m *Model) loadTab(idx int) tea.Cmd {
 
 		// Load contexts for the left column breadcrumb.
 		contexts, _ := m.client.GetContexts()
-		resourceTypes := model.FlattenedResourceTypes()
-		if crds := m.discoveredCRDs[m.nav.Context]; len(crds) > 0 {
-			resourceTypes = model.MergeWithCRDs(crds)
+		resourceTypes := model.BuildSidebarItems(model.SeedResources())
+		if discovered := m.discoveredResources[m.nav.Context]; len(discovered) > 0 {
+			resourceTypes = model.BuildSidebarItems(discovered)
 		}
 
 		switch m.nav.Level {

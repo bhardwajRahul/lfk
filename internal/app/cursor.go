@@ -318,8 +318,12 @@ func (m *Model) visibleMiddleItems() []model.Item {
 		}
 	}
 
-	// Apply collapsible group logic at LevelResourceTypes.
-	if m.nav.Level == model.LevelResourceTypes && !m.allGroupsExpanded {
+	// Apply collapsible group logic at LevelResourceTypes. When a text
+	// filter is active, skip the collapse step so matched items in
+	// non-expanded categories stay visible and navigable — otherwise a
+	// filter like "pods" would hide the Pods item inside a collapsed
+	// "Workloads" header when some other group happens to be expanded.
+	if m.nav.Level == model.LevelResourceTypes && !m.allGroupsExpanded && m.filterText == "" {
 		var collapsed []model.Item
 		seenCategories := make(map[string]bool)
 		for _, item := range items {

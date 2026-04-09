@@ -72,8 +72,8 @@ func (m Model) updateResourceMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case resourceTypesMsg:
 		mdl, cmd := m.updateResourceTypes(msg)
 		return mdl, cmd, true
-	case crdDiscoveryMsg:
-		mdl := m.updateCrdDiscovery(msg)
+	case apiResourceDiscoveryMsg:
+		mdl := m.updateAPIResourceDiscovery(msg)
 		return mdl, nil, true
 	case resourcesLoadedMsg:
 		mdl, cmd := m.updateResourcesLoaded(msg)
@@ -464,25 +464,33 @@ func (m Model) updateResourceTypes(msg resourceTypesMsg) (tea.Model, tea.Cmd) {
 	return m, m.loadPreview()
 }
 
-func (m Model) updateCrdDiscovery(msg crdDiscoveryMsg) Model {
+func (m Model) updateAPIResourceDiscovery(msg apiResourceDiscoveryMsg) Model {
 	if isContextCanceled(msg.err) {
 		return m
 	}
 	if msg.err != nil {
-		// CRD discovery failed (permissions, etc.) -- silently ignore.
-		logger.Info("CRD discovery failed", "context", msg.context, "error", msg.err.Error())
+		// API resource discovery failed (permissions, etc.) -- silently ignore.
+		logger.Info("API resource discovery failed", "context", msg.context, "error", msg.err.Error())
 		return m
 	}
-	m.discoveredCRDs[msg.context] = msg.entries
+	// Prepend LFK pseudo-resources (helm releases, port forwards) so they
+	// resolve via FindResourceType* and appear in the sidebar uniformly
+	// with real discovered resources.
+	entries := append(model.PseudoResources(), msg.entries...)
+	m.discoveredResources[msg.context] = entries
 	if m.nav.Context == msg.context {
-		merged := model.MergeWithCRDs(msg.entries)
+		merged := model.BuildSidebarItems(entries)
 		// Update the item cache for the resource types level.
 		rtCacheKey := msg.context
 		m.itemCache[rtCacheKey] = merged
 		if m.nav.Level == model.LevelResourceTypes {
 			// User is on resource types level: update the visible list.
+			// Preserve cursor identity across the refresh so a user who
+			// navigated to "Pods" in the seed doesn't end up on a random
+			// item after the full discovered set replaces the seed.
+			prevName, prevNs, prevExtra, prevKind := m.cursorItemKey()
 			m.middleItems = merged
-			m.clampCursor()
+			m.restoreCursorToItem(prevName, prevNs, prevExtra, prevKind)
 		} else {
 			// User is deeper: update leftItems so back-navigation shows CRDs.
 			m.leftItems = merged
