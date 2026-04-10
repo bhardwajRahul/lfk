@@ -199,6 +199,122 @@ func TestSortMiddleItemsByStatus(t *testing.T) {
 	assert.Equal(t, "err-pod", m.middleItems[2].Name)
 }
 
+// TestSortMiddleItemsDeterministicForEqualPrimaryKeys is a regression guard
+// for the watch-mode flicker bug: items with identical primary sort keys
+// (e.g. a Helm release "traefik" deployed to two namespaces) were
+// previously left in arbitrary order because the comparator returned
+// "equal" and the only stabilizer was sort.SliceStable relying on input
+// order — but k8s API refreshes can return items in different orders each
+// call, so the list would visibly jump on every watch tick.
+//
+// Fix: make the comparator total by adding a (Namespace, Name, Kind)
+// tiebreaker chain that is always ascending, regardless of the primary
+// sort direction, so identical primary keys have a deterministic order
+// across refreshes.
+func TestSortMiddleItemsDeterministicForEqualPrimaryKeys(t *testing.T) {
+	ui.ActiveSortableColumns = []string{"Name", "Age", "Status", "Namespace"}
+	defer func() { ui.ActiveSortableColumns = nil }()
+
+	// Two items with identical Name and different Namespace. The sort must
+	// produce the same result regardless of which order they arrive in.
+	aFirst := []model.Item{
+		{Name: "traefik", Namespace: "prod"},
+		{Name: "traefik", Namespace: "dev"},
+	}
+	bFirst := []model.Item{
+		{Name: "traefik", Namespace: "dev"},
+		{Name: "traefik", Namespace: "prod"},
+	}
+
+	sortCopy := func(items []model.Item) []model.Item {
+		cp := append([]model.Item(nil), items...)
+		m := Model{
+			nav:            model.NavigationState{Level: model.LevelResources},
+			sortColumnName: "Name", sortAscending: true,
+			middleItems: cp,
+		}
+		m.sortMiddleItems()
+		return m.middleItems
+	}
+
+	gotA := sortCopy(aFirst)
+	gotB := sortCopy(bFirst)
+
+	require.Len(t, gotA, 2)
+	require.Len(t, gotB, 2)
+	assert.Equal(t, "dev", gotA[0].Namespace,
+		"input order A: tiebreaker must put dev before prod")
+	assert.Equal(t, "prod", gotA[1].Namespace)
+	assert.Equal(t, "dev", gotB[0].Namespace,
+		"input order B: tiebreaker must put dev before prod")
+	assert.Equal(t, "prod", gotB[1].Namespace)
+	assert.Equal(t, gotA, gotB,
+		"sort output must be deterministic regardless of input order")
+}
+
+// TestSortMiddleItemsTiebreakerIgnoresDescFlag verifies that when the
+// primary sort is descending, the tiebreaker chain still runs ascending.
+// Flipping the tiebreaker with the primary direction would re-introduce
+// flicker when sorting in reverse.
+func TestSortMiddleItemsTiebreakerIgnoresDescFlag(t *testing.T) {
+	ui.ActiveSortableColumns = []string{"Name", "Age", "Status", "Namespace"}
+	defer func() { ui.ActiveSortableColumns = nil }()
+
+	m := Model{
+		nav:            model.NavigationState{Level: model.LevelResources},
+		sortColumnName: "Name", sortAscending: false,
+		middleItems: []model.Item{
+			{Name: "traefik", Namespace: "prod"},
+			{Name: "alpha", Namespace: "dev"},
+			{Name: "traefik", Namespace: "dev"},
+		},
+	}
+	m.sortMiddleItems()
+
+	require.Len(t, m.middleItems, 3)
+	// Name desc: traefik rows first (two), then alpha. Within the two
+	// traefik rows, namespace ASC tiebreaker means dev before prod.
+	assert.Equal(t, "traefik", m.middleItems[0].Name)
+	assert.Equal(t, "dev", m.middleItems[0].Namespace)
+	assert.Equal(t, "traefik", m.middleItems[1].Name)
+	assert.Equal(t, "prod", m.middleItems[1].Namespace)
+	assert.Equal(t, "alpha", m.middleItems[2].Name)
+}
+
+// TestSortMiddleItemsByColumnValueDeterministic is the same guard for
+// sorting by an arbitrary extra column (e.g. a Revision column on a Helm
+// release). Two releases with the same revision number should still have
+// a deterministic namespace-based order.
+func TestSortMiddleItemsByColumnValueDeterministic(t *testing.T) {
+	ui.ActiveSortableColumns = []string{"Name", "Revision"}
+	defer func() { ui.ActiveSortableColumns = nil }()
+
+	sortCopy := func(items []model.Item) []model.Item {
+		cp := append([]model.Item(nil), items...)
+		m := Model{
+			nav:            model.NavigationState{Level: model.LevelResources},
+			sortColumnName: "Revision", sortAscending: true,
+			middleItems: cp,
+		}
+		m.sortMiddleItems()
+		return m.middleItems
+	}
+
+	rows := []model.Item{
+		{Name: "traefik", Namespace: "prod", Columns: []model.KeyValue{{Key: "Revision", Value: "5"}}},
+		{Name: "traefik", Namespace: "dev", Columns: []model.KeyValue{{Key: "Revision", Value: "5"}}},
+	}
+	gotA := sortCopy(rows)
+
+	// Reverse input order.
+	rowsB := []model.Item{rows[1], rows[0]}
+	gotB := sortCopy(rowsB)
+
+	assert.Equal(t, "dev", gotA[0].Namespace)
+	assert.Equal(t, gotA, gotB,
+		"column-value sort output must be deterministic regardless of input order")
+}
+
 func TestSortMiddleItemsSkipsResourceTypes(t *testing.T) {
 	ui.ActiveSortableColumns = []string{"Name"}
 	defer func() { ui.ActiveSortableColumns = nil }()
