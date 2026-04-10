@@ -543,6 +543,13 @@ func (m Model) updateResourcesLoadedPreview(msg resourcesLoadedMsg) (tea.Model, 
 		}
 		m.rightItems = filtered
 	}
+	// Collapse duplicate events so noisy pods don't drown out the preview.
+	// The preview pane is always a summary, so we follow the main list's
+	// grouping toggle without offering a separate control — toggling `z` in
+	// the Events view also affects the preview shown for other resources.
+	if m.eventGrouping && len(m.rightItems) > 0 && m.rightItems[0].Kind == "Event" {
+		m.rightItems = groupEvents(m.rightItems)
+	}
 	if len(m.rightItems) == 0 {
 		logger.Info("No child resources found", "resourceType", m.nav.ResourceType.Kind, "resource", m.nav.ResourceName)
 	}
@@ -575,6 +582,7 @@ func (m Model) updateResourcesLoadedMain(msg resourcesLoadedMsg) (tea.Model, tea
 		m.sortMiddleItems()
 	}
 	m.applyWarningEventsFilter()
+	m.applyEventGrouping()
 	m.reapplyFilterPreset()
 	if m.pendingTarget != "" {
 		for i, item := range m.middleItems {
@@ -616,6 +624,33 @@ func (m *Model) applyWarningEventsFilter() {
 		}
 		m.middleItems = filtered
 	}
+}
+
+// applyEventGrouping collapses duplicate Events sharing Type/Reason/Message/Object
+// into a single row with a summed Count. Runs only when viewing the Event
+// resource list with grouping enabled; other resource kinds pass through untouched.
+func (m *Model) applyEventGrouping() {
+	if !m.eventGrouping || m.nav.ResourceType.Kind != "Event" {
+		return
+	}
+	m.middleItems = groupEvents(m.middleItems)
+}
+
+// rebuildEventsFromCache re-derives the visible Event list from the raw cache
+// after an Events-view toggle (warnings-only, grouping). It re-applies the
+// full pipeline — warning filter, grouping, and the active filter preset —
+// so toggling any one of them never silently drops the others. A cache miss
+// leaves m.middleItems untouched; the next resource load will rebuild it.
+func (m *Model) rebuildEventsFromCache() {
+	cached, ok := m.itemCache[m.navKey()]
+	if !ok {
+		return
+	}
+	m.middleItems = append([]model.Item(nil), cached...)
+	m.applyWarningEventsFilter()
+	m.applyEventGrouping()
+	m.reapplyFilterPreset()
+	m.clampCursor()
 }
 
 func (m *Model) reapplyFilterPreset() {

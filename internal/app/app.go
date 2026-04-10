@@ -160,6 +160,11 @@ type TabState struct {
 	// Toggle to show only Warning events in Event list view.
 	warningEventsOnly bool
 
+	// Collapse duplicate Events (same Type/Reason/Message/Object) into a
+	// single row with a summed Count column. Grouped-by-default reduces
+	// noise when many pods hit the same failure mode at once.
+	eventGrouping bool
+
 	// Collapsible tree view state for resource types.
 	expandedGroup     string // currently expanded category (accordion behavior)
 	allGroupsExpanded bool   // override: show all groups expanded (toggled by hotkey)
@@ -543,6 +548,9 @@ type Model struct {
 	// Toggle to show only Warning events in Event list view.
 	warningEventsOnly bool
 
+	// Collapse duplicate Events (per-tab mirror of Model.eventGrouping).
+	eventGrouping bool
+
 	// Discovered CRDs per context: keyed by context name.
 	discoveredResources map[string][]model.ResourceTypeEntry
 
@@ -858,6 +866,7 @@ func NewModel(client *k8s.Client) Model {
 		discoveredResources: make(map[string][]model.ResourceTypeEntry),
 		allGroupsExpanded:   true,
 		warningEventsOnly:   true,
+		eventGrouping:       true,
 		diffLineNumbers:     true,
 		reqCtx:              reqCtx,
 		reqCancel:           reqCancel,
@@ -870,6 +879,7 @@ func NewModel(client *k8s.Client) Model {
 			sortColumnName:     sortColDefault,
 			sortAscending:      true,
 			warningEventsOnly:  true,
+			eventGrouping:      true,
 			allGroupsExpanded:  true,
 			cursorMemory:       make(map[string]int),
 			itemCache:          make(map[string][]model.Item),

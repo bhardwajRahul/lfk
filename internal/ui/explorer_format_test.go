@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -341,5 +342,40 @@ func TestRenderTabBar(t *testing.T) {
 		}
 		result := RenderTabBar(labels, 0, 60)
 		assert.Contains(t, result, "▸")
+	})
+
+	t.Run("9 long-labeled tabs with middle active stays on one line", func(t *testing.T) {
+		// Regression: with 9 tabs and the active tab in the middle, the
+		// windowing budget did not reserve space for the leading and
+		// trailing arrow indicators (◂ ... ▸). The tab bar then overflowed
+		// `width` and lipgloss wrapped it to a second line, which pushed
+		// the title bar off-screen.
+		labels := []string{
+			"prod/Deployments/web-server",
+			"prod/Pods/api-7d8c-abc",
+			"prod/StatefulSets/db",
+			"prod/Services/frontend",
+			"prod/ConfigMaps/app-config",
+			"prod/Secrets/credentials",
+			"prod/Ingresses/api",
+			"prod/Jobs/migrate-db",
+			"prod/CronJobs/cleanup",
+		}
+		// Sweep across realistic terminal widths and every active-tab
+		// position so we catch any combination that breaks the windowing
+		// budget (off-by-one for indicators, padding mismatch, etc.).
+		for _, width := range []int{60, 70, 80, 90, 100, 120, 150, 200} {
+			for activeTab := range labels {
+				result := RenderTabBar(labels, activeTab, width)
+				height := lipgloss.Height(result)
+				assert.Equal(t, 1, height,
+					"tab bar must render as a single line (width=%d, active=%d, got %d lines)\n%s",
+					width, activeTab, height, result)
+				rendered := lipgloss.Width(result)
+				assert.LessOrEqual(t, rendered, width,
+					"tab bar must not exceed configured width (width=%d, active=%d, got %d)",
+					width, activeTab, rendered)
+			}
+		}
 	})
 }

@@ -675,6 +675,30 @@ func RenderTabBar(tabLabels []string, activeTab, width int) string {
 		return lipgloss.NewStyle().Background(BarBg).Width(width).MaxWidth(width).Render(tabContent)
 	}
 
+	// Reserve space for the leading " " padding (added below) and for the
+	// arrow indicators that get prepended/appended once the window is
+	// chosen. Without this reservation, the rendered tabContent can exceed
+	// `width` and the outer Width(width).MaxWidth(width).Render call wraps
+	// it to a second line, which hides the title bar above. Indicators are
+	// only needed when we can't reach the corresponding edge from the
+	// active tab, so we reserve their width conditionally to avoid dropping
+	// tabs from the window unnecessarily.
+	const leadingPadW = 1
+	leftIndicatorW := lipgloss.Width(inactiveStyle.Render("◂")) + sepW
+	rightIndicatorW := sepW + lipgloss.Width(inactiveStyle.Render("▸"))
+	budget := maxBarW - leadingPadW
+	if activeTab > 0 {
+		budget -= leftIndicatorW
+	}
+	if activeTab < len(tabs)-1 {
+		budget -= rightIndicatorW
+	}
+	// Always allow the active tab to render, even if reservations leave
+	// almost nothing — lipgloss will clip if it's still wider than the bar.
+	if budget < tabs[activeTab].width {
+		budget = tabs[activeTab].width
+	}
+
 	// Window around active tab.
 	left := activeTab
 	right := activeTab
@@ -684,7 +708,7 @@ func RenderTabBar(tabLabels []string, activeTab, width int) string {
 		expanded := false
 		if left > 0 {
 			needed := sepW + tabs[left-1].width
-			if usedW+needed <= maxBarW {
+			if usedW+needed <= budget {
 				left--
 				usedW += needed
 				expanded = true
@@ -692,7 +716,7 @@ func RenderTabBar(tabLabels []string, activeTab, width int) string {
 		}
 		if right < len(tabs)-1 {
 			needed := sepW + tabs[right+1].width
-			if usedW+needed <= maxBarW {
+			if usedW+needed <= budget {
 				right++
 				usedW += needed
 				expanded = true

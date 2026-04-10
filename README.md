@@ -85,7 +85,7 @@
 - **Command bar** (`:`) with vertical dropdown autocomplete: resource jumps (`:pod`, `:dep`), built-in commands (`:ns`, `:ctx`, `:set`, `:sort`, `:export`), kubectl with `:k`/`:kubectl` prefix and flag/namespace completion, shell commands (`:!`)
 - **Watch mode**: Auto-refresh resources every 2 seconds (enabled by default)
 - **Owner/controller navigation**: Jump to the owner of any resource with `o`
-- **Events view** with warnings-only filter toggle
+- **Events view** with warnings-only filter toggle and duplicate-event grouping (`z`)
 
 ### Preview and Editing
 
@@ -247,7 +247,7 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `Ctrl+D` / `Ctrl+U` | Half-page scroll down/up |
 | `Ctrl+F` / `Ctrl+B` | Full-page scroll down/up |
 | `Enter` | Open full-screen YAML view / navigate into |
-| `z` | Toggle expand/collapse all resource groups |
+| `z` | Toggle expand/collapse all resource groups / toggle event grouping (Events view) |
 | `p` | Pin/unpin CRD group (at resource types level) |
 | `H` | Toggle rarely used resource types (CSI internals, webhooks, leases, advanced core) in the sidebar |
 | `0` / `1` / `2` | Jump to clusters / types / resources level |

@@ -346,21 +346,7 @@ func (m Model) handleExplorerActionKeyLevelResources() (tea.Model, tea.Cmd, bool
 func (m Model) handleExplorerActionKeySaveResource() (tea.Model, tea.Cmd, bool) {
 	if m.nav.Level == model.LevelResources && m.nav.ResourceType.Kind == "Event" {
 		m.warningEventsOnly = !m.warningEventsOnly
-		// Re-filter the current items.
-		if cached, ok := m.itemCache[m.navKey()]; ok {
-			if m.warningEventsOnly {
-				var filtered []model.Item
-				for _, item := range cached {
-					if item.Status == "Warning" {
-						filtered = append(filtered, item)
-					}
-				}
-				m.middleItems = filtered
-			} else {
-				m.middleItems = cached
-			}
-			m.clampCursor()
-		}
+		m.rebuildEventsFromCache()
 		if m.warningEventsOnly {
 			m.setStatusMessage("Showing warnings only", false)
 		} else {

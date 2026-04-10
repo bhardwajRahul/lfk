@@ -254,21 +254,48 @@ func (m Model) statusBar() string {
 			{Key: "q", Desc: "quit"},
 		}
 		// Add context-specific hints for Events resource type.
-		if m.nav.Level == model.LevelResources && m.nav.ResourceType.Kind == "Event" {
-			toggleDesc := "warnings only"
-			if m.warningEventsOnly {
-				toggleDesc = "all events"
-			}
-			hintEntries = append(hintEntries[:len(hintEntries)-1], // before "quit"
-				ui.HintEntry{Key: kb.SaveResource, Desc: toggleDesc},
-				hintEntries[len(hintEntries)-1], // "quit" at end
-			)
-		}
+		hintEntries = m.appendEventsHintEntries(hintEntries)
 	}
 	parts = append(parts, ui.FormatHintParts(hintEntries))
 
 	content := strings.Join(parts, "  ")
 	return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(content)
+}
+
+// appendEventsHintEntries injects Events-view toggle hints (warnings-only,
+// grouping) just before the trailing "quit" entry. Returns the input slice
+// unchanged when the current view isn't the Events resource list.
+//
+// Callers must keep "quit" as the final entry so it always renders on the
+// right edge of the hint bar. If that invariant changes, this helper's
+// splice (entries[:len(entries)-1]) will misplace the toggles.
+func (m Model) appendEventsHintEntries(entries []ui.HintEntry) []ui.HintEntry {
+	if m.nav.Level != model.LevelResources || m.nav.ResourceType.Kind != "Event" {
+		return entries
+	}
+	kb := ui.ActiveKeybindings
+	warnDesc := "warnings only"
+	if m.warningEventsOnly {
+		warnDesc = "all events"
+	}
+	groupDesc := "group"
+	if m.eventGrouping {
+		groupDesc = "ungroup"
+	}
+	extras := []ui.HintEntry{
+		{Key: kb.SaveResource, Desc: warnDesc},
+		{Key: kb.ExpandCollapse, Desc: groupDesc},
+	}
+	if len(entries) == 0 {
+		return extras
+	}
+	// Insert before the trailing "quit" entry so the Events toggles sit next
+	// to the other contextual actions.
+	out := make([]ui.HintEntry, 0, len(entries)+len(extras))
+	out = append(out, entries[:len(entries)-1]...)
+	out = append(out, extras...)
+	out = append(out, entries[len(entries)-1])
+	return out
 }
 
 // --- Overlay rendering ---

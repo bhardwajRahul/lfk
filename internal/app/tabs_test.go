@@ -353,6 +353,129 @@ func TestTabLabels(t *testing.T) {
 		labels := m.tabLabels()
 		assert.Equal(t, "clusters", labels[0])
 	})
+
+	t.Run("LevelOwned shows resource name", func(t *testing.T) {
+		// Navigated into a Deployment to see its pods. The tab should
+		// expose the deployment name so users can tell tabs apart.
+		m := Model{
+			nav: model.NavigationState{
+				Level:        model.LevelOwned,
+				Context:      "prod",
+				ResourceType: model.ResourceTypeEntry{DisplayName: "Deployments"},
+				ResourceName: "web-server",
+			},
+			tabs:      []TabState{{nav: model.NavigationState{}}},
+			activeTab: 0,
+		}
+		labels := m.tabLabels()
+		assert.Equal(t, "prod/Deployments/web-server", labels[0])
+	})
+
+	t.Run("LevelContainers shows resource and owned name", func(t *testing.T) {
+		// Navigated all the way down: deployment -> pod -> containers.
+		// The tab should expose both names so the user can tell which pod
+		// of which deployment they're looking at.
+		m := Model{
+			nav: model.NavigationState{
+				Level:        model.LevelContainers,
+				Context:      "prod",
+				ResourceType: model.ResourceTypeEntry{DisplayName: "Deployments"},
+				ResourceName: "web-server",
+				OwnedName:    "web-server-abc-xyz",
+			},
+			tabs:      []TabState{{nav: model.NavigationState{}}},
+			activeTab: 0,
+		}
+		labels := m.tabLabels()
+		assert.Equal(t, "prod/Deployments/web-server/web-server-abc-xyz", labels[0])
+	})
+
+	t.Run("discovered resource type without DisplayName uses metadata", func(t *testing.T) {
+		// Resource types coming from API discovery have an empty DisplayName
+		// (per model.DisplayNameFor). The label must still surface a friendly
+		// name by going through the metadata fallback chain.
+		m := Model{
+			nav: model.NavigationState{
+				Level:   model.LevelResources,
+				Context: "prod",
+				ResourceType: model.ResourceTypeEntry{
+					// DisplayName intentionally empty.
+					Kind:       "Pod",
+					APIGroup:   "",
+					APIVersion: "v1",
+					Resource:   "pods",
+				},
+			},
+			tabs:      []TabState{{nav: model.NavigationState{}}},
+			activeTab: 0,
+		}
+		labels := m.tabLabels()
+		assert.Equal(t, "prod/Pods", labels[0])
+	})
+
+	t.Run("discovered resource falls back to Kind when no metadata", func(t *testing.T) {
+		// CRD-style resource: no DisplayName, no built-in metadata entry,
+		// only Kind. The label should still show the Kind so the tab is
+		// distinguishable.
+		m := Model{
+			nav: model.NavigationState{
+				Level:   model.LevelResources,
+				Context: "prod",
+				ResourceType: model.ResourceTypeEntry{
+					Kind:       "MyCustomResource",
+					APIGroup:   "example.com",
+					APIVersion: "v1",
+					Resource:   "mycustomresources",
+				},
+			},
+			tabs:      []TabState{{nav: model.NavigationState{}}},
+			activeTab: 0,
+		}
+		labels := m.tabLabels()
+		assert.Equal(t, "prod/MyCustomResource", labels[0])
+	})
+
+	t.Run("Pod at LevelContainers does not duplicate name", func(t *testing.T) {
+		// navigateChildResource sets both ResourceName AND OwnedName to the
+		// same value when entering a Pod (so the containers view knows its
+		// parent). The label must not show "ctx/Pods/my-pod/my-pod".
+		m := Model{
+			nav: model.NavigationState{
+				Level:        model.LevelContainers,
+				Context:      "prod",
+				ResourceType: model.ResourceTypeEntry{Kind: "Pod", Resource: "pods"},
+				ResourceName: "web-7d8c-abc",
+				OwnedName:    "web-7d8c-abc",
+			},
+			tabs:      []TabState{{nav: model.NavigationState{}}},
+			activeTab: 0,
+		}
+		labels := m.tabLabels()
+		assert.Equal(t, "prod/Pods/web-7d8c-abc", labels[0],
+			"ResourceName == OwnedName should appear only once")
+	})
+
+	t.Run("inactive tab also reflects its saved depth", func(t *testing.T) {
+		// Inactive tabs are rendered from saved TabState, not the live model.
+		// They should still show the deeper navigation if that's where the
+		// tab was last left.
+		m := Model{
+			nav: model.NavigationState{Context: "dev"},
+			tabs: []TabState{
+				{nav: model.NavigationState{
+					Level:        model.LevelOwned,
+					Context:      "prod",
+					ResourceType: model.ResourceTypeEntry{DisplayName: "StatefulSets"},
+					ResourceName: "db",
+				}},
+				{nav: model.NavigationState{Context: "dev"}},
+			},
+			activeTab: 1,
+		}
+		labels := m.tabLabels()
+		assert.Equal(t, "prod/StatefulSets/db", labels[0])
+		assert.Equal(t, "dev", labels[1])
+	})
 }
 
 // --- getPortForwardID ---
@@ -615,7 +738,10 @@ func TestCov80TabLabels(t *testing.T) {
 	m.activeTab = 0
 	labels := m.tabLabels()
 	require.Len(t, labels, 3)
-	assert.Equal(t, "test-ctx", labels[0]) // active tab updated
+	// basePush80Model sets m.nav.ResourceType.Kind = "Pod" / Resource = "pods"
+	// (no DisplayName), which model.DisplayNameFor resolves to "Pods" via the
+	// built-in metadata table.
+	assert.Equal(t, "test-ctx/Pods", labels[0])
 	assert.Contains(t, labels[1], "dev/Pods")
 	assert.Equal(t, "clusters", labels[2])
 }

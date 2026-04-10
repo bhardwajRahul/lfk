@@ -436,31 +436,47 @@ func (m *Model) getPortForwardID(columns []model.KeyValue) int {
 	return 0
 }
 
-// tabLabels builds a display label for each tab.
+// tabLabels builds a display label for each tab. Inactive tabs render from
+// their saved TabState; the active tab is overridden with the live model
+// state so navigation within a tab updates its label immediately.
 func (m Model) tabLabels() []string {
 	labels := make([]string, len(m.tabs))
 	for i, t := range m.tabs {
-		if t.nav.Context != "" {
-			label := t.nav.Context
-			if t.nav.ResourceType.DisplayName != "" {
-				label += "/" + t.nav.ResourceType.DisplayName
-			}
-			labels[i] = label
-		} else {
-			labels[i] = "clusters"
-		}
+		labels[i] = labelForNav(t.nav)
 	}
-	// Update current tab label from live model state.
-	if m.nav.Context != "" {
-		label := m.nav.Context
-		if m.nav.ResourceType.DisplayName != "" {
-			label += "/" + m.nav.ResourceType.DisplayName
-		}
-		labels[m.activeTab] = label
-	} else {
-		labels[m.activeTab] = "clusters"
-	}
+	labels[m.activeTab] = labelForNav(m.nav)
 	return labels
+}
+
+// labelForNav builds a "context/Type/Name/Owned" label that grows as the user
+// drills deeper into the resource hierarchy. RenderTabBar truncates long
+// labels by chopping the prefix and keeping the suffix, so the most-specific
+// (and most useful) part of the path always wins for screen space.
+//
+// The resource type label goes through model.DisplayNameFor because
+// API-discovery-produced ResourceTypeEntry values do NOT populate
+// DisplayName themselves — only the curated metadata table does. Reading
+// nav.ResourceType.DisplayName directly silently drops the type for almost
+// every real-world resource.
+func labelForNav(nav model.NavigationState) string {
+	if nav.Context == "" {
+		return "clusters"
+	}
+	parts := []string{nav.Context}
+	if name := model.DisplayNameFor(nav.ResourceType); name != "" {
+		parts = append(parts, name)
+	}
+	if nav.ResourceName != "" {
+		parts = append(parts, nav.ResourceName)
+	}
+	// navigateChildResource sets both ResourceName and OwnedName to the same
+	// value when entering a Pod (so the containers view knows its parent).
+	// Skip the duplicate so the label reads "ctx/Pods/my-pod" instead of
+	// "ctx/Pods/my-pod/my-pod".
+	if nav.OwnedName != "" && nav.OwnedName != nav.ResourceName {
+		parts = append(parts, nav.OwnedName)
+	}
+	return strings.Join(parts, "/")
 }
 
 // saveCurrentTab persists Model fields into the current TabState.
@@ -506,6 +522,7 @@ func (m *Model) saveCurrentTab() {
 	t.dashboardEventsPreview = m.dashboardEventsPreview
 	t.monitoringPreview = m.monitoringPreview
 	t.warningEventsOnly = m.warningEventsOnly
+	t.eventGrouping = m.eventGrouping
 	t.expandedGroup = m.expandedGroup
 	t.allGroupsExpanded = m.allGroupsExpanded
 	t.mode = m.mode
@@ -605,6 +622,7 @@ func (m *Model) loadTab(idx int) tea.Cmd {
 	m.dashboardEventsPreview = t.dashboardEventsPreview
 	m.monitoringPreview = t.monitoringPreview
 	m.warningEventsOnly = t.warningEventsOnly
+	m.eventGrouping = t.eventGrouping
 	m.expandedGroup = t.expandedGroup
 	m.allGroupsExpanded = t.allGroupsExpanded
 
@@ -740,6 +758,7 @@ func (m *Model) cloneCurrentTab() TabState {
 		dashboardEventsPreview: m.dashboardEventsPreview,
 		monitoringPreview:      m.monitoringPreview,
 		warningEventsOnly:      m.warningEventsOnly,
+		eventGrouping:          m.eventGrouping,
 		expandedGroup:          m.expandedGroup,
 		allGroupsExpanded:      m.allGroupsExpanded,
 		logCursor:              m.logCursor,

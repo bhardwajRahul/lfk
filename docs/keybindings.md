@@ -15,7 +15,7 @@ Complete list of all keybindings in `lfk`. All keybindings can be overridden in 
 | `Enter` | Open full-screen YAML view / navigate into |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
 | `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
-| `z` | Toggle expand/collapse all resource groups |
+| `z` | Toggle expand/collapse all resource groups / toggle event grouping in the Events list |
 | `p` | Pin/unpin CRD group (at resource types level) |
 | `H` | Toggle rarely used resource types (CSI internals, webhooks, APF, leases, advanced core) in the sidebar (resets each launch) |
 | `0` / `1` / `2` | Jump to clusters / types / resources level |
@@ -43,6 +43,7 @@ Complete list of all keybindings in `lfk`. All keybindings can be overridden in 
 | `=` | Toggle sort direction (ascending/descending) |
 | `-` | Reset sort to default (Name ascending) |
 | `W` | Save resource to file / toggle warnings-only filter (Events view) |
+| | Events list also groups duplicate events (same Type/Reason/Message/Object) by default; press `z` to toggle grouping |
 | `T` | Switch color scheme (live preview, not persisted) |
 | `Ctrl+T` | Toggle terminal mode (pty embedded / exec takeover) |
 | `Ctrl+G` | Finalizer search and remove |

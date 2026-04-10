@@ -93,7 +93,8 @@ type Item struct {
 	Ready         string           // Ready count (e.g., "2/3" for pods or deployments)
 	Restarts      string           // Restart count (for pods)
 	LastRestartAt time.Time        // Most recent container restart time
-	CreatedAt     time.Time        // Creation timestamp for sorting
+	CreatedAt     time.Time        // Creation timestamp for sorting (Events: first observed timestamp in the series)
+	LastSeen      time.Time        // Most recent observation (Events only — drives the "Last Seen" column)
 	Columns       []KeyValue       // Additional resource fields for summary preview
 	Conditions    []ConditionEntry // Status conditions for the details pane
 	Selected      bool             // Whether this item is part of a multi-selection

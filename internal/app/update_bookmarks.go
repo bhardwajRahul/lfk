@@ -662,6 +662,7 @@ func buildSessionTabState(st *SessionTab, discovered []model.ResourceTypeEntry) 
 		splitPreview:      true,
 		watchMode:         true,
 		warningEventsOnly: true,
+		eventGrouping:     true,
 		allGroupsExpanded: true,
 		cursorMemory:      make(map[string]int),
 		itemCache:         make(map[string][]model.Item),
