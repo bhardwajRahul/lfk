@@ -57,6 +57,7 @@ type Keybindings struct {
 	SaveResource    string `json:"save_resource" yaml:"save_resource"`
 	Monitoring      string `json:"monitoring" yaml:"monitoring"`
 	QuotaDashboard  string `json:"quota_dashboard" yaml:"quota_dashboard"`
+	TasksOverlay    string `json:"tasks_overlay" yaml:"tasks_overlay"`
 	ExpandCollapse  string `json:"expand_collapse" yaml:"expand_collapse"`
 	PinGroup        string `json:"pin_group" yaml:"pin_group"`
 	ColumnToggle    string `json:"column_toggle" yaml:"column_toggle"`
@@ -122,7 +123,8 @@ func DefaultKeybindings() Keybindings {
 		ThemeSelector: "T", CommandBar: ":", WatchMode: "w",
 		SortNext: ">", SortPrev: "<", SortFlip: "=", SortReset: "-",
 		SaveResource: "W", Monitoring: "@",
-		QuotaDashboard: "Q", ExpandCollapse: "z", PinGroup: "p",
+		QuotaDashboard: "Q", TasksOverlay: "`",
+		ExpandCollapse: "z", PinGroup: "p",
 		ColumnToggle: ",", ToggleRare: "H",
 
 		// Actions
