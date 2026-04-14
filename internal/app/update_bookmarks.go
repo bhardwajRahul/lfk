@@ -555,15 +555,26 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 	m.leftItemsHistory = nil
 	m.leftItems = contexts
 
-	// Load resource types for the middle column.
-	m.middleItems = model.BuildSidebarItems(model.SeedResources())
+	// Load resource types for the middle column. If discovery has already
+	// completed for this context, use the full list; otherwise show a loader
+	// and let updateAPIResourceDiscovery populate it when ready.
+	if discovered, ok := m.discoveredResources[sess.Context]; ok && len(discovered) > 0 {
+		m.middleItems = model.BuildSidebarItems(discovered)
+	} else {
+		m.middleItems = model.BuildSidebarItems(model.SeedResources())
+	}
 	m.itemCache[m.navKey()] = m.middleItems
 	m.clearRight()
 
 	// Restore namespace settings from session.
 	applySessionNamespaces(&m, sess.AllNamespaces, sess.Namespace, sess.SelectedNamespaces)
 
-	cmds := []tea.Cmd{m.discoverAPIResources(sess.Context)}
+	var cmds []tea.Cmd
+	needsDiscovery := false
+	if _, ok := m.discoveredResources[sess.Context]; !ok {
+		needsDiscovery = true
+		cmds = append(cmds, m.discoverAPIResources(sess.Context))
+	}
 
 	// If a resource type was saved, navigate deeper.
 	if sess.ResourceType != "" {
@@ -604,6 +615,11 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 	}
 
 	// No resource type or not found: stay at resource types level.
+	// Show loader while discovery is in-flight.
+	if needsDiscovery {
+		m.middleItems = nil
+		m.loading = true
+	}
 	m.clampCursor()
 	cmds = append(cmds, m.loadPreview())
 	return m, tea.Batch(cmds...)
