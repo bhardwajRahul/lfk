@@ -293,6 +293,11 @@ var ActiveSchemeName = "tokyonight-storm"
 // ConfigTransparentBg controls whether bar/surface backgrounds are transparent.
 var ConfigTransparentBg bool
 
+// ConfigMouse controls whether mouse input is captured by the TUI.
+// Defaults to true. Set to false to disable mouse capture, allowing native
+// terminal text selection (shift+click, drag-to-select).
+var ConfigMouse = true
+
 type configFile struct {
 	// Colorscheme selects a built-in color scheme by name (e.g. "dracula", "nord").
 	// Custom theme overrides in the "theme" section are applied on top.
@@ -341,6 +346,10 @@ type configFile struct {
 	// own background shows through. Selection highlights remain opaque.
 	// Defaults to false.
 	TransparentBg *bool `json:"transparent_background" yaml:"transparent_background"`
+	// Mouse controls whether the TUI captures mouse input for click navigation
+	// and scroll. Defaults to true. Set to false to allow native terminal text
+	// selection (useful in Terminal.app where shift+click doesn't work).
+	Mouse *bool `json:"mouse" yaml:"mouse"`
 	// Clusters maps context names to per-cluster configuration overrides.
 	Clusters map[string]clusterConfig `json:"clusters" yaml:"clusters"`
 }
@@ -519,6 +528,9 @@ func applyConfigOptions(cfg configFile) {
 	}
 	if cfg.TransparentBg != nil {
 		ConfigTransparentBg = *cfg.TransparentBg
+	}
+	if cfg.Mouse != nil {
+		ConfigMouse = *cfg.Mouse
 	}
 }
 

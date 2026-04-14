@@ -252,6 +252,9 @@ lfk --config /path/to/config.yaml
 # Use a specific kubeconfig file (overrides default discovery)
 lfk --kubeconfig /path/to/kubeconfig
 
+# Disable mouse capture (enables native terminal text selection)
+lfk --no-mouse
+
 # Use a specific kubeconfig via environment variable
 KUBECONFIG=/path/to/config lfk
 
@@ -262,6 +265,19 @@ KUBECONFIG=/path/to/config1:/path/to/config2 lfk
 When `--context` or `--namespace` flags are provided, the saved session state is
 ignored and the app opens directly in the specified context/namespace. The user
 can still change the namespace during the session.
+
+### Mouse Support
+
+By default, lfk captures mouse input for click navigation, scroll, and tab
+switching. If you need native terminal text selection (e.g., shift+click to
+select text), you can disable mouse capture:
+
+- **CLI flag:** `lfk --no-mouse`
+- **Config file:** Add `mouse: false` to `~/.config/lfk/config.yaml`
+
+> **Note:** macOS Terminal.app does not support shift+click text selection while
+> mouse capture is active. Use `--no-mouse` or switch to a terminal that handles
+> this correctly (iTerm2, Kitty, Alacritty, WezTerm, Ghostty).
 
 ## Navigation Hierarchy
 
@@ -376,6 +392,9 @@ transparent_background: true
 # "unicode", "nerdfont" (requires Nerd Font in terminal), "simple" (ASCII labels),
 # "emoji", or "none". The LFK_ICONS env var overrides this setting.
 icons: auto
+
+# Disable mouse capture (allows native terminal text selection)
+mouse: false
 
 # Custom keybinding overrides (only specify what you want to change)
 keybindings:

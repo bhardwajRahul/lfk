@@ -6,6 +6,7 @@ type StartupOptions struct {
 	Namespaces []string
 	Kubeconfig string
 	Config     string
+	NoMouse    bool
 }
 
 // HasCLIOverrides returns true when any CLI flag was provided.

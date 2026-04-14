@@ -44,6 +44,7 @@ File locations:
 	rootCmd.Flags().StringSliceVarP(&cliOpts.Namespaces, "namespace", "n", nil, "Namespace(s) to filter (repeatable, disables all-namespaces mode)")
 	rootCmd.Flags().StringVar(&cliOpts.Kubeconfig, "kubeconfig", "", "Path to kubeconfig file (overrides default discovery)")
 	rootCmd.Flags().StringVarP(&cliOpts.Config, "config", "c", "", "Path to config file (overrides default ~/.config/lfk/config.yaml)")
+	rootCmd.Flags().BoolVar(&cliOpts.NoMouse, "no-mouse", false, "Disable mouse capture (enables native terminal text selection)")
 
 	rootCmd.Version = version.Full()
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
@@ -120,7 +121,11 @@ func runTUI(opts app.StartupOptions) error {
 	m := app.NewModel(client, opts)
 	m.SetVersion(version.Short())
 	m.SetStderrChan(stderrCapture.MsgChan)
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	progOpts := []tea.ProgramOption{tea.WithAltScreen()}
+	if !opts.NoMouse && ui.ConfigMouse {
+		progOpts = append(progOpts, tea.WithMouseCellMotion())
+	}
+	p := tea.NewProgram(m, progOpts...)
 
 	if _, err := p.Run(); err != nil {
 		os.Stderr = origStderr
