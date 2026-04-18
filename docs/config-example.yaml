@@ -272,3 +272,12 @@ confirm_on_exit: true
 # "pty" (default): Embedded in the TUI
 # "exec": Takes over the terminal (TUI suspends)
 # terminal: pty
+
+# ─── Watch Interval ───────────────────────────────────────────────────────────
+# Polling interval used when watch mode is active (press 'w' to toggle).
+# Accepts any Go duration string: "500ms", "2s", "5s", "1m".
+# Clamped to [500ms, 10m] — values outside the range are pinned to the bounds.
+# Invalid values fall back to the default (2s).
+# Override with the --watch-interval CLI flag.
+# Default: 2s
+# watch_interval: 2s

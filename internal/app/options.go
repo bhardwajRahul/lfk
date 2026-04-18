@@ -1,12 +1,15 @@
 package app
 
+import "time"
+
 // StartupOptions holds command-line flag values that override default startup behavior.
 type StartupOptions struct {
-	Context    string
-	Namespaces []string
-	Kubeconfig string
-	Config     string
-	NoMouse    bool
+	Context       string
+	Namespaces    []string
+	Kubeconfig    string
+	Config        string
+	NoMouse       bool
+	WatchInterval time.Duration // 0 means not set — fall back to config/default.
 }
 
 // HasCLIOverrides returns true when any CLI flag was provided.

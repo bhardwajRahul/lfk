@@ -5,11 +5,40 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"sigs.k8s.io/yaml"
 
 	"github.com/janosmiko/lfk/internal/model"
 )
+
+// Watch interval bounds.
+const (
+	DefaultWatchInterval = 2 * time.Second
+	MinWatchInterval     = 500 * time.Millisecond
+	MaxWatchInterval     = 10 * time.Minute
+)
+
+// ConfigWatchInterval is the resolved polling interval used when watch mode
+// is active. Set from config file; CLI flag override is applied later in
+// app.NewModel.
+var ConfigWatchInterval = DefaultWatchInterval
+
+// ClampWatchInterval restricts d to [MinWatchInterval, MaxWatchInterval].
+// A zero or negative duration is returned unchanged so callers can treat it
+// as "unset" and fall back to a default.
+func ClampWatchInterval(d time.Duration) time.Duration {
+	if d <= 0 {
+		return 0
+	}
+	if d < MinWatchInterval {
+		return MinWatchInterval
+	}
+	if d > MaxWatchInterval {
+		return MaxWatchInterval
+	}
+	return d
+}
 
 // Keybindings defines configurable keybindings for the application.
 type Keybindings struct {
@@ -350,6 +379,10 @@ type configFile struct {
 	// and scroll. Defaults to true. Set to false to allow native terminal text
 	// selection (useful in Terminal.app where shift+click doesn't work).
 	Mouse *bool `json:"mouse" yaml:"mouse"`
+	// WatchInterval is the polling interval used in watch mode, expressed as
+	// a Go duration string (e.g. "2s", "500ms", "1m"). Clamped to [500ms, 10m].
+	// Defaults to 2s when unset or invalid.
+	WatchInterval string `json:"watch_interval" yaml:"watch_interval"`
 	// Clusters maps context names to per-cluster configuration overrides.
 	Clusters map[string]clusterConfig `json:"clusters" yaml:"clusters"`
 }
@@ -531,6 +564,13 @@ func applyConfigOptions(cfg configFile) {
 	}
 	if cfg.Mouse != nil {
 		ConfigMouse = *cfg.Mouse
+	}
+	if cfg.WatchInterval != "" {
+		if d, err := time.ParseDuration(cfg.WatchInterval); err == nil {
+			if clamped := ClampWatchInterval(d); clamped > 0 {
+				ConfigWatchInterval = clamped
+			}
+		}
 	}
 }
 

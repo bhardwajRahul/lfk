@@ -45,6 +45,7 @@ File locations:
 	rootCmd.Flags().StringVar(&cliOpts.Kubeconfig, "kubeconfig", "", "Path to kubeconfig file (overrides default discovery)")
 	rootCmd.Flags().StringVarP(&cliOpts.Config, "config", "c", "", "Path to config file (overrides default ~/.config/lfk/config.yaml)")
 	rootCmd.Flags().BoolVar(&cliOpts.NoMouse, "no-mouse", false, "Disable mouse capture (enables native terminal text selection)")
+	rootCmd.Flags().DurationVar(&cliOpts.WatchInterval, "watch-interval", 0, "Watch mode polling interval (e.g. 500ms, 2s, 1m). Clamped to [500ms, 10m]. Overrides config.")
 
 	rootCmd.Version = version.Full()
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
