@@ -438,6 +438,17 @@ type Model struct {
 	logParentName   string // original parent resource name
 	logSavedPodName string // saved pod name before overlay, for restoring on cancel
 
+	// Log viewer: auto-reconnect for multi-container Pods. When following all
+	// containers of a Pod, the kubectl stream ends as soon as the current set
+	// of containers all exit (e.g. an init container finishes before the next
+	// one has started). logAutoReconnectAttempt counts consecutive empty
+	// reconnects so we can give up when the pod is really terminated. It is
+	// reset to 0 every time a line arrives. logReconnecting tells
+	// startLogStream to suppress --tail so we don't re-fetch history we
+	// already have.
+	logAutoReconnectAttempt int
+	logReconnecting         bool
+
 	// Log viewer: container filter state.
 	logContainers         []string // available container names for current pod
 	logSelectedContainers []string // which containers are currently selected (empty = all)
@@ -586,6 +597,13 @@ type Model struct {
 
 	// Discovered CRDs per context: keyed by context name.
 	discoveredResources map[string][]model.ResourceTypeEntry
+
+	// Contexts with an in-flight API discovery call. Used to avoid
+	// spamming the cluster API (and its OIDC auth flow) when the user
+	// rapidly cursors through many contexts at the cluster list. Entries
+	// are added when discoverAPIResources is kicked off and removed in
+	// updateAPIResourceDiscovery when the result arrives.
+	discoveringContexts map[string]bool
 
 	// Preview scroll offset for the right column.
 	previewScroll int
@@ -912,6 +930,7 @@ func NewModel(client *k8s.Client, opts StartupOptions) Model {
 		selectionAnchor:     -1,
 		yamlCollapsed:       make(map[string]bool),
 		discoveredResources: make(map[string][]model.ResourceTypeEntry),
+		discoveringContexts: make(map[string]bool),
 		allGroupsExpanded:   true,
 		warningEventsOnly:   true,
 		eventGrouping:       true,

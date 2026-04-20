@@ -51,16 +51,31 @@ func (m Model) loadContexts() tea.Cmd {
 }
 
 func (m Model) loadResourceTypes() tea.Cmd {
-	kctx := m.nav.Context
+	return m.loadResourceTypesFor(m.nav.Context)
+}
+
+// loadResourceTypesFor emits a resourceTypesMsg for a specific context.
+// Used by the LevelClusters preview path so the right pane can show the
+// resource types for the *hovered* context, not the currently-active one
+// (m.nav.Context is "" after back-navigation from LevelResourceTypes).
+func (m Model) loadResourceTypesFor(kctx string) tea.Cmd {
 	discovered := m.discoveredResources[kctx]
 	var items []model.Item
+	var seeded bool
 	if len(discovered) > 0 {
 		items = model.BuildSidebarItems(discovered)
 	} else {
+		// Discovery hasn't completed yet for this context. Emit the seed
+		// list (Pods, Deployments, ...) so the right-pane preview at
+		// LevelClusters has something to show while hovering a context.
+		// The middle-pane (LevelResourceTypes) handler will *ignore*
+		// seeded messages while it's still waiting for discovery — see
+		// updateResourceTypes — so the loader there is preserved.
 		items = model.BuildSidebarItems(model.SeedResources())
+		seeded = true
 	}
 	return func() tea.Msg {
-		return resourceTypesMsg{items: items}
+		return resourceTypesMsg{items: items, seeded: seeded}
 	}
 }
 

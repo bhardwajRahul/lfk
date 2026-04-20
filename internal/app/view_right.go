@@ -276,8 +276,16 @@ func (m Model) renderRightResourceTypes(width, height int) string {
 }
 
 func (m Model) renderRightClusters(width, height int) string {
+	// Discovery for the hovered context is orthogonal to m.loading — it
+	// runs in its own background task. While it is in flight we keep
+	// rightItems empty (see loadPreviewClusters) so the user sees a plain
+	// loader instead of a seeded placeholder list.
+	discovering := false
+	if sel := m.selectedMiddleItem(); sel != nil {
+		discovering = m.discoveringContexts[sel.Name]
+	}
 	if len(m.rightItems) == 0 {
-		if m.loading {
+		if m.loading || discovering {
 			return ui.DimStyle.Render(m.spinner.View() + " Loading...")
 		}
 		return ui.DimStyle.Render("No resource types found")

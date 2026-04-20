@@ -374,6 +374,9 @@ func (m Model) updateEditorResultMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case logLineMsg:
 		mdl, cmd := m.updateLogLine(msg)
 		return mdl, cmd, true
+	case logStreamRestartMsg:
+		mdl, cmd := m.updateLogStreamRestart(msg)
+		return mdl, cmd, true
 	case logHistoryMsg:
 		mdl := m.updateLogHistory(msg)
 		return mdl, nil, true
@@ -456,12 +459,24 @@ func (m Model) updateContextsLoaded(msg contextsLoadedMsg) (tea.Model, tea.Cmd) 
 }
 
 func (m Model) updateResourceTypes(msg resourceTypesMsg) (tea.Model, tea.Cmd) {
-	m.loading = false
 	m.err = nil
 	if m.nav.Level == model.LevelClusters {
+		// Right-pane preview at the cluster list: always update so the user
+		// sees *something* (seeds or real) while hovering a context.
 		m.rightItems = msg.items
+		m.loading = false
 		return m, nil
 	}
+	// Middle pane at LevelResourceTypes: if discovery is still in flight
+	// and only seeds are available, don't clobber the loader with seeds
+	// — that would cause a one-tick flash of basic resource types every
+	// watch interval. Real discovery results (seeded=false) or an
+	// explicit seed fallback from updateAPIResourceDiscovery (which
+	// writes middleItems directly) take precedence via their own paths.
+	if msg.seeded && m.loading {
+		return m, nil
+	}
+	m.loading = false
 	m.middleItems = msg.items
 	m.itemCache[m.navKey()] = m.middleItems
 	m.clampCursor()
@@ -469,6 +484,10 @@ func (m Model) updateResourceTypes(msg resourceTypesMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateAPIResourceDiscovery(msg apiResourceDiscoveryMsg) Model {
+	// Clear the in-flight flag for this context regardless of outcome so
+	// the user can retry (or hover again) without getting stuck on a
+	// permanently-deduplicated call.
+	delete(m.discoveringContexts, msg.context)
 	if isContextCanceled(msg.err) {
 		return m
 	}
@@ -490,8 +509,16 @@ func (m Model) updateAPIResourceDiscovery(msg apiResourceDiscoveryMsg) Model {
 	// with real discovered resources.
 	entries := append(model.PseudoResources(), msg.entries...)
 	m.discoveredResources[msg.context] = entries
+	merged := model.BuildSidebarItems(entries)
+	// If the user is at LevelClusters and hovering this context, refresh
+	// the right-pane preview so the discovered list replaces the seed
+	// fallback that was emitted synchronously when loadPreviewClusters ran.
+	if m.nav.Level == model.LevelClusters {
+		if sel := m.selectedMiddleItem(); sel != nil && sel.Name == msg.context {
+			m.rightItems = merged
+		}
+	}
 	if m.nav.Context == msg.context {
-		merged := model.BuildSidebarItems(entries)
 		// Update the item cache for the resource types level.
 		rtCacheKey := msg.context
 		m.itemCache[rtCacheKey] = merged
@@ -501,7 +528,7 @@ func (m Model) updateAPIResourceDiscovery(msg apiResourceDiscoveryMsg) Model {
 			m.middleItems = merged
 			m.restoreCursor()
 			m.syncExpandedGroup()
-		} else {
+		} else if m.nav.Level != model.LevelClusters {
 			// User is deeper: update leftItems so back-navigation shows CRDs.
 			m.leftItems = merged
 			// Update cursor memory for the resource types level so
@@ -2059,9 +2086,7 @@ func (m Model) updateLogLine(msg logLineMsg) (tea.Model, tea.Cmd) {
 		// Message from a background tab's log stream — buffer it into that tab's state.
 		for i := range m.tabs {
 			if m.tabs[i].logCh == msg.ch {
-				if msg.done {
-					m.tabs[i].logLines = append(m.tabs[i].logLines, "--- stream ended ---")
-				} else {
+				if !msg.done {
 					m.tabs[i].logLines = append(m.tabs[i].logLines, msg.line)
 					// Continue draining: re-issue waitForLogLine for that channel.
 					ch := msg.ch
@@ -2079,12 +2104,23 @@ func (m Model) updateLogLine(msg logLineMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if msg.done {
-		m.logLines = append(m.logLines, "--- stream ended ---")
-		if m.logFollow {
-			m.logScroll = m.logMaxScroll()
-			m.logCursor = len(m.logLines) - 1
+		// When following all containers of a single Pod, the stream ends as
+		// soon as the currently-running set of containers all exit. For a
+		// pod still in its init phase that's every init container
+		// transition — schedule an auto-reconnect so the next container
+		// streams in without manual action. Bail out after
+		// logAutoReconnectMaxAttempts consecutive empty reconnects so we
+		// don't spin forever once the pod is truly terminated.
+		if m.shouldAutoReconnectLogs() && m.logAutoReconnectAttempt < logAutoReconnectMaxAttempts {
+			m.logAutoReconnectAttempt++
+			return m, m.scheduleLogStreamRestart(msg.ch)
 		}
 		return m, nil
+	}
+	// A line arrived — the stream is producing output, so any pending
+	// auto-reconnect backoff is no longer relevant.
+	if m.logAutoReconnectAttempt > 0 {
+		m.logAutoReconnectAttempt = 0
 	}
 	m.logLines = append(m.logLines, msg.line)
 	if m.logFollow {
@@ -2092,6 +2128,37 @@ func (m Model) updateLogLine(msg logLineMsg) (tea.Model, tea.Cmd) {
 		m.logCursor = len(m.logLines) - 1
 	}
 	return m, m.waitForLogLine()
+}
+
+// shouldAutoReconnectLogs reports whether the log stream should automatically
+// reconnect when it ends. Auto-reconnect is limited to single-Pod streams
+// following all containers while the user is still in follow mode — that's
+// the case where kubectl exits on every init-container transition.
+// Specific-container, multi-pod, previous-logs, and non-Pod flows either
+// have explicit end semantics (--previous) or use selector-based follows
+// where "done" doesn't necessarily mean a transition. If the user has
+// scrolled away from the tail (logFollow=false) they're reading history,
+// not watching live — no point re-arming the stream on their behalf.
+func (m Model) shouldAutoReconnectLogs() bool {
+	return m.mode == modeLogs &&
+		m.logFollow &&
+		!m.logIsMulti &&
+		!m.logPrevious &&
+		m.actionCtx.kind == "Pod" &&
+		m.actionCtx.containerName == ""
+}
+
+// updateLogStreamRestart fires when a scheduled auto-reconnect is due. If
+// the user has switched pods, exited logs mode, or the stream has been
+// replaced (e.g. by a manual action), the restart is silently dropped.
+func (m Model) updateLogStreamRestart(msg logStreamRestartMsg) (tea.Model, tea.Cmd) {
+	if m.mode != modeLogs || m.logCh != msg.ch || !m.shouldAutoReconnectLogs() {
+		return m, nil
+	}
+	m.logReconnecting = true
+	cmd := m.startLogStream()
+	m.logReconnecting = false
+	return m, cmd
 }
 
 func (m Model) updateLogHistory(msg logHistoryMsg) Model {
