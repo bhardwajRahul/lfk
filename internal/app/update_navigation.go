@@ -298,6 +298,9 @@ func (m Model) navigateChildCluster(sel *model.Item) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, m.discoverAPIResources(sel.Name))
 	}
+	if cmd := m.ensureNamespaceCacheFresh(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 	return m, tea.Batch(cmds...)
 }
 
