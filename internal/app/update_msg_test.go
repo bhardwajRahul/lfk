@@ -2529,3 +2529,65 @@ func TestCovUpdatePortForwardUpdate(t *testing.T) {
 	result, _ := m.Update(portForwardUpdateMsg{})
 	_ = result
 }
+
+// TestUpdateResourcesLoadedPreviewPrimesItemCache verifies that a preview
+// load for a drillable resource type also primes m.itemCache under the
+// future drill-in navKey (context/resource) so navigateChildResourceType
+// can serve the cached list without issuing a second API fetch. The
+// previewSatisfiedNavKey + fingerprint pair act as a one-shot marker
+// consumed on drill-in; the fingerprint is a digest of the fetch-affecting
+// state (namespace, allNamespaces, selectedNamespaces) so later changes
+// to any of those invalidate the shortcut without relying on requestGen
+// (which navigateChild always bumps before the child handler runs).
+func TestUpdateResourcesLoadedPreviewPrimesItemCache(t *testing.T) {
+	m := baseFinalModel()
+	m.nav = model.NavigationState{Level: model.LevelResourceTypes, Context: "test-ctx"}
+	m.namespace = "default"
+	m.requestGen = 5
+	items := []model.Item{{Name: "pvc-1", Kind: "PersistentVolumeClaim", Namespace: "default"}}
+	pvcRT := model.ResourceTypeEntry{
+		Kind:       "PersistentVolumeClaim",
+		Resource:   "persistentvolumeclaims",
+		APIVersion: "v1",
+		Namespaced: true,
+	}
+	result, _ := m.Update(resourcesLoadedMsg{
+		items:      items,
+		rt:         pvcRT,
+		forPreview: true,
+		gen:        5,
+	})
+	rm := result.(Model)
+
+	expectedKey := "test-ctx/persistentvolumeclaims"
+	cached, ok := rm.itemCache[expectedKey]
+	assert.True(t, ok, "itemCache must be primed at drill-in navKey %q", expectedKey)
+	assert.Equal(t, items, cached, "cached items must match preview payload")
+	assert.Equal(t, rm.fetchFingerprint(), rm.cacheFingerprints[expectedKey],
+		"cacheFingerprints must snapshot the fetch-affecting state at prime time for this key")
+	// The existing rightItems behavior still runs — preview pane shows the
+	// filtered items.
+	assert.Equal(t, items, rm.rightItems)
+}
+
+// TestUpdateResourcesLoadedPreviewNoPrimeWhenMissingRT verifies that the
+// cache-prime logic is skipped when the preview msg does not carry an rt
+// (e.g., synthetic port-forward previews). Without this guard the handler
+// would write an empty resource key like "test-ctx/".
+func TestUpdateResourcesLoadedPreviewNoPrimeWhenMissingRT(t *testing.T) {
+	m := baseFinalModel()
+	m.nav = model.NavigationState{Level: model.LevelResourceTypes, Context: "test-ctx"}
+	m.requestGen = 3
+	items := []model.Item{{Name: "pf-1", Kind: "PortForward"}}
+	result, _ := m.Update(resourcesLoadedMsg{
+		items:      items,
+		forPreview: true,
+		gen:        3,
+		// rt left zero-valued on purpose
+	})
+	rm := result.(Model)
+
+	_, hasEmptyKey := rm.itemCache["test-ctx/"]
+	assert.False(t, hasEmptyKey, "must not prime cache under an empty-resource key")
+	assert.Empty(t, rm.cacheFingerprints, "must not record a fingerprint without an rt")
+}
