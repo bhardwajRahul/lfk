@@ -926,12 +926,22 @@ func (m Model) updateNamespacesLoaded(msg namespacesLoadedMsg) (tea.Model, tea.C
 
 func (m Model) updateYamlLoaded(msg yamlLoadedMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
+	// enterFullView sets yamlContent="Loading..." as a placeholder; we
+	// must replace it on every reply path (success, cancel, error) so the
+	// viewer never renders the loader indefinitely. The canceled case can
+	// fire when a mid-load navigation tears down reqCtx — show an empty
+	// body so the user understands the fetch did not complete rather than
+	// being stuck on the spinner.
 	if isContextCanceled(msg.err) {
+		m.yamlContent = ""
+		m.yamlSections = nil
 		return m, nil
 	}
 	if msg.err != nil {
 		m.err = msg.err
 		m.setErrorFromErr("Warning: ", msg.err)
+		m.yamlContent = "# Error loading resource\n# " + msg.err.Error()
+		m.yamlSections = nil
 		return m, scheduleStatusClear()
 	}
 	m.err = nil

@@ -1313,6 +1313,37 @@ func TestUpdateContainersLoadedClearsPreviewLoadingAtLevelContainers(t *testing.
 	assert.Equal(t, items, rm.middleItems)
 }
 
+// TestUpdateYamlLoadedErrorClearsLoadingPlaceholder locks in the fix for
+// issue #34: pressing Enter on a resource kicks off the full-screen YAML
+// view with m.yamlContent="Loading..." as an initial placeholder.
+// updateYamlLoaded previously bailed out on any error (including
+// context.Canceled) without touching yamlContent, so the viewer stayed
+// stuck on "Loading..." forever. The status-bar error flashed briefly
+// and was lost. The fix: replace the placeholder with an error message
+// so the user sees what happened instead of an eternal loader.
+func TestUpdateYamlLoadedErrorClearsLoadingPlaceholder(t *testing.T) {
+	m := baseFinalModel()
+	m.mode = modeYAML
+	m.yamlContent = "Loading..."
+	result, _ := m.Update(yamlLoadedMsg{err: assert.AnError})
+	rm := result.(Model)
+	assert.NotEqual(t, "Loading...", rm.yamlContent, "yamlContent must not stay on the Loading placeholder when the fetch errors")
+	assert.Contains(t, rm.yamlContent, assert.AnError.Error(), "yamlContent should surface the error message so users can see what went wrong")
+}
+
+// TestUpdateYamlLoadedContextCanceledClearsPlaceholder covers the
+// context.Canceled branch specifically — a cancellation that races the
+// viewer transition must still clear the "Loading..." placeholder,
+// otherwise every mid-load navigation leaves a stuck YAML view behind.
+func TestUpdateYamlLoadedContextCanceledClearsPlaceholder(t *testing.T) {
+	m := baseFinalModel()
+	m.mode = modeYAML
+	m.yamlContent = "Loading..."
+	result, _ := m.Update(yamlLoadedMsg{err: context.Canceled})
+	rm := result.(Model)
+	assert.NotEqual(t, "Loading...", rm.yamlContent, "yamlContent must not stay on the Loading placeholder when the request is canceled")
+}
+
 func TestFinal2UpdateNamespacesLoadedMsg(t *testing.T) {
 	m := baseFinalModel()
 	m.loading = true
