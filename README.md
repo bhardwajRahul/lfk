@@ -349,10 +349,10 @@ Namespaces are **not** a navigation level. The current namespace is shown in the
 | `l` / `Right` | Navigate into selected item |
 | `j` / `Down` | Move cursor down |
 | `k` / `Up` | Move cursor up |
-| `gg` | Jump to top of list |
-| `G` | Jump to bottom of list |
+| `gg` / `Home` | Jump to top of list |
+| `G` / `End` | Jump to bottom of list |
 | `Ctrl+D` / `Ctrl+U` | Half-page scroll down/up |
-| `Ctrl+F` / `Ctrl+B` | Full-page scroll down/up |
+| `Ctrl+F` / `Ctrl+B` / `PgDn` / `PgUp` | Full-page scroll down/up |
 | `Enter` | Open full-screen YAML view / navigate into |
 | `z` | Toggle expand/collapse all resource groups / toggle event grouping (Events view) |
 | `p` | Pin/unpin CRD group (at resource types level) |

@@ -598,6 +598,14 @@ func keyMsg(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyCtrlP}
 	case "ctrl+v":
 		return tea.KeyMsg{Type: tea.KeyCtrlV}
+	case "pgup":
+		return tea.KeyMsg{Type: tea.KeyPgUp}
+	case "pgdown":
+		return tea.KeyMsg{Type: tea.KeyPgDown}
+	case "home":
+		return tea.KeyMsg{Type: tea.KeyHome}
+	case "end":
+		return tea.KeyMsg{Type: tea.KeyEnd}
 	default:
 		if len(s) == 1 {
 			return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}

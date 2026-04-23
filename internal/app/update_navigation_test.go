@@ -468,3 +468,67 @@ func TestCovNavigateChildEmpty(t *testing.T) {
 	result, _ := m.navigateChild()
 	_ = result.(Model) // no panic
 }
+
+// --- PgUp/PgDown/Home/End support ---
+
+// manyItemsModel returns a model with enough items to exercise paging and
+// Home/End in the middle column.
+func manyItemsModel(n int) Model {
+	m := basePush80v3Model()
+	items := make([]model.Item, n)
+	for i := range n {
+		items[i] = model.Item{Name: "item-" + string(rune('a'+i%26)) + "-" + string(rune('0'+i/26)), Namespace: "default", Kind: "Pod", Status: "Running"}
+	}
+	m.middleItems = items
+	m.setCursor(0)
+	return m
+}
+
+// TestHomeKeyJumpsToTopOfList verifies that the Home key jumps the cursor
+// to the first item, matching user expectation for standard navigation
+// keys. Home is a single-press equivalent of the vim-style "gg" sequence.
+func TestHomeKeyJumpsToTopOfList(t *testing.T) {
+	m := manyItemsModel(20)
+	m.setCursor(15)
+	result, _ := m.handleKey(keyMsg("home"))
+	rm := result.(Model)
+	assert.Equal(t, 0, rm.cursor(), "Home must jump the cursor to the first item")
+	assert.False(t, rm.pendingG, "Home must not leave pendingG armed")
+}
+
+// TestEndKeyJumpsToBottomOfList verifies that the End key jumps the cursor
+// to the last item, matching user expectation for standard navigation
+// keys. End is the single-press equivalent of "G".
+func TestEndKeyJumpsToBottomOfList(t *testing.T) {
+	m := manyItemsModel(20)
+	m.setCursor(0)
+	result, _ := m.handleKey(keyMsg("end"))
+	rm := result.(Model)
+	visible := rm.visibleMiddleItems()
+	assert.Equal(t, len(visible)-1, rm.cursor(), "End must jump the cursor to the last item")
+}
+
+// TestPgDownKeyScrollsFullPageDown verifies that PgDown moves the cursor a
+// full page down, matching the behavior of Ctrl+F (PageForward).
+func TestPgDownKeyScrollsFullPageDown(t *testing.T) {
+	m := manyItemsModel(50)
+	m.height = 20
+	m.setCursor(0)
+	result, _ := m.handleKey(keyMsg("pgdown"))
+	rm := result.(Model)
+	assert.Greater(t, rm.cursor(), 0, "PgDown must advance the cursor")
+	// Full page = height - 4 = 16 items, capped at len-1.
+	assert.LessOrEqual(t, rm.cursor(), len(rm.visibleMiddleItems())-1)
+}
+
+// TestPgUpKeyScrollsFullPageUp verifies that PgUp moves the cursor a full
+// page up, matching the behavior of Ctrl+B (PageBack).
+func TestPgUpKeyScrollsFullPageUp(t *testing.T) {
+	m := manyItemsModel(50)
+	m.height = 20
+	m.setCursor(30)
+	result, _ := m.handleKey(keyMsg("pgup"))
+	rm := result.(Model)
+	assert.Less(t, rm.cursor(), 30, "PgUp must move the cursor backwards")
+	assert.GreaterOrEqual(t, rm.cursor(), 0)
+}

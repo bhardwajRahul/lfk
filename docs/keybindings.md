@@ -10,11 +10,11 @@ Complete list of all keybindings in `lfk`. All keybindings can be overridden in 
 | `l` / `Right` | Navigate into selected item |
 | `j` / `Down` | Move cursor down |
 | `k` / `Up` | Move cursor up |
-| `gg` | Jump to top of list |
-| `G` | Jump to bottom of list |
+| `gg` / `Home` | Jump to top of list |
+| `G` / `End` | Jump to bottom of list |
 | `Enter` | Open full-screen YAML view / navigate into |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
-| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
+| `Ctrl+F` / `Ctrl+B` / `PgDn` / `PgUp` | Page down / up (full page) |
 | `z` | Toggle expand/collapse all resource groups / toggle event grouping in the Events list |
 | `p` | Pin/unpin CRD group (at resource types level) |
 | `H` | Toggle rarely used resource types (CSI internals, webhooks, APF, leases, advanced core) in the sidebar (resets each launch) |
@@ -158,10 +158,11 @@ my namespace" mode.
 | `W` / `B` | Move cursor to next/previous WORD start (whitespace-delimited) |
 | `e` | Move cursor to end of word |
 | `E` | Move cursor to end of WORD (whitespace-delimited) |
-| `gg` / `G` | Jump to top / bottom |
+| `gg` / `Home` | Jump to top |
+| `G` / `End` | Jump to bottom |
 | `123G` | Jump to line number |
 | `Ctrl+D` / `Ctrl+U` | Page down / up (half page) |
-| `Ctrl+F` / `Ctrl+B` | Page down / up (full page) |
+| `Ctrl+F` / `Ctrl+B` / `PgDn` / `PgUp` | Page down / up (full page) |
 | `/` | Search in YAML |
 | `n` / `N` | Next / previous search match |
 | `v` | Character visual selection (from cursor column) |
@@ -198,9 +199,10 @@ my namespace" mode.
 | `W` / `B` | Move cursor to next/previous WORD start (whitespace-delimited) |
 | `e` | Move cursor to end of word |
 | `E` | Move cursor to end of WORD (whitespace-delimited) |
-| `gg` / `G` | Jump to top / bottom |
+| `gg` / `Home` | Jump to top |
+| `G` / `End` | Jump to bottom |
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
-| `Ctrl+F` / `Ctrl+B` | Full page down / up |
+| `Ctrl+F` / `Ctrl+B` / `PgDn` / `PgUp` | Full page down / up |
 | `f` | Toggle follow mode (auto-scroll to new logs) |
 | `Tab` / `z` / `>` | Toggle line wrapping |
 | `#` | Toggle line numbers |
