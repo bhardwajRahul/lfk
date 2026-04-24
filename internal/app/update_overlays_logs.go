@@ -46,6 +46,10 @@ func (m Model) handlePodSelectOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.pendingAction = ""
 				return m.executeAction("Logs")
 			}
+			if m.pendingAction == "Tail Logs" {
+				m.pendingAction = ""
+				return m.executeAction("Tail Logs")
+			}
 			return m, m.loadContainersForAction()
 		}
 		m.overlay = overlayNone

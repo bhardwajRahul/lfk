@@ -351,6 +351,11 @@ var ConfigConfirmOnExit = true
 // ConfigLogTailLines controls how many log lines are initially loaded via --tail.
 var ConfigLogTailLines = 1000
 
+// ConfigLogTailLinesShort is the tail line count used by the "Tail Logs" action
+// menu entry. It intentionally defaults to a small value (10) so users get a
+// lightweight peek at recent output without the full 1000-line hit.
+var ConfigLogTailLinesShort = 10
+
 // ConfigLogRenderAnsi controls whether the log viewer preserves ANSI SGR
 // escape sequences (colour, bold, underline) emitted by log producers.
 // When true, the sanitizer keeps valid SGR runs verbatim so coloured
@@ -445,6 +450,10 @@ type configFile struct {
 	// When the user scrolls to the top, older logs are fetched in the background.
 	// Defaults to 1000.
 	LogTailLines *int `json:"log_tail_lines" yaml:"log_tail_lines"`
+	// LogTailLinesShort controls how many log lines the "Tail Logs" action menu
+	// entry loads via --tail. Intended for quick peeks without the full history
+	// hit. Defaults to 10. Non-positive values are ignored (default is kept).
+	LogTailLinesShort *int `json:"log_tail_lines_short" yaml:"log_tail_lines_short"`
 	// LogRenderAnsi controls whether ANSI SGR sequences (colour, bold,
 	// underline) emitted by log producers are rendered in the viewer.
 	// Defaults to true. Set to false to strip all ANSI escapes, matching
@@ -703,6 +712,9 @@ func applyConfigOptions(cfg configFile) {
 	}
 	if cfg.LogTailLines != nil && *cfg.LogTailLines > 0 {
 		ConfigLogTailLines = *cfg.LogTailLines
+	}
+	if cfg.LogTailLinesShort != nil && *cfg.LogTailLinesShort > 0 {
+		ConfigLogTailLinesShort = *cfg.LogTailLinesShort
 	}
 	if cfg.LogRenderAnsi != nil {
 		ConfigLogRenderAnsi = *cfg.LogRenderAnsi

@@ -330,6 +330,9 @@ func (m Model) executeActionCoreK8s(actionLabel string) (tea.Model, tea.Cmd, boo
 	case "Logs":
 		mdl, cmd := m.executeActionLogs()
 		return mdl, cmd, true
+	case "Tail Logs":
+		mdl, cmd := m.executeActionTailLogs()
+		return mdl, cmd, true
 	case "Exec":
 		mdl, cmd := m.executeActionExec()
 		return mdl, cmd, true
@@ -516,6 +519,20 @@ func (m Model) executeActionHelmHistory() (tea.Model, tea.Cmd) {
 
 // executeActionLogs handles the "Logs" action.
 func (m Model) executeActionLogs() (tea.Model, tea.Cmd) {
+	return m.executeActionLogsWithTail("Logs", ui.ConfigLogTailLines)
+}
+
+// executeActionTailLogs handles the "Tail Logs" action, loading only the short
+// tail count (ConfigLogTailLinesShort) for a lightweight quick peek.
+func (m Model) executeActionTailLogs() (tea.Model, tea.Cmd) {
+	return m.executeActionLogsWithTail("Tail Logs", ui.ConfigLogTailLinesShort)
+}
+
+// executeActionLogsWithTail is the shared implementation for both Logs and Tail
+// Logs. tailLines controls the --tail value; pendingLabel is stored in
+// m.pendingAction so the pod/container-selection overlays can continue with the
+// correct action label.
+func (m Model) executeActionLogsWithTail(pendingLabel string, tailLines int) (tea.Model, tea.Cmd) {
 	ns := m.actionCtx.namespace
 	name := m.actionCtx.name
 	ctx := m.actionCtx.context
@@ -532,7 +549,7 @@ func (m Model) executeActionLogs() (tea.Model, tea.Cmd) {
 	}
 
 	if kind != "Pod" && !isGroupResource && m.actionCtx.containerName == "" {
-		m.pendingAction = "Logs"
+		m.pendingAction = pendingLabel
 		return m, m.loadContainersForAction()
 	}
 
@@ -569,16 +586,25 @@ func (m Model) executeActionLogs() (tea.Model, tea.Cmd) {
 	} else {
 		m.logSelectedContainers = nil
 	}
-	m.logTailLines = ui.ConfigLogTailLines
+	m.logTailLines = tailLines
 	m.logHasMoreHistory = true
 	m.logLoadingHistory = false
 	m.logCursor = 0 // will track end as lines stream in with follow mode
 	m.logVisualMode = false
 	m.logVisualStart = 0
+	isTail := pendingLabel == "Tail Logs"
 	if m.actionCtx.containerName != "" {
-		m.logTitle = fmt.Sprintf("Logs: %s/%s [%s]", m.actionNamespace(), m.actionCtx.name, m.actionCtx.containerName)
+		if isTail {
+			m.logTitle = fmt.Sprintf("Logs (tail): %s/%s [%s]", m.actionNamespace(), m.actionCtx.name, m.actionCtx.containerName)
+		} else {
+			m.logTitle = fmt.Sprintf("Logs: %s/%s [%s]", m.actionNamespace(), m.actionCtx.name, m.actionCtx.containerName)
+		}
 	} else {
-		m.logTitle = fmt.Sprintf("Logs: %s/%s", m.actionNamespace(), m.actionCtx.name)
+		if isTail {
+			m.logTitle = fmt.Sprintf("Logs (tail): %s/%s", m.actionNamespace(), m.actionCtx.name)
+		} else {
+			m.logTitle = fmt.Sprintf("Logs: %s/%s", m.actionNamespace(), m.actionCtx.name)
+		}
 	}
 	return m, m.startLogStream()
 }

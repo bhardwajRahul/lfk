@@ -222,7 +222,7 @@ my namespace" mode.
 | `\` | Switch pod / filter containers (space: select, enter: apply, / to filter) |
 | `q` / `Esc` | Close log viewer |
 
-> **Tail-first loading**: Logs load the last 1000 lines initially with follow mode enabled. Scrolling to the top automatically loads older log history. Configure with `log_tail_lines` in config.
+> **Tail-first loading**: Full Logs (`L` key or action menu `L`) load the last 1000 lines initially (configurable via `log_tail_lines`). Tail Logs (action menu `l`) load only the last 10 lines (configurable via `log_tail_lines_short`) — useful for a quick peek without the full history hit. Scrolling to the top automatically loads older log history in both modes.
 
 > **Auto-reconnect across init containers**: When viewing logs for a single Pod in all-containers mode (no specific container selected via `\`), the stream automatically reconnects each time kubectl exits — for example as each init container finishes and the next one starts. The reconnect is silent: no sentinel markers are inserted into the log buffer. After several consecutive empty reconnects the viewer stops retrying (the pod is terminated).
 
@@ -480,19 +480,19 @@ Press `:` to open the command bar. It supports four types of input:
 The action menu (`x` key) shows context-specific actions based on the resource type:
 
 ### Pod Actions
-`l` Logs, `s` Exec, `A` Attach, `B` Debug, `b` Debug Pod, `p` Port Forward, `S` Startup Analysis, `v` Describe, `E` Edit, `D` Delete, `X` Force Delete, `V` Events
+`l` Tail Logs (last N lines + follow), `L` Logs (full), `s` Exec, `A` Attach, `B` Debug, `b` Debug Pod, `p` Port Forward, `S` Startup Analysis, `v` Describe, `E` Edit, `D` Delete, `X` Force Delete, `V` Events
 
 ### Deployment Actions
-`l` Logs, `s` Exec, `A` Attach, `S` Scale, `r` Restart, `R` Rollback, `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
+`l` Tail Logs (last N lines + follow), `L` Logs (full), `s` Exec, `A` Attach, `S` Scale, `r` Restart, `R` Rollback, `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
 
 ### StatefulSet Actions
-`l` Logs, `s` Exec, `A` Attach, `S` Scale, `r` Restart, `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
+`l` Tail Logs (last N lines + follow), `L` Logs (full), `s` Exec, `A` Attach, `S` Scale, `r` Restart, `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
 
 ### DaemonSet Actions
-`l` Logs, `s` Exec, `A` Attach, `r` Restart, `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
+`l` Tail Logs (last N lines + follow), `L` Logs (full), `s` Exec, `A` Attach, `r` Restart, `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
 
 ### Service Actions
-`l` Logs, `s` Exec (into pod behind service), `A` Attach (to pod behind service), `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
+`l` Tail Logs (last N lines + follow), `L` Logs (full), `s` Exec (into pod behind service), `A` Attach (to pod behind service), `p` Port Forward, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
 
 ### Secret Actions
 `e` Secret Editor, `v` Describe, `E` Edit, `D` Delete, `l` Labels / Annotations, `b` Debug Pod, `V` Events
@@ -504,10 +504,10 @@ The action menu (`x` key) shows context-specific actions based on the resource t
 `c` Cordon, `u` Uncordon, `n` Drain, `t` Taint, `T` Untaint, `s` Shell, `v` Describe, `E` Edit, `b` Debug Pod, `V` Events
 
 ### Job Actions
-`l` Logs, `s` Exec, `A` Attach, `v` Describe, `E` Edit, `D` Delete, `X` Force Delete, `b` Debug Pod, `V` Events
+`l` Tail Logs (last N lines + follow), `L` Logs (full), `s` Exec, `A` Attach, `v` Describe, `E` Edit, `D` Delete, `X` Force Delete, `b` Debug Pod, `V` Events
 
 ### CronJob Actions
-`l` Logs, `s` Exec, `A` Attach, `t` Trigger (create Job), `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
+`l` Tail Logs (last N lines + follow), `L` Logs (full), `s` Exec, `A` Attach, `t` Trigger (create Job), `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
 
 ### ArgoCD Application Actions
 `s` Sync, `a` Sync (Apply Only), `f` Diff, `R` Refresh, `v` Describe, `E` Edit, `D` Delete, `b` Debug Pod, `V` Events
