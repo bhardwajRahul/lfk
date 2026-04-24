@@ -28,6 +28,7 @@ The configuration file is located at `~/.config/lfk/config.yaml`. All fields are
 | `scrolloff` | int | `5` | Number of lines to keep visible above/below the cursor when scrolling. Used by all views with cursor-based navigation. |
 | `mouse` | bool | `true` | Capture mouse input for click navigation, scroll, and tab switching. Set to `false` to allow native terminal text selection. Also available as `--no-mouse` CLI flag. |
 | `secret_lazy_loading` | bool | `false` | When `true`, Secret listing fetches metadata only and decoded values load on hover. Much faster in clusters with many Helm release secrets (each release is a multi-hundred-KB Secret) or large TLS payloads, at the cost of an extra GET per hovered Secret. When `false` (default), Secrets list like every other resource type — full objects are pulled and `data` is eagerly decoded, so the Type column and decoded values are visible immediately. See [Secret lazy loading](#secret-lazy-loading) for trade-offs. |
+| `min_contrast_ratio` | float | `0.0` | Normalized readability knob in `[0.0, 1.0]`. When above zero, foreground colors are nudged in HSL lightness space to meet a minimum WCAG contrast ratio against their paired background. See [Minimum Contrast Ratio](#minimum-contrast-ratio). |
 
 ### Auto dark/light mode
 
@@ -420,6 +421,73 @@ this option is designed to fix.
 
 ```yaml
 secret_lazy_loading: true
+```
+
+## Minimum Contrast Ratio
+
+`min_contrast_ratio` is a normalized knob in `[0.0, 1.0]` that makes lfk
+automatically adjust foreground colors to be more readable against their
+backgrounds. It is useful when a built-in theme happens to produce low-contrast
+text on your particular terminal or display.
+
+### WCAG mapping
+
+The value is mapped linearly to a [WCAG 2.1](https://www.w3.org/TR/WCAG21/#contrast-minimum)
+contrast ratio target:
+
+```
+wcagTarget = 1.0 + value * 20.0
+```
+
+| Config value | WCAG ratio | Standard |
+|---|---|---|
+| `0.0` (default) | — | Off; colors unchanged |
+| `0.175` | 4.5:1 | WCAG AA (normal text) |
+| `0.3` | 7.0:1 | WCAG AAA |
+| `1.0` | 21.0:1 | Maximum (forces pure black or white fg) |
+
+### How it works
+
+- Only HSL **lightness** is adjusted. Hue and saturation are preserved, so
+  chromatic colors keep their identity at moderate values.
+- Nudge direction preserves the designer's existing fg/bg relationship: if fg
+  was darker than bg the mutator nudges it further darker; if lighter, further
+  lighter. This avoids flipping a dark-on-light pair past the bg toward the
+  opposite extreme, which would silently collapse the contrast for
+  mid-luminance backgrounds.
+- The adjustment runs per color pair, so some colors may shift more than others
+  depending on how far they are from the target. At `value=1.0` expect some
+  colors to collapse toward achromatic white or black.
+- Named colors (e.g. `red`) and malformed hex values are left unchanged rather
+  than causing an error.
+
+### Pairs adjusted
+
+| Foreground | Background |
+|---|---|
+| `text` | `base` |
+| `dimmed` | `base` |
+| `error` | `base` |
+| `warning` | `base` |
+| `secondary` | `base` |
+| `primary` | `base` |
+| `purple` | `base` |
+| `selected_fg` | `selected_bg` |
+
+`border` is intentionally **not** in this list. It doubles as the background
+for the left-pane selected-row highlight (`ParentHighlightStyle` renders
+`text` on `border`), so enforcing its contrast as a foreground color would
+drive it toward `text`'s luminance and collapse that highlight.
+
+### When to use this
+
+Turn it on when you notice text is hard to read with a particular colorscheme
+on your terminal. Start with `0.175` (WCAG AA) — it is a good balance between
+readability and color fidelity. Increase toward `0.3` if you still find the
+text too dim.
+
+```yaml
+min_contrast_ratio: 0.175
 ```
 
 ## Terminal Mode

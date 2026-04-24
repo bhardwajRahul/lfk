@@ -24,6 +24,17 @@ const (
 // app.NewModel.
 var ConfigWatchInterval = DefaultWatchInterval
 
+// clamp01 restricts v to [0.0, 1.0].
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
 // ClampWatchInterval restricts d to [MinWatchInterval, MaxWatchInterval].
 // A zero or negative duration is returned unchanged so callers can treat it
 // as "unset" and fall back to a default.
@@ -297,6 +308,23 @@ var ConfigDashboard = true
 // between hover and fetch completion.
 var ConfigSecretLazyLoading bool
 
+// ConfigMinContrastRatio is the normalized readability knob in [0.0, 1.0].
+// When greater than zero, ApplyTheme nudges foreground colors in HSL lightness
+// space so each fg/bg pair meets a minimum WCAG contrast ratio. The mapping is:
+//
+//	wcagTarget = 1.0 + value * 20.0
+//
+// Concrete examples:
+//
+//	0.0   off (default) — theme colors used as-is
+//	0.175 approx. WCAG AA threshold (4.5:1) for normal text
+//	0.3   approx. WCAG AAA threshold (7.0:1)
+//	1.0   maximum — forces fg toward pure black or white against any bg
+//
+// Values outside [0, 1] are clamped. Only HSL lightness is adjusted; hue and
+// saturation are preserved at moderate values.
+var ConfigMinContrastRatio float64
+
 // ConfigTerminalMode controls how exec/shell commands run.
 var ConfigTerminalMode = "pty"
 
@@ -456,6 +484,15 @@ type configFile struct {
 	// the trade-off is a per-hover GET and a brief blank-data frame until the
 	// fetch resolves.
 	SecretLazyLoading *bool `json:"secret_lazy_loading" yaml:"secret_lazy_loading"`
+	// MinContrastRatio is a normalized readability knob in [0.0, 1.0]. When set
+	// above zero, ApplyTheme nudges each foreground color's HSL lightness until
+	// the fg/bg pair meets the derived WCAG contrast ratio:
+	//
+	//   wcagTarget = 1.0 + value * 20.0
+	//
+	// Examples: 0.175 ≈ WCAG AA (4.5:1), 0.3 ≈ AAA (7.0:1), 1.0 = maximum.
+	// Values outside [0, 1] are clamped. Hue and saturation are preserved.
+	MinContrastRatio *float64 `json:"min_contrast_ratio" yaml:"min_contrast_ratio"`
 }
 
 // clusterConfig holds per-cluster configuration overrides.
@@ -618,38 +655,33 @@ func normalizeScheme(s string) string {
 	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(s)), " ", "-")
 }
 
-// applyConfigOptions applies scalar config options (icons, terminal, tips, etc.).
-func applyConfigOptions(cfg configFile) {
-	// Icon mode resolution:
-	//   1. LFK_ICONS env var (if valid) — unconditional override.
-	//   2. cfg.Icons if explicit non-auto.
-	//   3. Otherwise, detectIconMode() for auto.
-	//   4. Fallback: unicode.
-	resolvedIcons := ""
+// resolveIconMode determines the icon mode from the environment and config.
+// Priority:
+//  1. LFK_ICONS env var (if valid) — unconditional override.
+//  2. cfg.Icons if explicit non-auto.
+//  3. Otherwise, detectIconMode() for auto.
+//  4. Fallback: unicode.
+func resolveIconMode(cfgIcons string) string {
 	if envMode := strings.ToLower(os.Getenv("LFK_ICONS")); envMode != "" {
 		switch envMode {
 		case "unicode", "nerdfont", "simple", "emoji", "none":
-			resolvedIcons = envMode
+			return envMode
 		}
 	}
-	if resolvedIcons == "" {
-		cfgMode := strings.ToLower(cfg.Icons)
-		if cfgMode == "" {
-			cfgMode = "auto"
-		}
-		if cfgMode == "auto" {
-			resolvedIcons = detectIconMode()
-		} else {
-			switch cfgMode {
-			case "unicode", "nerdfont", "simple", "emoji", "none":
-				resolvedIcons = cfgMode
-			}
-		}
+	cfgMode := strings.ToLower(cfgIcons)
+	if cfgMode == "" || cfgMode == "auto" {
+		return detectIconMode()
 	}
-	if resolvedIcons == "" {
-		resolvedIcons = "unicode"
+	switch cfgMode {
+	case "unicode", "nerdfont", "simple", "emoji", "none":
+		return cfgMode
 	}
-	IconMode = resolvedIcons
+	return "unicode"
+}
+
+// applyConfigOptions applies scalar config options (icons, terminal, tips, etc.).
+func applyConfigOptions(cfg configFile) {
+	IconMode = resolveIconMode(cfg.Icons)
 
 	if cfg.Dashboard != nil {
 		ConfigDashboard = *cfg.Dashboard
@@ -699,6 +731,9 @@ func applyConfigOptions(cfg configFile) {
 	}
 	if cfg.SecretLazyLoading != nil {
 		ConfigSecretLazyLoading = *cfg.SecretLazyLoading
+	}
+	if cfg.MinContrastRatio != nil {
+		ConfigMinContrastRatio = clamp01(*cfg.MinContrastRatio)
 	}
 	if os.Getenv("NO_COLOR") != "" {
 		// Per https://no-color.org, the presence of NO_COLOR (regardless of
