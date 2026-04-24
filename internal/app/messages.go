@@ -464,3 +464,15 @@ type commandBarNamesFetchedMsg struct {
 	cacheKey string
 	names    []string
 }
+
+// previewSecretDataLoadedMsg carries lazily-fetched secret data for the hover
+// preview pane at LevelResources. The gen field guards against stale responses;
+// handlers must discard messages where gen != m.requestGen.
+type previewSecretDataLoadedMsg struct {
+	gen  uint64
+	ctx  string
+	ns   string
+	name string
+	data *model.SecretData
+	err  error
+}

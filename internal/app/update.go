@@ -139,6 +139,9 @@ func (m Model) updateResourceMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case previewEventsLoadedMsg:
 		mdl := m.updatePreviewEventsLoaded(msg)
 		return mdl, nil, true
+	case previewSecretDataLoadedMsg:
+		mdl := m.updatePreviewSecretDataLoaded(msg)
+		return mdl, nil, true
 	case podMetricsEnrichedMsg:
 		mdl := m.updatePodMetricsEnriched(msg)
 		return mdl, nil, true
@@ -1703,6 +1706,66 @@ func (m Model) updatePreviewEventsLoaded(msg previewEventsLoadedMsg) Model {
 	return m
 }
 
+func (m Model) updatePreviewSecretDataLoaded(msg previewSecretDataLoadedMsg) Model {
+	if msg.gen != m.requestGen {
+		return m // stale response; discard. A newer load is still in flight,
+		// so leave previewLoading armed for the next reply.
+	}
+	// The fetch is no longer in flight for the current gen. Clear the spinner
+	// regardless of outcome so the right pane stops saying "Loading...".
+	m.previewLoading = false
+	if msg.err != nil {
+		logger.Info("preview secret data load error", "name", msg.name, "err", msg.err)
+		return m // do not cache failures
+	}
+	if msg.data == nil {
+		return m
+	}
+
+	// Store in cache so subsequent hovers on the same key (after list refresh)
+	// skip the network round-trip.
+	if m.secretPreviewCache == nil {
+		m.secretPreviewCache = make(map[string]*model.SecretData)
+	}
+	key := secretPreviewCacheKey(msg.ctx, msg.ns, msg.name)
+	m.secretPreviewCache[key] = msg.data
+
+	// Inject secret:<key> columns into every matching middleItems entry.
+	for i := range m.middleItems {
+		item := &m.middleItems[i]
+		if item.Name != msg.name {
+			continue
+		}
+		itemNS := item.Namespace
+		if itemNS == "" {
+			itemNS = m.namespace
+		}
+		if itemNS != msg.ns {
+			continue
+		}
+
+		// Remove any stale secret: columns first to avoid duplicates when
+		// the secret data has been updated between fetches.
+		filtered := item.Columns[:0]
+		for _, kv := range item.Columns {
+			if !strings.HasPrefix(kv.Key, "secret:") {
+				filtered = append(filtered, kv)
+			}
+		}
+		item.Columns = filtered
+
+		// Append decoded secret entries in key order.
+		for _, k := range msg.data.Keys {
+			item.Columns = append(item.Columns, model.KeyValue{
+				Key:   "secret:" + k,
+				Value: msg.data.Data[k],
+			})
+		}
+	}
+
+	return m
+}
+
 func (m Model) updatePodMetricsEnriched(msg podMetricsEnrichedMsg) Model {
 	if msg.gen != m.requestGen {
 		return m // stale response
@@ -1928,6 +1991,18 @@ func (m Model) updateSecretSaved(msg secretSavedMsg) (tea.Model, tea.Cmd) {
 	} else {
 		m.setStatusMessage("Secret saved", false)
 		m.overlay = overlayNone
+
+		// Invalidate the preview cache for this secret so the next hover
+		// re-fetches fresh data after the save.
+		if sel := m.selectedMiddleItem(); sel != nil {
+			kctx := m.nav.Context
+			ns := m.resolveNamespace()
+			if sel.Namespace != "" {
+				ns = sel.Namespace
+			}
+			key := secretPreviewCacheKey(kctx, ns, sel.Name)
+			delete(m.secretPreviewCache, key)
+		}
 	}
 	return m, tea.Batch(m.refreshCurrentLevel(), scheduleStatusClear())
 }

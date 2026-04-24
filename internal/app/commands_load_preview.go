@@ -131,6 +131,13 @@ func (m Model) loadPreviewResources() tea.Cmd {
 	if eventsCmd := m.loadPreviewEvents(); eventsCmd != nil {
 		cmds = append(cmds, eventsCmd)
 	}
+	// loadPreviewSecretData is itself gated on kind and the lazy-loading
+	// config flag; call it unconditionally and let it no-op when not
+	// applicable. Keeping the gate centralised there makes the contract
+	// testable without reaching into tea.Batch internals here.
+	if secretCmd := m.loadPreviewSecretData(); secretCmd != nil {
+		cmds = append(cmds, secretCmd)
+	}
 	if len(cmds) == 0 {
 		return nil
 	}
@@ -442,6 +449,92 @@ func (m Model) loadContainerPorts() tea.Cmd {
 		}
 		return containerPortsLoadedMsg{ports: ports, err: err}
 	})
+}
+
+// secretPreviewCacheKey returns the cache key for secret preview data.
+// Format: "ctx/namespace/name".
+func secretPreviewCacheKey(ctx, ns, name string) string {
+	return ctx + "/" + ns + "/" + name
+}
+
+// secretDataCachedFor reports whether the lazily-fetched data for the given
+// item is already in the preview cache. Used by the right-pane renderer to
+// distinguish "fetch still in flight" (show spinner) from "fetch completed,
+// just no data rows to show" (render the metadata summary anyway) — needed
+// because Secret items come from the metadata-only list path and have empty
+// Columns until/unless the hover fetch injects data.
+func (m Model) secretDataCachedFor(sel *model.Item) bool {
+	if sel == nil || m.nav.ResourceType.Kind != "Secret" {
+		return false
+	}
+	ns := m.resolveNamespace()
+	if sel.Namespace != "" {
+		ns = sel.Namespace
+	}
+	_, ok := m.secretPreviewCache[secretPreviewCacheKey(m.nav.Context, ns, sel.Name)]
+	return ok
+}
+
+// loadPreviewSecretData lazily fetches decoded secret data for the currently
+// hovered secret at LevelResources. On cache hit it synthesizes an immediate
+// message so the update handler can inject columns into freshly-rebuilt items
+// after a list refresh. On cache miss it dispatches a background task.
+//
+// Returns nil when:
+//   - the current resource type is not Secret,
+//   - secret_lazy_loading is off in config (the list path already eagerly
+//     decoded values into the item, so a hover GET would be redundant), or
+//   - no middle item is selected.
+func (m Model) loadPreviewSecretData() tea.Cmd {
+	if m.nav.ResourceType.Kind != "Secret" || !ui.ConfigSecretLazyLoading {
+		return nil
+	}
+	sel := m.selectedMiddleItem()
+	if sel == nil {
+		return nil
+	}
+
+	kctx := m.nav.Context
+	ns := m.resolveNamespace()
+	if sel.Namespace != "" {
+		ns = sel.Namespace
+	}
+	name := sel.Name
+	gen := m.requestGen
+
+	key := secretPreviewCacheKey(kctx, ns, name)
+	if cached := m.secretPreviewCache[key]; cached != nil {
+		// Cache hit: emit immediately so the handler can inject columns into
+		// items rebuilt after a list refresh, without touching the network.
+		return func() tea.Msg {
+			return previewSecretDataLoadedMsg{
+				gen:  gen,
+				ctx:  kctx,
+				ns:   ns,
+				name: name,
+				data: cached,
+			}
+		}
+	}
+
+	// Cache miss: fetch in the background.
+	reqCtx := m.reqCtx
+	return m.trackBgTask(
+		bgtasks.KindResourceList,
+		"Secret data: "+name,
+		bgtaskTarget(kctx, ns),
+		func() tea.Msg {
+			data, err := m.client.GetSecretData(reqCtx, kctx, ns, name)
+			return previewSecretDataLoadedMsg{
+				gen:  gen,
+				ctx:  kctx,
+				ns:   ns,
+				name: name,
+				data: data,
+				err:  err,
+			}
+		},
+	)
 }
 
 // waitForStderr listens for captured stderr output and returns it as a message.

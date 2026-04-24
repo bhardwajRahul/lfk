@@ -347,6 +347,19 @@ load. Tune it with:
 Values outside `[500ms, 10m]` are clamped to the bounds; invalid values fall
 back to 2s.
 
+### Secret Lazy Loading
+
+On clusters with many Helm releases or large TLS secrets, listing the
+Secrets resource type can transfer tens of megabytes. Enable lazy loading
+to fetch only metadata for the list and defer decoded values to hover:
+
+- **Config file:** Add `secret_lazy_loading: true` to `~/.config/lfk/config.yaml`
+
+Trade-off: the Type column is dropped from the list (metadata-only fetch
+doesn't include it) and there's a small per-hover fetch for decoded values
+(cached thereafter). See [Configuration Reference](docs/config-reference.md#secret-lazy-loading)
+for details.
+
 ## Navigation Hierarchy
 
 ```

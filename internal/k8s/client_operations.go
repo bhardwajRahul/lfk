@@ -13,6 +13,7 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
@@ -369,4 +370,24 @@ func (c *Client) dynamicForContext(contextName string) (dynamic.Interface, error
 		return nil, fmt.Errorf("creating dynamic client: %w", err)
 	}
 	return dynClient, nil
+}
+
+// metadataForContext returns a metadata-only client for the given context.
+// When testMetaClient is set (tests), it is returned directly.
+func (c *Client) metadataForContext(contextName string) (metadata.Interface, error) {
+	// Allow tests to inject a fake metadata client.
+	if c.testMetaClient != nil {
+		if mc, ok := c.testMetaClient.(metadata.Interface); ok {
+			return mc, nil
+		}
+	}
+	cfg, err := c.restConfigForContext(contextName)
+	if err != nil {
+		return nil, err
+	}
+	mc, err := metadata.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating metadata client: %w", err)
+	}
+	return mc, nil
 }

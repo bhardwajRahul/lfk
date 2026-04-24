@@ -304,7 +304,7 @@ func (m Model) renderRightResources(width, height int) string {
 	// on every interval, and branching on it here would flash a spinner and
 	// clear the details every tick.
 	if m.nav.ResourceType.Kind != "Pod" {
-		if sel := m.selectedMiddleItem(); sel != nil && len(sel.Columns) > 0 {
+		if sel := m.selectedMiddleItem(); sel != nil && (len(sel.Columns) > 0 || m.secretDataCachedFor(sel)) {
 			return ui.RenderResourceSummary(sel, "", width, height)
 		}
 		// No item selected yet (e.g., initial load before the list arrives):

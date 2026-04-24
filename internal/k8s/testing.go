@@ -9,6 +9,8 @@ import (
 // cs should be a kubernetes.Interface (e.g. k8sfake.NewClientset()),
 // dyn should be a dynamic.Interface (e.g. dynamicfake.NewSimpleDynamicClient()).
 // Both may be nil if the test does not exercise those code paths.
+// To inject a fake metadata client, set the testMetaClient field directly on
+// the returned *Client (or use NewTestClientWithMeta).
 func NewTestClient(cs, dyn interface{}) *Client {
 	return &Client{
 		rawConfig: api.Config{

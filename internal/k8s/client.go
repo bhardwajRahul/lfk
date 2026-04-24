@@ -20,16 +20,32 @@ import (
 	"github.com/janosmiko/lfk/internal/model"
 )
 
+// secretGVR is the GroupVersionResource for Kubernetes Secrets.
+var secretGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
+
 // Client wraps Kubernetes API access.
 type Client struct {
 	rawConfig    api.Config
 	loadingRules *clientcmd.ClientConfigLoadingRules
 
-	// testClientset and testDynClient allow tests to inject fake clients.
-	// When set, clientsetForContext and dynamicForContext return these
-	// instead of building real clients from the kubeconfig.
-	testClientset interface{} // kubernetes.Interface (avoid import cycle in non-test code)
-	testDynClient interface{} // dynamic.Interface
+	// testClientset, testDynClient, and testMetaClient allow tests to inject
+	// fake clients. When set, the corresponding *ForContext helpers return
+	// these instead of building real clients from the kubeconfig.
+	testClientset  interface{} // kubernetes.Interface (avoid import cycle in non-test code)
+	testDynClient  interface{} // dynamic.Interface
+	testMetaClient interface{} // metadata.Interface
+
+	// secretLazyLoading, when true, routes Secret listing through the
+	// metadata-only API so decoded values are lazy-fetched on hover instead
+	// of being pulled up-front. Configured via the secret_lazy_loading
+	// option; off by default so the list behaves like every other resource.
+	secretLazyLoading bool
+}
+
+// SetSecretLazyLoading toggles the metadata-only list path for Secrets.
+// Typically called once at startup after loading the config file.
+func (c *Client) SetSecretLazyLoading(enabled bool) {
+	c.secretLazyLoading = enabled
 }
 
 // RBACCheck represents a single permission check result.
@@ -265,6 +281,13 @@ func (c *Client) GetNamespaces(ctx context.Context, contextName string) ([]model
 // GetResources lists resources of a given type. For namespaced resources it
 // scopes to the given namespace; for cluster-scoped resources it lists globally.
 // When namespace is empty and the resource is namespaced, it lists across all namespaces.
+//
+// Secrets are fetched via the metadata-only API (PartialObjectMetadataList) to
+// avoid pulling base64-encoded data over the wire. Helm release Secrets are
+// large (100KB–1MB each) and would dominate list latency otherwise. The list
+// items therefore carry only Name/Namespace/Age/Deletion/OwnerReferences — no
+// "secret:<key>" data columns and no "Type" column. Per-secret data is loaded
+// lazily by the UI layer when the user selects a specific secret.
 func (c *Client) GetResources(ctx context.Context, contextName, namespace string, rt model.ResourceTypeEntry) ([]model.Item, error) {
 	// Special handling for virtual resource types.
 	if rt.APIGroup == "_helm" && rt.Resource == "releases" {
@@ -272,6 +295,15 @@ func (c *Client) GetResources(ctx context.Context, contextName, namespace string
 	}
 	if rt.APIGroup == "_portforward" {
 		return nil, nil // port forwards are managed locally, not via K8s API
+	}
+
+	// Secrets optionally use the metadata-only path to avoid transferring
+	// large base64 data payloads (especially Helm release secrets). Gated
+	// behind SetSecretLazyLoading so the default list behaviour stays
+	// consistent with every other resource type; decoded values are then
+	// loaded on hover at LevelResources.
+	if c.secretLazyLoading && rt.APIGroup == "" && rt.Resource == "secrets" {
+		return c.listSecretsMetadata(ctx, contextName, namespace, rt)
 	}
 
 	dynClient, err := c.dynamicForContext(contextName)
@@ -313,6 +345,77 @@ func (c *Client) GetResources(ctx context.Context, contextName, namespace string
 		sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 	}
 	return items, nil
+}
+
+// listSecretsMetadata fetches the Secret list using the metadata-only API,
+// returning model.Items with only Name/Namespace/Age/Deletion/OwnerReferences.
+func (c *Client) listSecretsMetadata(ctx context.Context, contextName, namespace string, rt model.ResourceTypeEntry) ([]model.Item, error) {
+	mc, err := c.metadataForContext(contextName)
+	if err != nil {
+		return nil, err
+	}
+
+	var getter interface {
+		List(ctx context.Context, opts metav1.ListOptions) (*metav1.PartialObjectMetadataList, error)
+	}
+	if rt.Namespaced {
+		getter = mc.Resource(secretGVR).Namespace(namespace) // empty string = all namespaces
+	} else {
+		getter = mc.Resource(secretGVR)
+	}
+
+	list, err := getter.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing secrets (metadata): %w", err)
+	}
+
+	items := make([]model.Item, 0, len(list.Items))
+	for i := range list.Items {
+		ti := buildMetadataItem(&list.Items[i], rt.Namespaced)
+		items = append(items, ti)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+	return items, nil
+}
+
+// buildMetadataItem converts a PartialObjectMetadata into a model.Item.
+// Only metadata fields are populated — no status, no kind-specific columns.
+func buildMetadataItem(obj *metav1.PartialObjectMetadata, namespaced bool) model.Item {
+	ti := model.Item{
+		Name: obj.GetName(),
+		Kind: obj.Kind,
+	}
+
+	if namespaced {
+		ti.Namespace = obj.GetNamespace()
+	}
+
+	if ts := obj.GetCreationTimestamp(); !ts.IsZero() {
+		ti.CreatedAt = ts.Time
+		ti.Age = formatAge(time.Since(ts.Time))
+	}
+
+	if dt := obj.GetDeletionTimestamp(); dt != nil {
+		ti.Deleting = true
+		ti.Status = "Terminating"
+		ti.Columns = append(ti.Columns, model.KeyValue{
+			Key:   "Deletion",
+			Value: dt.Format(time.RFC3339),
+		})
+	}
+
+	// Append owner references for navigation (same logic as populateOwnerReferences
+	// but operating on the typed OwnerReferences slice from PartialObjectMetadata).
+	for i, ref := range obj.GetOwnerReferences() {
+		if ref.Kind != "" && ref.Name != "" {
+			ti.Columns = append(ti.Columns, model.KeyValue{
+				Key:   fmt.Sprintf("owner:%d", i),
+				Value: ref.APIVersion + "||" + ref.Kind + "||" + ref.Name,
+			})
+		}
+	}
+
+	return ti
 }
 
 // buildResourceItem converts a single unstructured resource into a model.Item.

@@ -676,6 +676,11 @@ type Model struct {
 	schemeFilterMode   bool   // true when typing into filter
 	schemeOriginalName string // scheme name before opening overlay, for cancel restore
 
+	// secretPreviewCache stores fetched secret data keyed by
+	// "ctx/namespace/name" to avoid redundant API calls when hovering the same
+	// secret after a list refresh. Invalidated on successful secret save.
+	secretPreviewCache map[string]*model.SecretData
+
 	// Secret editor state.
 	secretData         *model.SecretData
 	secretDataOriginal map[string]string // snapshot taken at load time for dirty detection
@@ -960,6 +965,7 @@ func NewModel(client *k8s.Client, opts StartupOptions) Model {
 		yamlCollapsed:       make(map[string]bool),
 		discoveredResources: make(map[string][]model.ResourceTypeEntry),
 		discoveringContexts: make(map[string]bool),
+		secretPreviewCache:  make(map[string]*model.SecretData),
 		allGroupsExpanded:   true,
 		warningEventsOnly:   true,
 		eventGrouping:       true,

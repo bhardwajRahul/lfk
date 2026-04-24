@@ -27,6 +27,7 @@ The configuration file is located at `~/.config/lfk/config.yaml`. All fields are
 | `confirm_on_exit` | bool | `true` | Show quit confirmation when pressing `ctrl+c` on the last tab. Set to `false` to exit immediately. |
 | `scrolloff` | int | `5` | Number of lines to keep visible above/below the cursor when scrolling. Used by all views with cursor-based navigation. |
 | `mouse` | bool | `true` | Capture mouse input for click navigation, scroll, and tab switching. Set to `false` to allow native terminal text selection. Also available as `--no-mouse` CLI flag. |
+| `secret_lazy_loading` | bool | `false` | When `true`, Secret listing fetches metadata only and decoded values load on hover. Much faster in clusters with many Helm release secrets (each release is a multi-hundred-KB Secret) or large TLS payloads, at the cost of an extra GET per hovered Secret. When `false` (default), Secrets list like every other resource type — full objects are pulled and `data` is eagerly decoded, so the Type column and decoded values are visible immediately. See [Secret lazy loading](#secret-lazy-loading) for trade-offs. |
 
 ### Auto dark/light mode
 
@@ -383,6 +384,43 @@ filter_presets:
 | `restarts_gt` | Match pods with restart count greater than this number |
 | `column` | Column key to check (case-insensitive, e.g., "Node", "IP") |
 | `column_value` | Substring match against the column value (case-insensitive) |
+
+## Secret lazy loading
+
+By default, `Secret` resources list like every other resource type: the full
+objects are pulled from the API server and their `data` map is eagerly
+base64-decoded into each row. This keeps the Type column and decoded values
+visible immediately, at the cost of potentially heavy list responses —
+Helm v3 stores every release (and every revision) as a Secret of
+`type=helm.sh/release.v1`, typically 100 KB to 1 MB per release, so clusters
+with many Helm apps can push tens of megabytes on a single Secrets list.
+
+Set `secret_lazy_loading: true` to opt into a different strategy:
+
+- The list fetches **metadata only** via the Kubernetes
+  `PartialObjectMetadataList` API (name, namespace, age, owner references,
+  deletion timestamp). No `data` payload crosses the wire for the list.
+- The right-hand detail pane lazily fetches each Secret's decoded values on
+  **hover** (one per-item GET, cached until the secret is edited or the
+  list refreshes). Masked-bullet rendering is unchanged — toggle visibility
+  with the secret-toggle key as usual.
+
+### Trade-offs
+
+| | `false` (default) | `true` |
+|---|---|---|
+| List payload for 100 Helm releases | ~50–100 MB (full objects) | Kilobytes (metadata only) |
+| Type column visible in list | Yes | **No** — dropped; the metadata API doesn't return it |
+| Decoded values on first hover | Instant (already on the item) | Brief delay until per-item GET returns, then cached |
+| API calls per hover at `LevelResources` | 0 extra | 1 per distinct Secret (cached thereafter) |
+
+Turn this on if you notice hovering **Secrets** in the left pane is
+noticeably slower than hovering other resource types — that's the symptom
+this option is designed to fix.
+
+```yaml
+secret_lazy_loading: true
+```
 
 ## Terminal Mode
 

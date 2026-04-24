@@ -286,6 +286,17 @@ func ColumnsForKind(kind, context string) []string {
 // ConfigDashboard controls whether to show a cluster dashboard when entering a context.
 var ConfigDashboard = true
 
+// ConfigSecretLazyLoading controls how Secret resources are listed.
+// When false (default), Secret lists fetch full objects and eagerly decode
+// their data into item columns — matching the behaviour of every other
+// resource type.
+// When true, Secret lists fetch metadata only (no data payload over the
+// wire) and decoded values are lazy-loaded on hover. This is much faster in
+// clusters with many Helm release secrets or large TLS payloads, at the
+// cost of an extra GET per hovered secret and a brief empty-data window
+// between hover and fetch completion.
+var ConfigSecretLazyLoading bool
+
 // ConfigTerminalMode controls how exec/shell commands run.
 var ConfigTerminalMode = "pty"
 
@@ -437,6 +448,14 @@ type configFile struct {
 	// via bold/underline/reverse SGR codes. The NO_COLOR env var (per
 	// https://no-color.org) takes precedence over this field.
 	NoColor *bool `json:"no_color" yaml:"no_color"`
+	// SecretLazyLoading controls how Secret resources are fetched. When false
+	// (default), Secrets behave like every other resource type: full objects
+	// are pulled and data is eagerly decoded into the list. When true, only
+	// metadata is fetched for the list and decoded values are loaded on hover.
+	// Turn on in clusters with many Helm release secrets to cut list latency;
+	// the trade-off is a per-hover GET and a brief blank-data frame until the
+	// fetch resolves.
+	SecretLazyLoading *bool `json:"secret_lazy_loading" yaml:"secret_lazy_loading"`
 }
 
 // clusterConfig holds per-cluster configuration overrides.
@@ -677,6 +696,9 @@ func applyConfigOptions(cfg configFile) {
 	}
 	if cfg.NoColor != nil {
 		ConfigNoColor = *cfg.NoColor
+	}
+	if cfg.SecretLazyLoading != nil {
+		ConfigSecretLazyLoading = *cfg.SecretLazyLoading
 	}
 	if os.Getenv("NO_COLOR") != "" {
 		// Per https://no-color.org, the presence of NO_COLOR (regardless of
