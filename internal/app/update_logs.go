@@ -919,6 +919,20 @@ func (m Model) handleLogVisualKeyCtrlV() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleLogVisualKeyY() (tea.Model, tea.Cmd) {
+	clipText, lineCount := m.buildLogYankText()
+	m.logVisualMode = false
+	m.setStatusMessage(fmt.Sprintf("Copied %d lines", lineCount), false)
+	return m, tea.Batch(copyToSystemClipboard(clipText), scheduleStatusClear())
+}
+
+// buildLogYankText returns the clipboard text and selection size for the
+// active visual selection in the log viewer. Lines are returned in
+// display form — timestamps and pod prefixes stripped per the user's
+// toggles, mirroring ui.applyLineRewrites — so the clipboard matches
+// what the user sees on screen. Char- and block-mode column positions
+// are interpreted in display-line space (after stripping), which is
+// where the cursor lives.
+func (m *Model) buildLogYankText() (string, int) {
 	selStart := min(m.logVisualStart, m.logCursor)
 	selEnd := max(m.logVisualStart, m.logCursor)
 	if selStart < 0 {
@@ -927,45 +941,48 @@ func (m Model) handleLogVisualKeyY() (tea.Model, tea.Cmd) {
 	if selEnd >= len(m.logLines) {
 		selEnd = len(m.logLines) - 1
 	}
+	if selStart > selEnd {
+		return "", 0
+	}
+
+	displayed := make([]string, selEnd-selStart+1)
+	for i := selStart; i <= selEnd; i++ {
+		displayed[i-selStart] = m.logDisplayLine(i)
+	}
+
 	var clipText string
 	switch m.logVisualType {
 	case 'v': // Character mode: partial first/last lines.
-		var parts []string
 		anchorCol := m.logVisualCol
 		cursorCol := m.logVisualCurCol
-		// Determine direction: assign columns to selStart/selEnd lines.
+		// Direction: when the user dragged upward, the start-of-selection
+		// column is the cursor's, not the anchor's.
 		startCol, endCol := anchorCol, cursorCol
 		if m.logVisualStart > m.logCursor {
-			// Upward selection: cursor is at selStart, anchor at selEnd.
 			startCol, endCol = cursorCol, anchorCol
 		}
-		for i := selStart; i <= selEnd; i++ {
-			line := m.logLines[i]
+		parts := make([]string, 0, len(displayed))
+		for j, line := range displayed {
 			runes := []rune(line)
-			if selStart == selEnd {
-				// Single line: extract column range.
+			switch {
+			case len(displayed) == 1:
 				cs := min(anchorCol, cursorCol)
 				ce := max(anchorCol, cursorCol) + 1
-				if cs > len(runes) {
-					cs = len(runes)
-				}
-				if ce > len(runes) {
-					ce = len(runes)
-				}
+				cs, ce = clampSliceBounds(cs, ce, len(runes))
 				parts = append(parts, string(runes[cs:ce]))
-			} else if i == selStart {
+			case j == 0:
 				cs := startCol
 				if cs > len(runes) {
 					cs = len(runes)
 				}
 				parts = append(parts, string(runes[cs:]))
-			} else if i == selEnd {
+			case j == len(displayed)-1:
 				ce := endCol + 1
 				if ce > len(runes) {
 					ce = len(runes)
 				}
 				parts = append(parts, string(runes[:ce]))
-			} else {
+			default:
 				parts = append(parts, line)
 			}
 		}
@@ -973,32 +990,28 @@ func (m Model) handleLogVisualKeyY() (tea.Model, tea.Cmd) {
 	case 'B': // Block mode: rectangular column range.
 		colStart := min(m.logVisualCol, m.logVisualCurCol)
 		colEnd := max(m.logVisualCol, m.logVisualCurCol) + 1
-		var parts []string
-		for i := selStart; i <= selEnd; i++ {
-			line := m.logLines[i]
+		parts := make([]string, 0, len(displayed))
+		for _, line := range displayed {
 			runes := []rune(line)
-			cs := colStart
-			ce := colEnd
-			if cs > len(runes) {
-				cs = len(runes)
-			}
-			if ce > len(runes) {
-				ce = len(runes)
-			}
+			cs, ce := clampSliceBounds(colStart, colEnd, len(runes))
 			parts = append(parts, string(runes[cs:ce]))
 		}
 		clipText = strings.Join(parts, "\n")
 	default: // Line mode: whole lines.
-		var selected []string
-		for i := selStart; i <= selEnd; i++ {
-			selected = append(selected, m.logLines[i])
-		}
-		clipText = strings.Join(selected, "\n")
+		clipText = strings.Join(displayed, "\n")
 	}
-	lineCount := selEnd - selStart + 1
-	m.logVisualMode = false
-	m.setStatusMessage(fmt.Sprintf("Copied %d lines", lineCount), false)
-	return m, tea.Batch(copyToSystemClipboard(clipText), scheduleStatusClear())
+	return clipText, len(displayed)
+}
+
+// clampSliceBounds returns cs/ce clamped to [0, n], preserving cs <= ce.
+func clampSliceBounds(cs, ce, n int) (int, int) {
+	if cs > n {
+		cs = n
+	}
+	if ce > n {
+		ce = n
+	}
+	return cs, ce
 }
 
 func (m Model) handleLogVisualKeyH() (tea.Model, tea.Cmd) {
