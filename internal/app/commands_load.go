@@ -125,16 +125,14 @@ func (m Model) loadResources(forPreview bool) tea.Cmd {
 		}
 		rt = found
 	}
-	// Fresh-cache shortcut: if itemCache already holds a list for this rt
-	// that was fetched under the current fetch parameters (namespace,
-	// allNamespaces, selectedNamespaces), synthesize the corresponding
-	// msg directly from cache instead of hitting the API. Lookup is keyed
-	// by (context, resource) so hovering back and forth between multiple
-	// rts each gets its own cached fingerprint — no single-slot eviction.
-	// The same shortcut applies to both the main-load path (drill-in) and
-	// the preview-load path (sidebar hover), so a round-trip back to the
-	// sidebar or a hover cycle between PVC and PV doesn't refetch.
-	if rt.Resource != "" {
+	// Fresh-cache shortcut: serve preview hover-cycles between sibling
+	// resource types without hitting the API. Restricted to forPreview
+	// because main-list loads (drill-in, navigate-back, watch tick,
+	// shift+r) must always re-fetch — without that, deleted pods linger
+	// in the list and Age never moves forward. Navigation still feels
+	// instant because update_navigation.go renders the cached entry
+	// synchronously while this fetch runs in the background.
+	if forPreview && rt.Resource != "" {
 		cacheKey := kctx + "/" + rt.Resource
 		if cached, ok := m.itemCache[cacheKey]; ok &&
 			m.cacheFingerprints[cacheKey] == m.fetchFingerprint() {

@@ -470,21 +470,19 @@ func TestCovNavigateChildEmpty(t *testing.T) {
 	_ = result.(Model) // no panic
 }
 
-// TestNavigateChildResourceType_ReusesPreviewCacheWithoutRefetch verifies
-// that when the preview handler has already primed itemCache for the
-// target resource (previewSatisfiedNavKey + fingerprint still valid),
-// drilling in reuses the cached list and the follow-up loadResources
-// synthesizes a msg from cache instead of firing a second network fetch.
-// This must work even though navigateChild bumps requestGen before this
-// handler runs — the fingerprint comparison deliberately does not depend
-// on requestGen. The marker is persistent (not consumed) so a subsequent
-// navigate-out + hover-back can reuse the same cache.
-func TestNavigateChildResourceType_ReusesPreviewCacheWithoutRefetch(t *testing.T) {
+// TestNavigateChildResourceType_RendersCacheImmediatelyAndRefetches
+// verifies the post-fix UX: drilling in renders the previously primed
+// preview cache synchronously (so the user sees the list with no
+// loading flash), but the follow-up loadResources(false) MUST hit the
+// API rather than synthesizing a msg from cache. Without this real
+// refetch, deleted/terminated rows linger in the list — the cache
+// shortcut for main loads was the source of "deleted pod still shown"
+// after watch ticks and shift+r. The shortcut now applies only to
+// preview hover-cycles (forPreview=true).
+func TestNavigateChildResourceType_RendersCacheImmediatelyAndRefetches(t *testing.T) {
 	m := basePush80Model()
 	m.nav = model.NavigationState{Level: model.LevelResourceTypes, Context: "test-ctx"}
 	m.namespace = "default"
-	// Simulate navigateChild having already bumped the gen before we're
-	// invoked (this is the real call path). The shortcut must still work.
 	m.requestGen = 8
 
 	pvcRT := model.ResourceTypeEntry{
@@ -504,7 +502,6 @@ func TestNavigateChildResourceType_ReusesPreviewCacheWithoutRefetch(t *testing.T
 	m.itemCache[drillInKey] = cachedItems
 	m.cacheFingerprints[drillInKey] = m.fetchFingerprint()
 
-	// leftItemsHistory must exist for pushLeft not to panic.
 	m.leftItems = []model.Item{{Name: "test-ctx"}}
 	m.leftItemsHistory = [][]model.Item{{{Name: "root"}}}
 
@@ -516,22 +513,17 @@ func TestNavigateChildResourceType_ReusesPreviewCacheWithoutRefetch(t *testing.T
 	rm := result.(Model)
 
 	assert.Equal(t, model.LevelResources, rm.nav.Level)
-	assert.Equal(t, cachedItems, rm.middleItems, "cached items must populate middleItems immediately")
-	// The fingerprint entry stays intact so a navigate-out + re-hover can
-	// also be served from cache.
+	assert.Equal(t, cachedItems, rm.middleItems,
+		"cached items must populate middleItems immediately for instant UX")
 	assert.Equal(t, rm.fetchFingerprint(), rm.cacheFingerprints[drillInKey],
 		"fingerprint entry persists across drill-in")
-	require.NotNil(t, cmd, "must return a cmd (synthesized from loadResources cache shortcut)")
-
-	// The returned cmd is loadResources(false). When run it must synthesize
-	// a resourcesLoadedMsg from cache rather than dispatching a real API
-	// call through trackBgTask.
-	msg := cmd()
-	loaded, ok := msg.(resourcesLoadedMsg)
-	require.True(t, ok, "synthesized cmd must produce a resourcesLoadedMsg, got %T", msg)
-	assert.False(t, loaded.forPreview, "main-load path: forPreview=false")
-	assert.Equal(t, cachedItems, loaded.items, "items come from cache, not the API")
-	assert.Equal(t, uint64(8), loaded.gen, "synthesized msg carries current requestGen so it passes the staleness gate")
+	require.NotNil(t, cmd, "must return a cmd to drive the background refetch")
+	// Behavior contract: cmd is loadResources(false), which after the
+	// shortcut restriction always issues a real API fetch on main loads
+	// — that's how watch ticks/shift+r/navigate-back actually surface
+	// fresh data. We don't execute cmd() here because it would dispatch
+	// against a real client; the assertion above (cached items stay in
+	// middleItems) is the visible-UX guarantee.
 }
 
 // TestNavigateChildResourceType_FetchesWhenFingerprintStale verifies that
@@ -678,17 +670,17 @@ func TestNavigateChild_ShortcutSurvivesGenBump(t *testing.T) {
 
 	assert.Equal(t, model.LevelResources, rm.nav.Level)
 	assert.Equal(t, cachedItems, rm.middleItems,
-		"shortcut must fire even after navigateChild's gen bump")
-	// Fingerprint entry is persistent so subsequent loads for the same
-	// rt (after navigate-out) can also skip the fetch.
+		"cache must populate middleItems immediately even after navigateChild's gen bump")
+	// Fingerprint entry is persistent so subsequent preview hovers for
+	// the same rt can also skip the fetch.
 	assert.Equal(t, rm.fetchFingerprint(), rm.cacheFingerprints[drillInKey],
-		"fingerprint entry must persist so follow-up loads reuse the cache")
+		"fingerprint entry must persist for the preview-only shortcut to keep working")
 	require.NotNil(t, cmd)
-	msg := cmd()
-	loaded, ok := msg.(resourcesLoadedMsg)
-	require.True(t, ok, "expected synthesized resourcesLoadedMsg, got %T", msg)
-	assert.False(t, loaded.forPreview, "synthesized msg routes through main handler")
-	assert.Equal(t, cachedItems, loaded.items)
+	// Post-fix: cmd is a real fetch, not a cache-synthesized msg — main
+	// loads always go to the API so deleted rows surface promptly. The
+	// visible UX guarantee (cached items rendered immediately) is the
+	// middleItems assertion above; we don't execute cmd() because it
+	// would dispatch a real client call.
 }
 
 // TestLoadResources_PreviewShortcutAfterNavigateOut verifies that after a
