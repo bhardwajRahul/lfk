@@ -130,6 +130,7 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 	}
 
 	result := make([]extraColumn, 0, len(candidates))
+	naturalW := make([]int, 0, len(candidates)) // pre-cap desired width including spacing
 	remainingW := available
 	maxColW := 20
 	if ActiveFullscreenMode {
@@ -149,6 +150,7 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 		if maxVal > colW {
 			colW = maxVal
 		}
+		natural := colW + 1 // pre-cap natural width (with spacing)
 		if colW > maxColW {
 			colW = maxColW
 		}
@@ -157,12 +159,33 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 			break
 		}
 		result = append(result, extraColumn{key: key, width: colW, hasArrow: info.hasArrow})
+		naturalW = append(naturalW, natural)
 		remainingW -= colW
 	}
 
-	// Remaining width is not assigned to extra columns — it flows back to the
-	// NAME column via the caller's width calculation, keeping resource names
-	// readable instead of padding the last extra column.
+	// Redistribute remaining budget round-robin to columns that were capped
+	// below their natural width. This avoids the failure mode where NAME gets
+	// a large empty pad while Ports/Cluster IP/etc. are still truncated.
+	// Growth stops at each column's natural width, so columns that already fit
+	// don't get inflated — leftover beyond that flows back to NAME via the
+	// caller's width calculation, preserving readable resource names.
+	for remainingW > 0 {
+		grew := false
+		for i := range result {
+			if result[i].width >= naturalW[i] {
+				continue
+			}
+			result[i].width++
+			remainingW--
+			grew = true
+			if remainingW == 0 {
+				break
+			}
+		}
+		if !grew {
+			break
+		}
+	}
 
 	return result
 }

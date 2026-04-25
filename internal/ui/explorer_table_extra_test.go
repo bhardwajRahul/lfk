@@ -458,6 +458,64 @@ func TestCollectExtraColumns(t *testing.T) {
 		}
 	})
 
+	t.Run("capped column grows into surplus budget instead of padding NAME", func(t *testing.T) {
+		// Reproduces the bug where Service PORTS get truncated (e.g. "443:3~")
+		// while NAME ends up with a huge empty pad. The 20-char cap prevented
+		// Ports from using available leftover budget that flowed to NAME.
+		items := []model.Item{
+			{Name: "svc1", Kind: "Service", Columns: []model.KeyValue{
+				{Key: "Type", Value: "LoadBalancer"},
+				{Key: "Ports", Value: "80:31539/TCP, 443:31443/TCP"}, // 27 chars
+			}},
+			{Name: "svc2", Kind: "Service", Columns: []model.KeyValue{
+				{Key: "Type", Value: "ClusterIP"},
+				{Key: "Ports", Value: "80/TCP"},
+			}},
+		}
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		defer func() { ActiveFullscreenMode = origFS }()
+
+		// 200-wide table, usedWidth=30. Plenty of surplus.
+		result := collectExtraColumns(items, 200, 30, "Service")
+
+		var portsW int
+		for _, col := range result {
+			if col.key == "Ports" {
+				portsW = col.width
+			}
+		}
+		// Natural width = 27 (value) + 1 (spacing) = 28. Should grow up to that
+		// instead of being capped at 20+1=21 while NAME absorbs the slack.
+		assert.GreaterOrEqual(t, portsW, 28,
+			"Ports column should grow to fit content when surplus is available")
+	})
+
+	t.Run("surplus growth respects natural width (no over-padding)", func(t *testing.T) {
+		// Even with abundant width, columns that already fit should not grow
+		// past their natural size — slack still flows to NAME for short content.
+		items := []model.Item{
+			{Name: "pod1", Kind: "Pod", Columns: []model.KeyValue{
+				{Key: "CPU", Value: "10m"},
+				{Key: "MEM", Value: "64Mi"},
+			}},
+		}
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		defer func() { ActiveFullscreenMode = origFS }()
+
+		result := collectExtraColumns(items, 200, 30, "Pod")
+		for _, col := range result {
+			// Header is the longest of {key, value+1}; +1 spacing column.
+			natural := len(col.key)
+			if col.key == "MEM" && natural < 5 {
+				natural = 5 // value "64Mi" is 4, +1 arrow buffer not in play here
+			}
+			assert.LessOrEqual(t, col.width, natural+1+1,
+				"column %q grew beyond natural width", col.key)
+		}
+	})
+
 	t.Run("Deletion column excluded from table in both modes", func(t *testing.T) {
 		items := []model.Item{
 			{Name: "pod1", Kind: "Pod", Columns: []model.KeyValue{
