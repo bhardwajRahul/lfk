@@ -405,10 +405,14 @@ type Model struct {
 
 	// Help screen state.
 	helpScroll       int
-	helpFilter       TextInput
-	helpSearchActive bool
-	helpContextMode  string   // section to highlight (e.g. "YAML View", "Log Viewer")
-	helpPreviousMode viewMode // mode to return to when help is closed
+	helpFilter       TextInput // applied filter (f key) — narrows visible lines
+	helpFilterActive bool      // whether the f filter input is being typed
+	helpSearchActive bool      // whether the / search input is being typed
+	helpSearchQuery  string    // applied search query (/ key) — highlights matches without filtering
+	helpMatchLines   []int     // line indices in the filtered list that contain helpSearchQuery
+	helpMatchIdx     int       // current position within helpMatchLines for n/N navigation
+	helpContextMode  string    // section to highlight (e.g. "YAML View", "Log Viewer")
+	helpPreviousMode viewMode  // mode to return to when help is closed
 	helpSearchInput  textinput.Model
 
 	// Resource filter state (/ key).

@@ -147,6 +147,22 @@ my namespace" mode.
 | `Ctrl+X` | Bookmark overlay | Delete selected bookmark (with confirmation) |
 | `Alt+X` | Bookmark overlay | Delete all bookmarks (with confirmation) |
 
+## Help View
+
+| Key | Action |
+|---|---|
+| `/` | Search — highlights matches inline without removing non-matching lines |
+| `Ctrl+N` / `Ctrl+P` | Next / previous match while typing the search input |
+| `Enter` | Apply search (closes input, keeps highlights, arms `n`/`N`) |
+| `n` / `N` | Jump to next / previous search match (after Enter) |
+| `f` | Filter — narrows the visible list to lines matching the query |
+| `Esc` | Cascades: clear active search → clear active filter → close help |
+| `j` / `k` | Scroll down/up |
+| `Ctrl+D` / `Ctrl+U` | Half-page scroll down/up |
+| `Ctrl+F` / `Ctrl+B` / `PgDown` / `PgUp` | Full-page scroll |
+| `g` / `G` | Jump to top / bottom |
+| `q` / `?` / `F1` | Close help |
+
 ## YAML View
 
 | Key | Action |

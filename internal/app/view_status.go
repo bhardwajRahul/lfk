@@ -153,24 +153,7 @@ func (m Model) statusBar() string {
 
 	// When the help screen is active, show help-specific hints.
 	if m.mode == modeHelp {
-		var helpHint string
-		switch {
-		case m.helpSearchActive:
-			helpHint = ui.HelpKeyStyle.Render("search") + ui.BarDimStyle.Render(": ") + m.helpSearchInput.View()
-		case m.helpFilter.Value != "":
-			helpHint = ui.BarDimStyle.Render("filter: ") +
-				ui.HelpKeyStyle.Render(m.helpFilter.Value) + "  " +
-				ui.HelpKeyStyle.Render("/") + ui.BarDimStyle.Render(" edit") + "  " +
-				ui.HelpKeyStyle.Render("Esc") + ui.BarDimStyle.Render(" close")
-		default:
-			helpHint = m.renderHints([]ui.HintEntry{
-				{Key: "j/k", Desc: "scroll"},
-				{Key: "^d/^u", Desc: "half-page"},
-				{Key: "/", Desc: "search"},
-				{Key: "Esc/?/q", Desc: "close"},
-			})
-		}
-		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(helpHint)
+		return ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(m.helpHintBar())
 	}
 
 	// When the error log overlay is active, show error log hints.
@@ -805,4 +788,44 @@ func renderInputWithCursor(value string, cursor int) string {
 		return value + ui.CursorBlockStyle.Render(" ")
 	}
 	return value[:cursor] + ui.CursorBlockStyle.Render(string(value[cursor])) + value[cursor+1:]
+}
+
+// helpHintBar renders the status-bar hint line for the help screen,
+// switching shape based on which input/applied state is active.
+// Extracted from statusBar to keep that function under the gocyclo
+// budget; the help screen has five distinct prompt shapes.
+func (m Model) helpHintBar() string {
+	switch {
+	case m.helpSearchActive:
+		// Live search input — show the typed query plus a hint that
+		// ctrl+n/p navigate matches in real time.
+		return ui.HelpKeyStyle.Render("search") + ui.BarDimStyle.Render(": ") + m.helpSearchInput.View() +
+			"  " + ui.HelpKeyStyle.Render("^n/^p") + ui.BarDimStyle.Render(" next/prev") +
+			"  " + ui.HelpKeyStyle.Render("Enter") + ui.BarDimStyle.Render(" apply") +
+			"  " + ui.HelpKeyStyle.Render("Esc") + ui.BarDimStyle.Render(" cancel")
+	case m.helpFilterActive:
+		return ui.HelpKeyStyle.Render("filter") + ui.BarDimStyle.Render(": ") + m.helpSearchInput.View() +
+			"  " + ui.HelpKeyStyle.Render("Enter") + ui.BarDimStyle.Render(" apply") +
+			"  " + ui.HelpKeyStyle.Render("Esc") + ui.BarDimStyle.Render(" cancel")
+	case m.helpSearchQuery != "":
+		// Search applied — n/N navigates persisted matches.
+		return ui.BarDimStyle.Render("search: ") +
+			ui.HelpKeyStyle.Render(m.helpSearchQuery) + "  " +
+			ui.HelpKeyStyle.Render("n/N") + ui.BarDimStyle.Render(" next/prev") + "  " +
+			ui.HelpKeyStyle.Render("/") + ui.BarDimStyle.Render(" edit") + "  " +
+			ui.HelpKeyStyle.Render("Esc") + ui.BarDimStyle.Render(" clear")
+	case m.helpFilter.Value != "":
+		return ui.BarDimStyle.Render("filter: ") +
+			ui.HelpKeyStyle.Render(m.helpFilter.Value) + "  " +
+			ui.HelpKeyStyle.Render("f") + ui.BarDimStyle.Render(" edit") + "  " +
+			ui.HelpKeyStyle.Render("Esc") + ui.BarDimStyle.Render(" close")
+	default:
+		return m.renderHints([]ui.HintEntry{
+			{Key: "j/k", Desc: "scroll"},
+			{Key: "^d/^u", Desc: "half-page"},
+			{Key: "/", Desc: "search"},
+			{Key: "f", Desc: "filter"},
+			{Key: "Esc/?/q", Desc: "close"},
+		})
+	}
 }

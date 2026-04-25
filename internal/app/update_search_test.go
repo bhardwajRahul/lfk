@@ -539,13 +539,17 @@ func TestCovHandleFilterKeyInsert(t *testing.T) {
 }
 
 func TestCovHelpKeySearchEsc(t *testing.T) {
+	// Under the new search-vs-filter split: Esc inside the / search
+	// input cancels the search (clears helpSearchQuery) and exits the
+	// input. The filter is independent and untouched.
 	m := baseModelSearch()
 	m.helpSearchActive = true
-	m.helpFilter.Insert("test")
+	m.helpSearchQuery = "test"
+	m.helpSearchInput.SetValue("test")
 	result, _ := m.handleHelpKey(keyMsg("esc"))
 	rm := result.(Model)
 	assert.False(t, rm.helpSearchActive)
-	assert.Empty(t, rm.helpFilter.Value)
+	assert.Empty(t, rm.helpSearchQuery)
 }
 
 func TestCovHelpKeySearchEnter(t *testing.T) {

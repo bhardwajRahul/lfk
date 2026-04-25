@@ -10,31 +10,34 @@ import (
 )
 
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.helpFilterActive {
+		return m.handleHelpFilterInput(msg)
+	}
 	if m.helpSearchActive {
-		switch msg.String() {
-		case "esc":
-			m.helpSearchActive = false
-			m.helpFilter.Clear()
-			m.helpSearchInput.Blur()
-			return m, nil
-		case "enter":
-			m.helpSearchActive = false
-			m.helpSearchInput.Blur()
-			// Keep the filter value active.
-			return m, nil
-		case "ctrl+c":
-			return m.closeTabOrQuit()
-		default:
-			var cmd tea.Cmd
-			m.helpSearchInput, cmd = m.helpSearchInput.Update(msg)
-			m.helpFilter.Value = m.helpSearchInput.Value()
-			m.helpScroll = 0
-			return m, cmd
-		}
+		return m.handleHelpSearchInput(msg)
 	}
 
 	switch msg.String() {
-	case "q", "esc", "?", "f1":
+	case "esc":
+		// Esc cascades: clear search highlights → clear filter → close.
+		// Lets the user back out of search/filter state without losing
+		// their place on the help screen (close-on-first-Esc would
+		// require navigating back from scratch).
+		switch {
+		case m.helpSearchQuery != "":
+			m.helpSearchQuery = ""
+			m.helpMatchLines = nil
+			m.helpMatchIdx = 0
+			return m, nil
+		case m.helpFilter.Value != "":
+			m.helpFilter.Clear()
+			m.helpScroll = 0
+			return m, nil
+		default:
+			m.mode = m.helpPreviousMode
+			return m, nil
+		}
+	case "q", "?", "f1":
 		m.mode = m.helpPreviousMode
 		return m, nil
 	case "j", "down":
@@ -82,14 +85,157 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.helpScroll = 9999
 		return m, nil
 	case "/":
+		// Open search input. Search highlights matches inline without
+		// removing non-matching lines (different from f-filter).
 		m.helpSearchActive = true
+		m.helpSearchInput.SetValue(m.helpSearchQuery)
+		m.helpSearchInput.Focus()
+		return m, textinput.Blink
+	case "f":
+		// Open filter input. Filter narrows the visible help to lines
+		// matching the query.
+		m.helpFilterActive = true
 		m.helpSearchInput.SetValue(m.helpFilter.Value)
 		m.helpSearchInput.Focus()
 		return m, textinput.Blink
+	case "n":
+		// Navigate to next search match (after / + Enter).
+		m.helpJumpToMatch(1)
+		return m, nil
+	case "N":
+		m.helpJumpToMatch(-1)
+		return m, nil
 	case "ctrl+c":
 		return m.closeTabOrQuit()
 	}
 	return m, nil
+}
+
+// handleHelpSearchInput runs while the user is typing in the / search
+// input. Updates helpSearchQuery on every keystroke (so highlights
+// follow the typed text), supports ctrl+n / ctrl+p to jump between
+// matches in real time, Enter to apply, Esc to cancel.
+func (m Model) handleHelpSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.helpSearchActive = false
+		m.helpSearchQuery = ""
+		m.helpMatchLines = nil
+		m.helpMatchIdx = 0
+		m.helpSearchInput.Blur()
+		return m, nil
+	case "enter":
+		m.helpSearchActive = false
+		m.helpSearchInput.Blur()
+		// Keep helpSearchQuery so highlights persist and n/N navigate
+		// after the input closes.
+		return m, nil
+	case "ctrl+n":
+		m.helpJumpToMatch(1)
+		return m, nil
+	case "ctrl+p":
+		m.helpJumpToMatch(-1)
+		return m, nil
+	case "ctrl+c":
+		return m.closeTabOrQuit()
+	default:
+		var cmd tea.Cmd
+		m.helpSearchInput, cmd = m.helpSearchInput.Update(msg)
+		m.helpSearchQuery = m.helpSearchInput.Value()
+		m.helpRecomputeMatches()
+		// Jump to the first match so the user sees the highlight without
+		// having to manually scroll. Nothing happens if there are no
+		// matches.
+		if len(m.helpMatchLines) > 0 {
+			m.helpMatchIdx = 0
+			m.helpScrollToMatch()
+		}
+		return m, cmd
+	}
+}
+
+// handleHelpFilterInput runs while the user is typing in the f filter
+// input. Filter narrows visible lines as the user types; Enter applies
+// (closes input), Esc clears.
+func (m Model) handleHelpFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.helpFilterActive = false
+		m.helpFilter.Clear()
+		m.helpSearchInput.Blur()
+		m.helpScroll = 0
+		return m, nil
+	case "enter":
+		m.helpFilterActive = false
+		m.helpSearchInput.Blur()
+		return m, nil
+	case "ctrl+c":
+		return m.closeTabOrQuit()
+	default:
+		var cmd tea.Cmd
+		m.helpSearchInput, cmd = m.helpSearchInput.Update(msg)
+		m.helpFilter.Value = m.helpSearchInput.Value()
+		m.helpScroll = 0
+		// A filter change can shift line indices, invalidating any prior
+		// search match cursor — recompute against the new visible set.
+		m.helpRecomputeMatches()
+		return m, cmd
+	}
+}
+
+// helpRecomputeMatches walks the current help lines (after filter is
+// applied) and records the indices of lines containing the search
+// query. Resets helpMatchIdx when the match set changes.
+func (m *Model) helpRecomputeMatches() {
+	m.helpMatchLines = nil
+	if m.helpSearchQuery == "" {
+		m.helpMatchIdx = 0
+		return
+	}
+	lines := ui.BuildHelpLines(m.helpFilter.Value, m.helpContextMode)
+	for i, line := range lines {
+		if ui.MatchLine(line, m.helpSearchQuery) {
+			m.helpMatchLines = append(m.helpMatchLines, i)
+		}
+	}
+	if m.helpMatchIdx >= len(m.helpMatchLines) {
+		m.helpMatchIdx = 0
+	}
+}
+
+// helpJumpToMatch advances the match cursor by delta and scrolls the
+// viewport so the new match line is visible. No-op when there are no
+// matches.
+func (m *Model) helpJumpToMatch(delta int) {
+	if len(m.helpMatchLines) == 0 {
+		return
+	}
+	m.helpMatchIdx = (m.helpMatchIdx + delta) % len(m.helpMatchLines)
+	if m.helpMatchIdx < 0 {
+		m.helpMatchIdx += len(m.helpMatchLines)
+	}
+	m.helpScrollToMatch()
+}
+
+// helpScrollToMatch positions helpScroll so the current match line sits
+// roughly in the middle of the visible viewport — gives the user
+// surrounding context instead of pinning the match to the top edge.
+func (m *Model) helpScrollToMatch() {
+	if len(m.helpMatchLines) == 0 {
+		return
+	}
+	target := m.helpMatchLines[m.helpMatchIdx]
+	// Aim for the target to land near the middle of the viewport. The
+	// help renderer reserves ~6 rows for borders/title/indicators, so
+	// approximate the visible area as height-6.
+	visible := m.height - 6
+	if visible < 4 {
+		visible = 4
+	}
+	m.helpScroll = target - visible/2
+	if m.helpScroll < 0 {
+		m.helpScroll = 0
+	}
 }
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

@@ -386,6 +386,17 @@ func helpSections() []helpSection {
 			},
 		},
 		{
+			title: "Help View",
+			bindings: []helpEntry{
+				{"/", "Search — highlights matches inline without filtering"},
+				{"Ctrl+N / Ctrl+P", "Next / previous match while typing the search"},
+				{"Enter", "Apply search (keep highlights and arm n/N)"},
+				{"n / N", "Jump to next / previous search match (after Enter)"},
+				{"f", "Filter — narrows the visible list to matching lines"},
+				{"Esc", "Cascades: clear search → clear filter → close help"},
+			},
+		},
+		{
 			title: "General",
 			bindings: []helpEntry{
 				{kb.ThemeSelector, "Switch color scheme (" + kb.NewTab + ": toggle transparent bg)"},
@@ -405,8 +416,17 @@ func helpSections() []helpSection {
 	}
 }
 
-// buildHelpLines builds the formatted help lines, optionally filtering by a query string.
-// contextMode limits sections to those matching the current view (empty = explorer).
+// BuildHelpLines builds the formatted help lines, optionally filtering
+// by a query string. contextMode limits sections to those matching the
+// current view (empty = explorer). Exported so the app layer can run
+// the same line-building pipeline to compute search match indices for
+// n/N navigation.
+func BuildHelpLines(filter, contextMode string) []string {
+	return buildHelpLines(filter, contextMode)
+}
+
+// buildHelpLines is the internal implementation kept unexported to
+// avoid forcing callers to import context-specific styling state.
 func buildHelpLines(filter, contextMode string) []string {
 	sections := helpSections()
 	lines := make([]string, 0, 64)
@@ -461,9 +481,10 @@ func buildHelpLines(filter, contextMode string) []string {
 }
 
 // RenderHelpScreen renders a full help overlay with all keybindings.
-// It supports scrolling via the scroll parameter and filtering via the filter parameter.
-// contextMode limits sections to the current view (empty = explorer).
-func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter, contextMode string) string {
+// filter narrows the visible lines (f key). search highlights matches
+// in the visible lines without removing them (/ key). contextMode
+// limits sections to the current view (empty = explorer).
+func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter, search, contextMode string) string {
 	boxW := screenWidth * 70 / 100
 	boxH := screenHeight * 80 / 100
 	if boxW < 50 {
@@ -478,6 +499,11 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter, contextMode
 	title := OverlayTitleStyle.Render("Keybindings")
 
 	lines := buildHelpLines(filter, contextMode)
+	if search != "" {
+		for i, line := range lines {
+			lines[i] = HighlightMatchStyled(line, search, SearchHighlightStyle)
+		}
+	}
 	totalLines := len(lines)
 
 	// Calculate visible area: title, borders, padding, help line.
