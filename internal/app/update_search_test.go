@@ -617,10 +617,15 @@ func TestCovHelpKeyGG(t *testing.T) {
 }
 
 func TestCovHelpKeyBigG(t *testing.T) {
+	// G clamps to the actual max scroll (totalLines - viewport) so a
+	// follow-up ctrl+u responds on the first press. The old impl parked
+	// the model at the 9999 sentinel and required dozens of ctrl+u
+	// keystrokes to undo phantom scroll.
 	m := baseModelSearch()
 	result, _ := m.handleHelpKey(keyMsg("G"))
 	rm := result.(Model)
-	assert.Equal(t, 9999, rm.helpScroll)
+	assert.Less(t, rm.helpScroll, 9999, "G must clamp the sentinel to actual max")
+	assert.Greater(t, rm.helpScroll, 0, "G should still scroll past the top")
 }
 
 func TestCovHelpKeyCtrlD(t *testing.T) {

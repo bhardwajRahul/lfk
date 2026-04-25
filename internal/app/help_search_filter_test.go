@@ -135,6 +135,38 @@ func TestHelpFilterEnterAppliesAndKeepsValue(t *testing.T) {
 	assert.Equal(t, "a", rm3.helpFilter.Value, "Enter keeps the filter applied")
 }
 
+// G (and ctrl+d past the end) used to set helpScroll to 9999 / leave
+// it incrementing unbounded. The renderer clamped what it showed, but
+// the model state stayed at 9999 — so the next ctrl+u decremented from
+// 9999 and the user had to press it many times before scrolling
+// visibly moved. Scroll mutations must clamp to the actual max scroll
+// (totalLines - visibleLines) so the next move responds immediately.
+func TestHelpScrollClampsAfterG(t *testing.T) {
+	m := newHelpModel()
+	r, _ := m.handleHelpKey(keyMsg("G"))
+	rm := r.(Model)
+	// max scroll is at most totalLines (well below 9999). Anything in the
+	// thousands means we never clamped.
+	assert.Less(t, rm.helpScroll, 1000,
+		"G must clamp to actual max scroll, not park the model at 9999")
+}
+
+func TestHelpScrollClampsAfterCtrlDPastEnd(t *testing.T) {
+	m := newHelpModel()
+	// Scroll to (claimed) end first.
+	r, _ := m.handleHelpKey(keyMsg("G"))
+	rm := r.(Model)
+	atEnd := rm.helpScroll
+	// Mash ctrl+d a few more times — these presses are off the end and
+	// must NOT keep growing helpScroll past the valid range.
+	for range 4 {
+		r2, _ := rm.handleHelpKey(keyMsg("ctrl+d"))
+		rm = r2.(Model)
+	}
+	assert.Equal(t, atEnd, rm.helpScroll,
+		"ctrl+d past the end must be a no-op, not bank up phantom scroll the user has to undo")
+}
+
 func TestHelpEscCascadesSearchThenFilterThenClose(t *testing.T) {
 	// Esc removes one layer of state at a time so the user doesn't lose
 	// their position by accident.

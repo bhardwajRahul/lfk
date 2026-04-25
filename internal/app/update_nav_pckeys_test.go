@@ -72,8 +72,11 @@ func TestPCKeysHelpEndJumpsToBottom(t *testing.T) {
 	m.helpScroll = 0
 	res, _ := m.handleHelpKey(keyMsg("end"))
 	rm := res.(Model)
-	// G sets helpScroll to 9999; end should match that.
-	assert.Equal(t, 9999, rm.helpScroll, "end should jump helpScroll to 9999")
+	// end (like G) clamps to the actual max so a follow-up ctrl+u
+	// responds on the first press instead of undoing 9999 worth of
+	// phantom scroll.
+	assert.Less(t, rm.helpScroll, 9999, "end must clamp the sentinel, not park at 9999")
+	assert.Greater(t, rm.helpScroll, 0, "end must scroll past the top")
 }
 
 // --- Describe viewer (handleDescribeKey) ----------------------------------------

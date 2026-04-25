@@ -42,6 +42,7 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "j", "down":
 		m.helpScroll++
+		m.clampHelpScroll()
 		return m, nil
 	case "k", "up":
 		if m.helpScroll > 0 {
@@ -57,10 +58,15 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingG = true
 		return m, nil
 	case "G":
+		// Use a sentinel and clamp — clampHelpScroll knows the actual
+		// max from the current visible help lines, so the model lands
+		// exactly at the bottom instead of parking far past it.
 		m.helpScroll = 9999
+		m.clampHelpScroll()
 		return m, nil
 	case "ctrl+d":
 		m.helpScroll += m.height / 2
+		m.clampHelpScroll()
 		return m, nil
 	case "ctrl+u":
 		m.helpScroll -= m.height / 2
@@ -70,6 +76,7 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+f", "pgdown":
 		m.helpScroll += m.height
+		m.clampHelpScroll()
 		return m, nil
 	case "ctrl+b", "pgup":
 		m.helpScroll -= m.height
@@ -83,6 +90,7 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "end":
 		m.helpScroll = 9999
+		m.clampHelpScroll()
 		return m, nil
 	case "/":
 		// Open search input. Search highlights matches inline without
@@ -225,14 +233,39 @@ func (m *Model) helpScrollToMatch() {
 		return
 	}
 	target := m.helpMatchLines[m.helpMatchIdx]
-	// Aim for the target to land near the middle of the viewport. The
-	// help renderer reserves ~6 rows for borders/title/indicators, so
-	// approximate the visible area as height-6.
-	visible := m.height - 6
-	if visible < 4 {
-		visible = 4
-	}
+	visible := m.helpVisibleLines()
 	m.helpScroll = target - visible/2
+	if m.helpScroll < 0 {
+		m.helpScroll = 0
+	}
+}
+
+// helpVisibleLines approximates the number of help-content rows that
+// fit in the current viewport (terminal height minus the overlay
+// chrome — borders, title, scroll indicators).
+func (m *Model) helpVisibleLines() int {
+	v := m.height - 6
+	if v < 4 {
+		return 4
+	}
+	return v
+}
+
+// clampHelpScroll bounds m.helpScroll to [0, max] where max is the
+// largest scroll offset that still keeps the last help line in view.
+// Without this clamp, G/end set helpScroll to 9999 and ctrl+d past
+// the end keeps incrementing — both park the model way past the valid
+// range, so subsequent ctrl+u presses spend dozens of keystrokes
+// undoing phantom scroll before the viewport visibly moves.
+func (m *Model) clampHelpScroll() {
+	totalLines := len(ui.BuildHelpLines(m.helpFilter.Value, m.helpContextMode))
+	maxScroll := totalLines - m.helpVisibleLines()
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.helpScroll > maxScroll {
+		m.helpScroll = maxScroll
+	}
 	if m.helpScroll < 0 {
 		m.helpScroll = 0
 	}
