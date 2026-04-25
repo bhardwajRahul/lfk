@@ -563,8 +563,8 @@ func FormatItem(item model.Item, width int) string {
 	if item.Restarts != "" {
 		detailParts = append(detailParts, DimStyle.Render(item.Restarts))
 	}
-	if item.Age != "" {
-		detailParts = append(detailParts, AgeStyle(item.Age).Render(item.Age))
+	if age := LiveAge(item); age != "" {
+		detailParts = append(detailParts, AgeStyle(age).Render(age))
 	}
 
 	// Build the right-side info: details + status.
@@ -669,8 +669,8 @@ func FormatItemPlain(item model.Item, width int) string {
 	if item.Restarts != "" {
 		detailParts = append(detailParts, item.Restarts)
 	}
-	if item.Age != "" {
-		detailParts = append(detailParts, item.Age)
+	if age := LiveAge(item); age != "" {
+		detailParts = append(detailParts, age)
 	}
 
 	// Build the right-side info: details + status (all plain text).

@@ -58,8 +58,8 @@ func RenderContainerDetail(item *model.Item, width, height int) string {
 	if item.Restarts != "" {
 		rows = append(rows, row{"Restarts", item.Restarts, valueStyle})
 	}
-	if item.Age != "" {
-		rows = append(rows, row{"Age", item.Age, AgeStyle(item.Age)})
+	if age := LiveAge(*item); age != "" {
+		rows = append(rows, row{"Age", age, AgeStyle(age)})
 	}
 
 	// Additional columns (reason, message, resources, ports, etc.).
@@ -707,7 +707,7 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 	if hasAge {
 		ageW = len("AGE") + 1 // 4
 		for _, item := range items {
-			if w := len(item.Age); w >= ageW {
+			if w := len(LiveAge(item)); w >= ageW {
 				ageW = w + 1
 			}
 		}
@@ -1024,7 +1024,7 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 				}
 			}
 			// Selected row: plain text, no inner styles.
-			row := markerPrefix + formatTableRowOrdered(displayName, ns, item.Ready, cursorRestarts, item.Status, item.Age,
+			row := markerPrefix + formatTableRowOrdered(displayName, ns, item.Ready, cursorRestarts, item.Status, LiveAge(item),
 				nameW, nsW, readyW, restartsW, statusW, ageW, order, extraCols, &item)
 			// Apply search/filter highlight on the selected row with contrasting style.
 			if ActiveHighlightQuery != "" {

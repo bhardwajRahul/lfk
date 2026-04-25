@@ -1283,6 +1283,11 @@ func (m Model) refreshCurrentLevel() tea.Cmd {
 				return resourcesLoadedMsg{items: items, gen: gen}
 			}
 		}
+		// Bypass loadResources' fresh-cache shortcut: that shortcut exists
+		// for sidebar hover-cycles and drill-in/out, not for refreshes.
+		// Without this, watch ticks and shift+r return the stale cached
+		// list — deleted pods linger and Age never moves forward.
+		m.invalidateCurrentResourceCache()
 		return m.loadResources(false)
 	case model.LevelOwned:
 		return m.loadOwned(false)
@@ -1290,6 +1295,20 @@ func (m Model) refreshCurrentLevel() tea.Cmd {
 		return m.loadContainers(false)
 	}
 	return nil
+}
+
+// invalidateCurrentResourceCache drops the itemCache + fingerprint entry
+// for the current (context, resource) so the next loadResources call
+// performs an actual API fetch instead of returning the cached snapshot.
+// Maps are reference types so mutation propagates through the value
+// receiver.
+func (m Model) invalidateCurrentResourceCache() {
+	if m.nav.ResourceType.Resource == "" {
+		return
+	}
+	key := m.nav.Context + "/" + m.nav.ResourceType.Resource
+	delete(m.itemCache, key)
+	delete(m.cacheFingerprints, key)
 }
 
 // closeTabOrQuit closes the current tab if multiple tabs are open,

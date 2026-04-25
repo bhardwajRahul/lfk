@@ -384,7 +384,8 @@ func styledBuiltinCell(key string, item model.Item,
 	case "Status":
 		return StatusStyle(item.Status).Render(padRight(Truncate(item.Status, statusW-1), statusW))
 	case "Age":
-		return AgeStyle(item.Age).Render(padRight(item.Age, ageW))
+		age := LiveAge(item)
+		return AgeStyle(age).Render(padRight(age, ageW))
 	}
 	return ""
 }
