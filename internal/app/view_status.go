@@ -622,8 +622,16 @@ func (m Model) renderOverlayColumnToggle() (string, int, int) {
 	for i, e := range filtered {
 		entries[i] = ui.ColumnToggleEntry{Key: e.key, Visible: e.visible}
 	}
-	return ui.RenderColumnToggleOverlay(entries, m.columnToggleCursor, m.columnToggleFilter, m.columnToggleFilterActive, m.width, m.height),
-		min(50, m.width-10), min(20, m.height-6)
+	// Pass the overlay box dimensions (not the full screen) so the
+	// renderer's maxVisible cap matches what fits inside the box.
+	// Otherwise on a tall terminal the renderer emits ~34 lines into a
+	// 20-tall box; the box visibly grew on overflow and "shrank" back
+	// as the filter narrowed results — looked like the window was
+	// resizing.
+	overlayW := min(50, m.width-10)
+	overlayH := min(20, m.height-6)
+	return ui.RenderColumnToggleOverlay(entries, m.columnToggleCursor, m.columnToggleFilter, m.columnToggleFilterActive, overlayW, overlayH),
+		overlayW, overlayH
 }
 
 func (m Model) renderOverlayFinalizerSearch() (string, int, int) {
