@@ -884,9 +884,14 @@ type Model struct {
 	columnToggleCursor       int
 	columnToggleFilter       string
 	columnToggleFilterActive bool
-	sessionColumns           map[string][]string // kind -> ordered visible extra column keys (session-only)
-	hiddenBuiltinColumns     map[string][]string // kind -> hidden built-in column keys (session-only)
-	columnOrder              map[string][]string // kind -> ordered column keys (built-ins + extras interleaved; Name is implicit)
+	// columnToggleSnapshot captures the pre-overlay values of session/
+	// hidden/order maps for the current kind so Esc can revert when the
+	// user explored toggles live and changed their mind. Captured at
+	// openColumnToggle, consumed at handleColumnToggleKeyEsc.
+	columnToggleSnapshot columnToggleSnapshot
+	sessionColumns       map[string][]string // kind -> ordered visible extra column keys (session-only)
+	hiddenBuiltinColumns map[string][]string // kind -> hidden built-in column keys (session-only)
+	columnOrder          map[string][]string // kind -> ordered column keys (built-ins + extras interleaved; Name is implicit)
 
 	// Easter egg state.
 	konamiProgress int  // current position in the Konami Code sequence
