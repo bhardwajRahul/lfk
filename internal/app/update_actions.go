@@ -1270,7 +1270,23 @@ func (m Model) refreshCurrentLevel() tea.Cmd {
 	case model.LevelClusters:
 		return m.loadContexts()
 	case model.LevelResourceTypes:
-		return m.loadResourceTypes()
+		// Discovery is cached for the lifetime of the session; without an
+		// explicit re-run, newly-installed CRDs (or removed ones) stay
+		// hidden until lfk restarts. shift+r at this level should pick
+		// them up. Dedup against an already-in-flight discovery so rapid
+		// presses don't stack API calls.
+		var cmds []tea.Cmd
+		if !m.discoveringContexts[m.nav.Context] {
+			if m.discoveringContexts != nil {
+				m.discoveringContexts[m.nav.Context] = true
+			}
+			cmds = append(cmds, m.discoverAPIResources(m.nav.Context))
+		}
+		// Always emit the current cached list too so the UI repaints
+		// immediately while the fresh discovery runs in the background.
+		// updateAPIResourceDiscovery overwrites middleItems on completion.
+		cmds = append(cmds, m.loadResourceTypes())
+		return tea.Batch(cmds...)
 	case model.LevelResources:
 		// Port forwards are virtual - refresh from the manager directly.
 		// The gen field MUST be captured and forwarded so the update
