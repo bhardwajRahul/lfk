@@ -2,47 +2,77 @@ package ui
 
 import "fmt"
 
-// RenderScrollIndicator returns a single dimmed line that tells the
-// user how many list items are hidden above and/or below the current
-// viewport. Returns "" when nothing is hidden so callers can append
-// unconditionally without a gating check.
+// RenderScrollAbove returns a single dimmed row reading "↑ N above" when
+// the viewport hides items above. RenderScrollBelow does the same for
+// items below ("↓ N below"). When there's no overflow in the requested
+// direction the function returns a blank row of the same width — the
+// row is always present so the surrounding overlay layout doesn't shift
+// when filtering removes the overflow.
 //
-// Format: "↑ N above   ↓ M below" — both arrows when the viewport is
-// in the middle, single arrow at the edges. The string is truncated
-// to width so the row never overflows the overlay's column budget.
+// Arguments are the same windowing values the caller already has from
+// its pagination math: scrollOffset (start index of the visible window),
+// visibleCount (how many rows fit), totalCount (full list length),
+// width (overlay inner content width — 0 means no truncation).
 //
-// Used by paginated overlays (namespace, column toggle, action menu,
-// bookmark, template, colorscheme, container/pod selectors) where the
-// existing list rendering provides scrollOffset, visibleCount, and
-// totalCount values straight from their windowing math.
-func RenderScrollIndicator(scrollOffset, visibleCount, totalCount, width int) string {
+// Used by paginated overlays (namespace, column toggle, pod selector,
+// log container filter, bookmark, template, colorscheme).
+
+// RenderScrollAbove renders the "↑ N above" line that goes above the
+// visible items list.
+func RenderScrollAbove(scrollOffset, visibleCount, totalCount, width int) string {
+	above := computeAbove(scrollOffset, visibleCount, totalCount)
+	if above <= 0 {
+		return placeholderRow(width)
+	}
+	return formatScrollLine(fmt.Sprintf("↑ %d above", above), width)
+}
+
+// RenderScrollBelow renders the "↓ N below" line that goes below the
+// visible items list.
+func RenderScrollBelow(scrollOffset, visibleCount, totalCount, width int) string {
+	below := computeBelow(scrollOffset, visibleCount, totalCount)
+	if below <= 0 {
+		return placeholderRow(width)
+	}
+	return formatScrollLine(fmt.Sprintf("↓ %d below", below), width)
+}
+
+func computeAbove(scrollOffset, visibleCount, totalCount int) int {
 	if scrollOffset < 0 || visibleCount <= 0 || totalCount <= 0 {
-		return ""
+		return 0
+	}
+	if scrollOffset > totalCount {
+		return 0
+	}
+	return scrollOffset
+}
+
+func computeBelow(scrollOffset, visibleCount, totalCount int) int {
+	if scrollOffset < 0 || visibleCount <= 0 || totalCount <= 0 {
+		return 0
 	}
 	if visibleCount > totalCount {
 		visibleCount = totalCount
 	}
-	above := scrollOffset
 	below := totalCount - scrollOffset - visibleCount
 	if below < 0 {
-		below = 0
+		return 0
 	}
-	if above == 0 && below == 0 {
-		return ""
-	}
+	return below
+}
 
-	var text string
-	switch {
-	case above > 0 && below > 0:
-		text = fmt.Sprintf("↑ %d above   ↓ %d below", above, below)
-	case above > 0:
-		text = fmt.Sprintf("↑ %d above", above)
-	default:
-		text = fmt.Sprintf("↓ %d below", below)
-	}
-
+func formatScrollLine(text string, width int) string {
 	if width > 0 {
 		text = Truncate(text, width)
 	}
 	return OverlayDimStyle.Render(text)
+}
+
+// placeholderRow returns a single space rendered with the dim style so
+// the row occupies one line of the layout but is visually empty. A bare
+// "" would collapse the row and shift everything below by one line —
+// the bug the indicator pair is designed to avoid.
+func placeholderRow(width int) string {
+	_ = width
+	return OverlayDimStyle.Render(" ")
 }

@@ -82,6 +82,9 @@ func RenderColumnToggleOverlay(entries []ColumnToggleEntry, cursor int, filter s
 		endIdx = len(entries)
 	}
 
+	b.WriteString(RenderScrollAbove(scrollOffset, endIdx-scrollOffset, len(entries), innerW))
+	b.WriteString("\n")
+
 	for i := scrollOffset; i < endIdx; i++ {
 		e := entries[i]
 		prefix := "  "
@@ -104,9 +107,7 @@ func RenderColumnToggleOverlay(entries []ColumnToggleEntry, cursor int, filter s
 			b.WriteString("\n")
 		}
 	}
-	if ind := RenderScrollIndicator(scrollOffset, endIdx-scrollOffset, len(entries), innerW); ind != "" {
-		b.WriteString("\n")
-		b.WriteString(ind)
-	}
+	b.WriteString("\n")
+	b.WriteString(RenderScrollBelow(scrollOffset, endIdx-scrollOffset, len(entries), innerW))
 	return b.String()
 }

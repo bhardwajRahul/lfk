@@ -194,6 +194,9 @@ func RenderNamespaceOverlay(items []model.Item, filter string, cursor int, curre
 		end = len(items)
 	}
 
+	b.WriteString(RenderScrollAbove(start, end-start, len(items), 0))
+	b.WriteString("\n")
+
 	for i := start; i < end; i++ {
 		item := items[i]
 		prefix := "  "
@@ -218,10 +221,8 @@ func RenderNamespaceOverlay(items []model.Item, filter string, cursor int, curre
 		}
 	}
 
-	if ind := RenderScrollIndicator(start, end-start, len(items), 0); ind != "" {
-		b.WriteString("\n")
-		b.WriteString(ind)
-	}
+	b.WriteString("\n")
+	b.WriteString(RenderScrollBelow(start, end-start, len(items), 0))
 
 	return b.String()
 }
@@ -473,6 +474,9 @@ func RenderLogContainerSelectOverlay(items []model.Item, cursor int, selectedCon
 
 	end := min(start+maxVisible, len(items))
 
+	b.WriteString(RenderScrollAbove(start, end-start, len(items), 0))
+	b.WriteString("\n")
+
 	for i := start; i < end; i++ {
 		item := items[i]
 		prefix := "  "
@@ -496,10 +500,8 @@ func RenderLogContainerSelectOverlay(items []model.Item, cursor int, selectedCon
 		}
 	}
 
-	if ind := RenderScrollIndicator(start, end-start, len(items), 0); ind != "" {
-		b.WriteString("\n")
-		b.WriteString(ind)
-	}
+	b.WriteString("\n")
+	b.WriteString(RenderScrollBelow(start, end-start, len(items), 0))
 
 	return b.String()
 }
@@ -544,6 +546,9 @@ func RenderPodSelectOverlay(items []model.Item, cursor int, filter string, filte
 
 	end := min(start+maxVisible, len(items))
 
+	b.WriteString(RenderScrollAbove(start, end-start, len(items), 0))
+	b.WriteString("\n")
+
 	for i := start; i < end; i++ {
 		item := items[i]
 		line := fmt.Sprintf("  %s", item.Name)
@@ -570,10 +575,8 @@ func RenderPodSelectOverlay(items []model.Item, cursor int, filter string, filte
 		}
 	}
 
-	if ind := RenderScrollIndicator(start, end-start, len(items), 0); ind != "" {
-		b.WriteString("\n")
-		b.WriteString(ind)
-	}
+	b.WriteString("\n")
+	b.WriteString(RenderScrollBelow(start, end-start, len(items), 0))
 
 	return b.String()
 }
@@ -646,6 +649,9 @@ func RenderBookmarkOverlay(allBookmarks []model.Bookmark, filter string, cursor,
 		end = len(bookmarks)
 	}
 
+	b.WriteString(RenderScrollAbove(start, end-start, len(bookmarks), 0))
+	b.WriteString("\n")
+
 	for i := start; i < end; i++ {
 		bm := bookmarks[i]
 
@@ -688,10 +694,8 @@ func RenderBookmarkOverlay(allBookmarks []model.Bookmark, filter string, cursor,
 		}
 	}
 
-	if ind := RenderScrollIndicator(start, end-start, len(bookmarks), 0); ind != "" {
-		b.WriteString("\n")
-		b.WriteString(ind)
-	}
+	b.WriteString("\n")
+	b.WriteString(RenderScrollBelow(start, end-start, len(bookmarks), 0))
 
 	return b.String()
 }
@@ -737,6 +741,9 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cu
 		end = len(templates)
 	}
 
+	b.WriteString(RenderScrollAbove(start, end-start, len(templates), 0))
+	b.WriteString("\n")
+
 	for i := start; i < end; i++ {
 		tmpl := templates[i]
 		cat := OverlayDimStyle.Render("[" + tmpl.Category + "]")
@@ -750,10 +757,8 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cu
 		}
 	}
 
-	if ind := RenderScrollIndicator(start, end-start, len(templates), 0); ind != "" {
-		b.WriteString("\n")
-		b.WriteString(ind)
-	}
+	b.WriteString("\n")
+	b.WriteString(RenderScrollBelow(start, end-start, len(templates), 0))
 
 	return b.String()
 }

@@ -239,6 +239,9 @@ func RenderColorschemeOverlay(entries []SchemeEntry, filter string, cursor int, 
 		end = len(items)
 	}
 
+	b.WriteString(RenderScrollAbove(start, end-start, len(items), 0))
+	b.WriteString("\n")
+
 	var lines []string
 	for i := start; i < end; i++ {
 		it := items[i]
@@ -268,10 +271,8 @@ func RenderColorschemeOverlay(entries []SchemeEntry, filter string, cursor int, 
 	}
 	b.WriteString(strings.Join(lines, "\n"))
 
-	if ind := RenderScrollIndicator(start, end-start, len(items), 0); ind != "" {
-		b.WriteString("\n")
-		b.WriteString(ind)
-	}
+	b.WriteString("\n")
+	b.WriteString(RenderScrollBelow(start, end-start, len(items), 0))
 
 	return b.String()
 }
