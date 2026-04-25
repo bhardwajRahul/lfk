@@ -269,6 +269,9 @@ func populateServiceDetails(ti *model.Item, status, spec map[string]interface{})
 }
 
 // populateServicePorts extracts port information from a Service spec.
+// Format mirrors kubectl when nodePort is set ("port:nodePort/protocol"),
+// while preserving lfk's targetPort visibility ("port→targetPort/protocol",
+// or combined: "port:nodePort→targetPort/protocol").
 func populateServicePorts(ti *model.Item, spec map[string]interface{}) {
 	ports, ok := spec["ports"].([]interface{})
 	if !ok {
@@ -278,10 +281,16 @@ func populateServicePorts(ti *model.Item, spec map[string]interface{}) {
 	for _, p := range ports {
 		if pMap, ok := p.(map[string]interface{}); ok {
 			port := getInt(pMap, "port")
+			nodePort := getInt(pMap, "nodePort")
+			targetPort := getInt(pMap, "targetPort")
 			proto, _ := pMap["protocol"].(string)
-			s := fmt.Sprintf("%d/%s", port, proto)
-			if tp := getInt(pMap, "targetPort"); tp > 0 && tp != port {
-				s = fmt.Sprintf("%d→%d/%s", port, tp, proto)
+			head := fmt.Sprintf("%d", port)
+			if nodePort > 0 {
+				head = fmt.Sprintf("%d:%d", port, nodePort)
+			}
+			s := fmt.Sprintf("%s/%s", head, proto)
+			if targetPort > 0 && targetPort != port {
+				s = fmt.Sprintf("%s→%d/%s", head, targetPort, proto)
 			}
 			portStrs = append(portStrs, s)
 		}

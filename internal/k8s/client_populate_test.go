@@ -604,6 +604,83 @@ func TestPopulateResourceDetails_Service(t *testing.T) {
 			},
 		},
 		{
+			name: "NodePort service shows nodePort like kubectl",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"type": "NodePort",
+					"ports": []interface{}{
+						map[string]interface{}{
+							"port":     int64(80),
+							"nodePort": int64(30001),
+							"protocol": "TCP",
+						},
+					},
+				},
+			},
+			wantCols: map[string]string{
+				"Ports": "80:30001/TCP",
+			},
+		},
+		{
+			name: "NodePort service with targetPort combines both formats",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"type": "NodePort",
+					"ports": []interface{}{
+						map[string]interface{}{
+							"port":       float64(80),
+							"targetPort": float64(8080),
+							"nodePort":   float64(30001),
+							"protocol":   "TCP",
+						},
+					},
+				},
+			},
+			wantCols: map[string]string{
+				"Ports": "80:30001\u21928080/TCP",
+			},
+		},
+		{
+			name: "LoadBalancer service with nodePort shows nodePort",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"type": "LoadBalancer",
+					"ports": []interface{}{
+						map[string]interface{}{
+							"port":     int64(443),
+							"nodePort": int64(31443),
+							"protocol": "TCP",
+						},
+					},
+				},
+			},
+			wantCols: map[string]string{
+				"Ports": "443:31443/TCP",
+			},
+		},
+		{
+			name: "multiple ports mix with and without nodePort",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"type": "NodePort",
+					"ports": []interface{}{
+						map[string]interface{}{
+							"port":     int64(80),
+							"nodePort": int64(30080),
+							"protocol": "TCP",
+						},
+						map[string]interface{}{
+							"port":     int64(443),
+							"protocol": "TCP",
+						},
+					},
+				},
+			},
+			wantCols: map[string]string{
+				"Ports": "80:30080/TCP, 443/TCP",
+			},
+		},
+		{
 			name: "LoadBalancer service with external address",
 			obj: map[string]interface{}{
 				"spec": map[string]interface{}{
