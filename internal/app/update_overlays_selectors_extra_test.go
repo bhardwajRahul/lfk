@@ -162,20 +162,29 @@ func TestNamespaceOverlaySpaceOnAllClearsSelection(t *testing.T) {
 	assert.True(t, result.allNamespaces)
 }
 
-func TestNamespaceOverlayCClearsSelection(t *testing.T) {
+// A inside the namespace selector mirrors A outside (kb.AllNamespaces):
+// flip to all-namespaces mode. The user expectation is muscle memory —
+// the same key shouldn't change meaning just because the overlay is open.
+// The cursor must also jump to the All-Namespaces row, otherwise a
+// follow-up Enter will treat the cursor's previous position as a
+// single-namespace selection and undo the all-ns flip.
+func TestNamespaceOverlayAEnablesAllNamespaces(t *testing.T) {
 	m := Model{
 		overlay:            overlayNamespace,
-		overlayItems:       []model.Item{{Name: "default"}},
+		overlayItems:       []model.Item{{Name: "All Namespaces", Status: "all"}, {Name: "default"}, {Name: "kube-system"}},
 		selectedNamespaces: map[string]bool{"default": true},
 		allNamespaces:      false,
+		overlayCursor:      2, // standing on "kube-system"
 		tabs:               []TabState{{}},
 		width:              80,
 		height:             40,
 	}
-	ret, _ := m.handleNamespaceNormalMode(runeKey('c'))
+	ret, _ := m.handleNamespaceNormalMode(runeKey('A'))
 	result := ret.(Model)
-	assert.Nil(t, result.selectedNamespaces)
-	assert.True(t, result.allNamespaces)
+	assert.Nil(t, result.selectedNamespaces, "A must clear individual selections")
+	assert.True(t, result.allNamespaces, "A must enable all-namespaces mode")
+	assert.Equal(t, 0, result.overlayCursor,
+		"A must move cursor to the All-Namespaces row so Enter applies all-ns")
 }
 
 // --- handleNamespaceFilterMode ---

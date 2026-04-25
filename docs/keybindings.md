@@ -71,7 +71,7 @@ Search supports abbreviated resource type names (e.g., `pvc`, `hpa`, `deploy`).
 |---|---|---|
 | `x` | Open action menu (bulk actions when items selected) | `action_menu` |
 | `\` | Open namespace selector | `namespace_selector` |
-| `A` | Toggle all-namespaces mode | `all_namespaces` |
+| `A` | Toggle all-namespaces mode (also works inside the namespace selector — clears individual selections and enables all-ns) | `all_namespaces` |
 | `L` | View logs for selected resource | `logs` |
 | `e` | Secret/ConfigMap editor (inline key-value editing) | `secret_editor` |
 | `E` | Edit selected resource in $EDITOR | `edit` |

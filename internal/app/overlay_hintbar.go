@@ -88,7 +88,7 @@ func (m Model) overlayHintBarSelector() string {
 	case overlayNamespace:
 		return m.renderHints([]ui.HintEntry{
 			{Key: "space", Desc: "select"},
-			{Key: "c", Desc: "clear"},
+			{Key: "A", Desc: "all"},
 			{Key: "enter", Desc: "apply"},
 			{Key: "/", Desc: "filter"},
 			{Key: "esc", Desc: "close"},

@@ -91,11 +91,23 @@ func (m Model) handleNamespaceNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.overlayCursor = clampOverlayCursor(m.overlayCursor, 1, len(items)-1)
 		return m, nil
 
-	case "c":
+	case ui.ActiveKeybindings.AllNamespaces:
+		// Same key the user already uses outside the overlay to flip to
+		// all-namespaces mode (default "A"). Drops individual selections
+		// and enables all-ns. Cursor jumps to the "All Namespaces" row
+		// so a follow-up Enter falls into the default branch (apply
+		// all-ns) instead of the "cursor on a real namespace → apply
+		// that single namespace" branch, which would silently undo what
+		// the user just asked for.
 		m.nsSelectionModified = true
-		// Clear all namespace selections (reset to all namespaces).
 		m.selectedNamespaces = nil
 		m.allNamespaces = true
+		for i, item := range items {
+			if item.Status == "all" {
+				m.overlayCursor = i
+				break
+			}
+		}
 		return m, nil
 
 	case "/":
