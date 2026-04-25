@@ -99,13 +99,28 @@ func TestHandleFilterKeyTabTogglesBroadMode(t *testing.T) {
 	assert.False(t, rm2.filterBroadMode, "second Tab must return to name-only")
 }
 
-func TestHandleFilterKeyEnterResetsBroadMode(t *testing.T) {
+func TestHandleFilterKeyEnterPreservesBroadMode(t *testing.T) {
+	// Enter commits the filter — the mode must persist so the visible
+	// list keeps matching column values after the input closes.
+	// Otherwise typing "frontend" with Tab on, then Enter, would silently
+	// drop back to name-only and the list would empty out.
 	m := baseModelCov()
 	m.filterActive = true
 	m.filterBroadMode = true
 	r, _ := m.handleFilterKey(tea.KeyMsg{Type: tea.KeyEnter})
 	rm := r.(Model)
-	assert.False(t, rm.filterBroadMode, "Enter must reset broad mode for the next session")
+	assert.True(t, rm.filterBroadMode,
+		"Enter must keep broad mode on so the applied filterText keeps matching column values")
+}
+
+func TestHandleKeyFilterStartsInNameOnly(t *testing.T) {
+	// Opening a fresh / or f input starts in name-only — broad mode does
+	// not leak across input sessions.
+	m := baseModelCov()
+	m.filterBroadMode = true // simulates leftover from a previous filter
+	rm := m.handleKeyFilter()
+	assert.False(t, rm.filterBroadMode,
+		"opening a new filter must reset broad mode to default name-only")
 }
 
 func TestHandleFilterKeyEscResetsBroadMode(t *testing.T) {
@@ -130,13 +145,26 @@ func TestHandleSearchKeyTabTogglesBroadMode(t *testing.T) {
 	assert.False(t, rm2.searchBroadMode)
 }
 
-func TestHandleSearchKeyEnterResetsBroadMode(t *testing.T) {
+func TestHandleSearchKeyEnterPreservesBroadMode(t *testing.T) {
+	// User reproduction: search with Tab on, press Enter, then n/N.
+	// jumpToSearchMatch reads m.searchBroadMode, so resetting on Enter
+	// breaks next/previous-match navigation for the just-confirmed
+	// query. Mode must persist past Enter; only Esc clears.
 	m := baseModelCov()
 	m.searchActive = true
 	m.searchBroadMode = true
 	r, _ := m.handleSearchKey(tea.KeyMsg{Type: tea.KeyEnter})
 	rm := r.(Model)
-	assert.False(t, rm.searchBroadMode)
+	assert.True(t, rm.searchBroadMode,
+		"Enter must keep broad mode on so n/N keep matching column values")
+}
+
+func TestHandleKeySearchStartsInNameOnly(t *testing.T) {
+	m := baseModelCov()
+	m.searchBroadMode = true // simulates leftover from a previous search
+	rm := m.handleKeySearch()
+	assert.False(t, rm.searchBroadMode,
+		"opening a new search must reset broad mode to default name-only")
 }
 
 func TestHandleSearchKeyEscResetsBroadMode(t *testing.T) {

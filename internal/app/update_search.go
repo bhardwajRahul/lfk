@@ -112,7 +112,11 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.filterText = m.filterInput.Value
 		m.filterActive = false
-		m.filterBroadMode = false // each filter session starts in name-only
+		// Keep filterBroadMode as-is: visibleMiddleItems consults it to
+		// decide whether to scan column values, so resetting here would
+		// silently drop the user's broad-scope filter the moment they
+		// confirm. Reset happens on Esc (cancel) or when a new filter
+		// input starts via handleKeyFilter.
 		m.setCursor(0)
 		m.clampCursor()
 		// The cursor now points at the first filter match — a different
@@ -203,7 +207,9 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		m.searchActive = false
-		m.searchBroadMode = false // each search session starts in name-only
+		// Keep searchBroadMode as-is so n/N (jumpToSearchMatch reads
+		// this flag) stay in the same scope as the just-confirmed query.
+		// Reset on Esc or when a new search starts via handleKeySearch.
 		m.syncExpandedGroup()
 		// Confirming the search lands the cursor on a different item than
 		// when search started. Invalidate so the right pane drops the

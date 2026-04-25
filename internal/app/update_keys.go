@@ -765,6 +765,7 @@ func (m Model) handleKeyHelp() Model {
 
 func (m Model) handleKeyFilter() Model {
 	m.filterActive = true
+	m.filterBroadMode = false // each fresh filter session starts in name-only
 	m.filterInput.Clear()
 	m.filterText = ""
 	m.setCursor(0)
@@ -774,6 +775,7 @@ func (m Model) handleKeyFilter() Model {
 
 func (m Model) handleKeySearch() Model {
 	m.searchActive = true
+	m.searchBroadMode = false // each fresh search session starts in name-only
 	m.searchInput.Clear()
 	m.searchPrevCursor = m.cursor()
 	return m
