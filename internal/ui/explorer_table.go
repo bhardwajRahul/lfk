@@ -993,9 +993,12 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 			// Selected row: plain text, no inner styles.
 			row := markerPrefix + formatTableRowOrdered(displayName, ns, item.Ready, cursorRestarts, item.Status, LiveAge(item),
 				nameW, nsW, readyW, restartsW, statusW, ageW, order, extraCols, &item)
-			// Apply search/filter highlight on the selected row with contrasting style.
+			// Apply search/filter highlight on the selected row with
+			// contrasting style. Pass the cursor-row outer style so
+			// the inner highlight's reset doesn't kill the cursor bg
+			// for the post-match part of the row.
 			if ActiveHighlightQuery != "" {
-				row = highlightNameSelected(row, ActiveHighlightQuery)
+				row = highlightNameSelectedOver(row, ActiveHighlightQuery, ActiveSelectedStyle(i))
 			}
 			// Pad to full width for clean highlight.
 			lineW := lipgloss.Width(row)

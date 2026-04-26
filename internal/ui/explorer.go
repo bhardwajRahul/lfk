@@ -242,10 +242,24 @@ func highlightName(name, query string) string {
 	return HighlightMatchStyled(name, query, SearchHighlightStyle)
 }
 
+// highlightNameOver behaves like highlightName but re-asserts
+// outerStyle's open codes after each match's reset, so the
+// surrounding category-bar / cursor-row background isn't wiped out
+// for the post-match part of the line.
+func highlightNameOver(name, query string, outerStyle lipgloss.Style) string {
+	return HighlightMatchStyledOver(name, query, SearchHighlightStyle, outerStyle)
+}
+
 // highlightNameSelected highlights matched portions of query in name
 // using SelectedSearchHighlightStyle (for items under the cursor).
 func highlightNameSelected(name, query string) string {
 	return HighlightMatchStyled(name, query, SelectedSearchHighlightStyle)
+}
+
+// highlightNameSelectedOver behaves like highlightNameSelected but
+// re-asserts outerStyle's open codes after each match's reset.
+func highlightNameSelectedOver(name, query string, outerStyle lipgloss.Style) string {
+	return HighlightMatchStyledOver(name, query, SelectedSearchHighlightStyle, outerStyle)
 }
 
 // RenderColumn renders a single column with optional header, item list, and cursor highlight.
@@ -466,11 +480,14 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 			// would visibly mark "Argo CD" or "Networking" without
 			// actually treating those categories as match targets,
 			// confusing the user about what n/N will do.
-			if ActiveHighlightCategories && ActiveHighlightQuery != "" {
-				headerText = highlightName(headerText, ActiveHighlightQuery)
-			}
-			// Highlight category header when cursor is on a collapsed group placeholder.
+			//
+			// We pass the same outer style that's about to wrap the
+			// line so the inner highlight's reset doesn't kill the
+			// bar's background for the post-match segment.
 			if e.isPlaceholder && e.itemIdx == cursor && isActive {
+				if ActiveHighlightCategories && ActiveHighlightQuery != "" {
+					headerText = highlightNameOver(headerText, ActiveHighlightQuery, ActiveSelectedStyle(e.itemIdx))
+				}
 				line := Truncate(headerText, width)
 				lineWidth := lipgloss.Width(line)
 				if lineWidth < width {
@@ -478,6 +495,9 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 				}
 				b.WriteString(ActiveSelectedStyle(e.itemIdx).MaxWidth(width).Render(line))
 			} else {
+				if ActiveHighlightCategories && ActiveHighlightQuery != "" {
+					headerText = highlightNameOver(headerText, ActiveHighlightQuery, CategoryBarStyle)
+				}
 				// Render the category header as a full-width "bar"
 				// with a distinct style so groups are visually
 				// separated without needing a blank row above.
@@ -503,9 +523,12 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 		switch {
 		case e.itemIdx == cursor && isActive:
 			line = FormatItemPlain(item, width)
-			// Apply search/filter highlight on the selected item with contrasting style.
+			// Apply search/filter highlight on the selected item with
+			// contrasting style. Pass the outer cursor style so the
+			// inner highlight's reset doesn't kill the cursor bg for
+			// the post-match part of the row.
 			if ActiveHighlightQuery != "" {
-				line = highlightNameSelected(line, ActiveHighlightQuery)
+				line = highlightNameSelectedOver(line, ActiveHighlightQuery, ActiveSelectedStyle(e.itemIdx))
 			}
 			// Pad line to full column width for consistent background.
 			lineWidth := lipgloss.Width(line)

@@ -140,6 +140,20 @@ func HighlightMatch(line, rawQuery string) string {
 // HighlightMatchStyled returns the line with the matched portion highlighted
 // using the given style. The rawQuery is the original user input.
 func HighlightMatchStyled(line, rawQuery string, style lipgloss.Style) string {
+	return HighlightMatchStyledOver(line, rawQuery, style, lipgloss.Style{})
+}
+
+// HighlightMatchStyledOver behaves like HighlightMatchStyled but
+// re-asserts outerStyle's open codes after each inner highlight's
+// reset. Use this when the returned string will be wrapped by
+// outerStyle.Render(...) and the inner highlights' resets would
+// otherwise wipe the outer background for the rest of the line —
+// e.g. a search hit inside a cursor row's selection bg, or a match
+// inside a category bar.
+//
+// Pass an empty (zero-value) outerStyle to opt out of the
+// re-assertion and get the legacy single-pass behaviour.
+func HighlightMatchStyledOver(line, rawQuery string, style, outerStyle lipgloss.Style) string {
 	if rawQuery == "" {
 		return line
 	}
@@ -147,18 +161,35 @@ func HighlightMatchStyled(line, rawQuery string, style lipgloss.Style) string {
 	if query == "" {
 		return line
 	}
+	restore := styleOpenCodes(outerStyle)
 	switch mode {
 	case SearchRegex:
-		return highlightRegex(line, query, style)
+		return highlightRegex(line, query, style, restore)
 	case SearchFuzzy:
-		return highlightFuzzy(line, query, style)
+		return highlightFuzzy(line, query, style, restore)
 	default:
-		return highlightSubstring(line, query, style)
+		return highlightSubstring(line, query, style, restore)
 	}
 }
 
-// highlightSubstring highlights all occurrences of query in line (case-insensitive).
-func highlightSubstring(line, query string, style lipgloss.Style) string {
+// styleOpenCodes extracts just the SGR open sequence a style emits
+// when rendering. Returns "" when the style produces no codes (zero
+// value or color-less). Used by HighlightMatchStyledOver to splice
+// the outer style back in after each inner highlight reset.
+func styleOpenCodes(style lipgloss.Style) string {
+	const marker = "\x00LFK_HL_MARKER\x00"
+	open, _, found := strings.Cut(style.Render(marker), marker)
+	if !found {
+		return ""
+	}
+	return open
+}
+
+// highlightSubstring highlights all occurrences of query in line
+// (case-insensitive). When restoreCodes is non-empty it's emitted
+// after each inner highlight reset so a wrapping outer style's
+// background stays visible for the post-match segment.
+func highlightSubstring(line, query string, style lipgloss.Style, restoreCodes string) string {
 	queryLower := strings.ToLower(query)
 	lineLower := strings.ToLower(line)
 	if !strings.Contains(lineLower, queryLower) {
@@ -174,16 +205,18 @@ func highlightSubstring(line, query string, style lipgloss.Style) string {
 		}
 		b.WriteString(line[pos : pos+idx])
 		b.WriteString(style.Render(line[pos+idx : pos+idx+len(query)]))
+		b.WriteString(restoreCodes)
 		pos = pos + idx + len(query)
 	}
 	return b.String()
 }
 
-// highlightRegex highlights all regex matches in the line.
-func highlightRegex(line, query string, style lipgloss.Style) string {
+// highlightRegex highlights all regex matches in the line. See
+// highlightSubstring for the restoreCodes contract.
+func highlightRegex(line, query string, style lipgloss.Style, restoreCodes string) string {
 	re, err := regexp.Compile("(?i)" + query)
 	if err != nil {
-		return highlightSubstring(line, query, style) // fallback
+		return highlightSubstring(line, query, style, restoreCodes) // fallback
 	}
 	matches := re.FindAllStringIndex(line, -1)
 	if len(matches) == 0 {
@@ -196,6 +229,7 @@ func highlightRegex(line, query string, style lipgloss.Style) string {
 			b.WriteString(line[pos:m[0]])
 		}
 		b.WriteString(style.Render(line[m[0]:m[1]]))
+		b.WriteString(restoreCodes)
 		pos = m[1]
 	}
 	if pos < len(line) {
@@ -205,7 +239,8 @@ func highlightRegex(line, query string, style lipgloss.Style) string {
 }
 
 // highlightFuzzy highlights the matched characters in a fuzzy match.
-func highlightFuzzy(line, query string, style lipgloss.Style) string {
+// See highlightSubstring for the restoreCodes contract.
+func highlightFuzzy(line, query string, style lipgloss.Style, restoreCodes string) string {
 	lineLower := strings.ToLower(line)
 	queryLower := strings.ToLower(query)
 	lineRunes := []rune(line)
@@ -242,6 +277,7 @@ func highlightFuzzy(line, query string, style lipgloss.Style) string {
 		} else {
 			if inHighlight {
 				b.WriteString(style.Render(string(lineRunes[highlightStart:i])))
+				b.WriteString(restoreCodes)
 				inHighlight = false
 			}
 			b.WriteRune(r)
@@ -249,6 +285,7 @@ func highlightFuzzy(line, query string, style lipgloss.Style) string {
 	}
 	if inHighlight {
 		b.WriteString(style.Render(string(lineRunes[highlightStart:])))
+		b.WriteString(restoreCodes)
 	}
 	return b.String()
 }
