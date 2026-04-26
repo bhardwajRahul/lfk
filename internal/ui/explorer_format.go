@@ -122,20 +122,47 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 	}
 
 	// Reserve budget for the Name column based on the longest item name
-	// so resource names with long identifiers (Ingress hostnames, helm
-	// releases, generated suffixes) don't get squeezed to a 20-char floor
-	// while extras (HOSTS, ADDRESS, …) eat the rest. Cap at half the total
-	// width so a single pathologically long name can't starve the extras.
-	// Floor at 20 to preserve prior behaviour when names are short.
-	// See issue #53.
+	// so resource names with long identifiers (Ingress hostnames, Node
+	// FQDNs, helm releases, generated suffixes) don't get squeezed to a
+	// 20-char floor while extras (HOSTS, ADDRESS, ROLE, …) eat the rest.
+	// See issue #53 and the follow-up node truncation report.
+	//
+	// Budgeting rule:
+	//   1. Default: longestName + 1 spacing column.
+	//   2. If that fits in (totalWidth - usedWidth) — i.e. name + builtins
+	//      already fit even without any extras — keep the full reservation.
+	//      Whatever room is left flows to extras; if it's not enough for a
+	//      column, the loop below drops them and Name gets the slack via
+	//      the caller's nameW computation. This is the case the user hit:
+	//      a 52-char Node FQDN on a 97-char middle column was getting
+	//      truncated to 50 chars + "~" because the previous totalWidth/2
+	//      cap (48) kicked in even though the full name fits comfortably.
+	//   3. Otherwise (name is too long to fit alongside builtins): cap at
+	//      totalWidth - usedWidth - minExtrasBudget so a pathologically
+	//      long name (e.g. 200 chars on a 120-char column) still surfaces
+	//      at least one extra column.
+	//   4. Floor at 20 to preserve prior behaviour when names are short.
+	//
+	// minExtrasBudget = capped column (maxColW + spacing). Tracks the
+	// same maxColW used below so the budget scales with fullscreen mode.
 	const nameFloor = 20
+	maxColWForBudget := 20
+	if ActiveFullscreenMode {
+		maxColWForBudget = 40
+	}
+	minExtrasBudget := maxColWForBudget + 1
 	longestName := 0
 	for _, item := range items {
-		if w := len(item.Name); w > longestName {
+		if w := lipgloss.Width(item.Name); w > longestName {
 			longestName = w
 		}
 	}
-	nameReserve := min(longestName+1, totalWidth/2) // +1 for column spacing
+	nameReserve := longestName + 1 // +1 for column spacing
+	if nameReserve+usedWidth > totalWidth {
+		// Can't fit the full name even after dropping every extra. Cap
+		// the reservation so at least one extra gets a fair budget.
+		nameReserve = max(totalWidth-usedWidth-minExtrasBudget, nameFloor)
+	}
 	nameReserve = max(nameReserve, nameFloor)
 	available := totalWidth - usedWidth - nameReserve
 	if available < 8 {
