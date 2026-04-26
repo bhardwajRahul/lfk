@@ -388,9 +388,9 @@ func (m Model) loadHelmValues(allValues bool) tea.Cmd {
 	ns := m.actionNamespace()
 	name := m.actionCtx.name
 	ctx := m.actionCtx.context
-	kubeconfigPaths := m.client.KubeconfigPaths()
+	kubeconfigPaths := m.client.KubeconfigPathForContext(ctx)
 
-	args := []string{"get", "values", name, "-n", ns, "--kube-context", ctx, "-o", "yaml"}
+	args := []string{"get", "values", name, "-n", ns, "--kube-context", m.kubectlContext(ctx), "-o", "yaml"}
 	titleSuffix := "User Values"
 	if allValues {
 		args = append(args, "--all")

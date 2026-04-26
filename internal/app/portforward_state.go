@@ -102,14 +102,15 @@ func (m *Model) restorePortForwards() []tea.Cmd {
 		m.addLogEntry("ERR", fmt.Sprintf("Cannot restore port forwards: kubectl not found: %v", err))
 		return nil
 	}
-	kubeconfigPaths := m.client.KubeconfigPaths()
 	mgr := m.portForwardMgr
 
 	cmds := make([]tea.Cmd, 0, len(m.pendingPortForwards.PortForwards))
 	for _, pf := range m.pendingPortForwards.PortForwards {
+		kubeconfigPath := m.client.KubeconfigPathForContext(pf.Context)
+		kubectlContext := m.client.OriginalContextName(pf.Context)
 		cmds = append(cmds, func() tea.Msg {
 			// Reuse the saved local port so users get the same port on restart.
-			id, err := mgr.Start(kubectlPath, kubeconfigPaths, pf.ResourceKind, pf.ResourceName, pf.Namespace, pf.Context, pf.LocalPort, pf.RemotePort)
+			id, err := mgr.Start(kubectlPath, kubeconfigPath, pf.ResourceKind, pf.ResourceName, pf.Namespace, pf.Context, kubectlContext, pf.LocalPort, pf.RemotePort)
 			if err != nil {
 				logger.Error("Failed to restore port forward",
 					"resource", fmt.Sprintf("%s/%s", pf.ResourceKind, pf.ResourceName),

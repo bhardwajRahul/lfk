@@ -24,10 +24,47 @@ import (
 // secretGVR is the GroupVersionResource for Kubernetes Secrets.
 var secretGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
 
+// contextInfo decorates a kubeconfig context with its source file plus a
+// display name that is unique across all loaded files. When several
+// kubeconfigs declare the same context name, lfk disambiguates the display
+// name (e.g. "dev (dev-envs)") so the user can still see and select each one
+// — issue #23.
+type contextInfo struct {
+	// display is the unique name shown in the lfk UI. Equal to original
+	// when no other file defines a context with the same name; otherwise of
+	// the form "original (basename)".
+	display string
+	// original is the context name as written in the source kubeconfig
+	// file. Subprocesses (kubectl --context, helm --kube-context) must be
+	// passed this value, since the disambiguated display name only exists
+	// inside lfk.
+	original string
+	// sourcePath is the kubeconfig file that defines the context.
+	sourcePath string
+	// namespace is the namespace recorded on the source file's context, or
+	// empty when the file does not pin one.
+	namespace string
+}
+
 // Client wraps Kubernetes API access.
 type Client struct {
 	rawConfig    api.Config
 	loadingRules *clientcmd.ClientConfigLoadingRules
+
+	// contexts indexes every loaded context by its lfk display name. Built
+	// once at NewClient by collectContexts and treated as read-only after
+	// construction so concurrent reads from tea.Cmd goroutines stay
+	// race-free. Disambiguates the duplicate-name case that clientcmd's
+	// merge silently collapses.
+	contexts map[string]contextInfo
+
+	// contextOrder preserves a deterministic display order for GetContexts.
+	contextOrder []string
+
+	// currentContext holds the display name of the global current-context.
+	// Sourced from the first kubeconfig file in the precedence list, which
+	// matches clientcmd's first-writer-wins merge rule for current-context.
+	currentContext string
 
 	// testClientset, testDynClient, and testMetaClient allow tests to inject
 	// fake clients. When set, the corresponding *ForContext helpers return
@@ -119,10 +156,156 @@ func NewClient(kubeconfigOverride string) (*Client, error) {
 		return nil, fmt.Errorf("loading kubeconfig: %w", err)
 	}
 
+	contexts, order, current := collectContexts(kubeconfigPaths, rawConfig.CurrentContext)
+
 	return &Client{
-		rawConfig:    rawConfig,
-		loadingRules: loadingRules,
+		rawConfig:      rawConfig,
+		loadingRules:   loadingRules,
+		contexts:       contexts,
+		contextOrder:   order,
+		currentContext: current,
 	}, nil
+}
+
+// collectContexts walks each kubeconfig file once and produces a map of
+// disambiguated display names → contextInfo, plus the deterministic display
+// order and the resolved current-context display name.
+//
+// When two or more files declare the same context name, every occurrence is
+// preserved by suffixing the display name with the source file's basename
+// (e.g. "dev (dev-envs)" / "dev (itg-k8s)"). This is essential for issue #23:
+// clientcmd merges duplicates into one entry, hiding every file but the
+// first; surfacing each as its own UI entry lets the user actually drill into
+// the cluster they want.
+//
+// fallbackCurrent is the current-context that clientcmd's merged config
+// already resolved (first-writer-wins). collectContexts uses it to decide
+// which display name should be marked "current" when multiple files declare
+// the same name. If no file sets a current-context, it returns "".
+func collectContexts(paths []string, fallbackCurrent string) (map[string]contextInfo, []string, string) {
+	type fileContext struct {
+		sourcePath string
+		original   string
+		namespace  string
+		isCurrent  bool
+	}
+
+	// Group entries by their original name so collisions are easy to spot.
+	// Stable iteration order across files comes from `paths`, and within a
+	// file from a sorted slice of context names (Go map iteration is
+	// randomised).
+	entriesByName := make(map[string][]fileContext)
+	var orderedNames []string
+
+	for _, path := range paths {
+		cfg, err := clientcmd.LoadFromFile(path)
+		if err != nil {
+			continue
+		}
+		names := make([]string, 0, len(cfg.Contexts))
+		for name := range cfg.Contexts {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			ctx := cfg.Contexts[name]
+			ns := ""
+			if ctx != nil {
+				ns = ctx.Namespace
+			}
+			if _, seen := entriesByName[name]; !seen {
+				orderedNames = append(orderedNames, name)
+			}
+			entriesByName[name] = append(entriesByName[name], fileContext{
+				sourcePath: path,
+				original:   name,
+				namespace:  ns,
+				isCurrent:  name == cfg.CurrentContext,
+			})
+		}
+	}
+
+	contexts := make(map[string]contextInfo)
+	order := make([]string, 0, len(orderedNames))
+
+	for _, original := range orderedNames {
+		entries := entriesByName[original]
+		if len(entries) == 1 {
+			display := original
+			contexts[display] = contextInfo{
+				display:    display,
+				original:   original,
+				sourcePath: entries[0].sourcePath,
+				namespace:  entries[0].namespace,
+			}
+			order = append(order, display)
+			continue
+		}
+		// Collision: suffix every entry with its source file's basename so
+		// each becomes selectable. Using "name (basename)" keeps the
+		// original name as the visible prefix, which matches how kubectl
+		// users typically scan a context list.
+		for _, e := range entries {
+			display := original + " (" + contextDisplayHint(e.sourcePath) + ")"
+			// In the unlikely event that two files share both context name
+			// AND basename (e.g. ~/.kube/config.d/sub/dev.yaml and
+			// ~/.kube/config.d/dev.yaml), append the full path to keep the
+			// display name unique. Falls back to the absolute path so the
+			// user can still tell entries apart.
+			if _, clash := contexts[display]; clash {
+				display = original + " (" + e.sourcePath + ")"
+			}
+			contexts[display] = contextInfo{
+				display:    display,
+				original:   original,
+				sourcePath: e.sourcePath,
+				namespace:  e.namespace,
+			}
+			order = append(order, display)
+		}
+	}
+
+	// Decide the current context's display name. Prefer the value clientcmd
+	// already merged (fallbackCurrent) so lfk's choice agrees with what
+	// kubectl would pick when handed the same files. When that name is
+	// ambiguous, pick the entry from the earliest file in the precedence
+	// list — that mirrors first-writer-wins.
+	current := ""
+	if fallbackCurrent != "" {
+		// Single-occurrence: display == original.
+		if info, ok := contexts[fallbackCurrent]; ok {
+			current = info.display
+		} else {
+			// Disambiguated: walk paths in order, pick first match.
+			for _, path := range paths {
+				for _, info := range contexts {
+					if info.original == fallbackCurrent && info.sourcePath == path {
+						current = info.display
+						break
+					}
+				}
+				if current != "" {
+					break
+				}
+			}
+		}
+	}
+
+	sort.Strings(order)
+	return contexts, order, current
+}
+
+// contextDisplayHint returns a short label for use in a disambiguated context
+// display name. It strips the directory prefix and the ".yaml"/".yml"
+// extension so the suffix in the UI stays compact.
+func contextDisplayHint(path string) string {
+	base := filepath.Base(path)
+	for _, ext := range []string{".yaml", ".yml", ".conf", ".kubeconfig"} {
+		if trimmed, ok := strings.CutSuffix(base, ext); ok {
+			return trimmed
+		}
+	}
+	return base
 }
 
 // KubeconfigPaths returns the colon-separated kubeconfig paths used by this client.
@@ -131,34 +314,38 @@ func (c *Client) KubeconfigPaths() string {
 }
 
 // KubeconfigPathForContext returns the kubeconfig file path that defines the
-// given context. If the context's origin file cannot be determined, it falls
-// back to the first path in the precedence list.
-func (c *Client) KubeconfigPathForContext(contextName string) string {
-	// Check if the context has a location extension that tracks its source file.
-	if ctx, ok := c.rawConfig.Contexts[contextName]; ok && ctx != nil {
-		for _, loc := range ctx.Extensions {
-			// clientcmd doesn't store source file in extensions by default,
-			// so we try a different approach below.
-			_ = loc
-		}
+// given context. The argument is the lfk display name (which may have been
+// disambiguated from the original kubeconfig context name). Falls back to
+// the first path in the precedence list when the name is not registered, so
+// commands invoked before the contexts map is hydrated (or against unknown
+// names) still get a sensible KUBECONFIG.
+//
+// Subprocess invocations (kubectl, helm, etc.) must use this single source
+// file rather than KubeconfigPaths because clientcmd's merge collapses
+// clusters and users that share names across files — see issue #23 and
+// restConfigForContext for the in-process equivalent.
+func (c *Client) KubeconfigPathForContext(displayName string) string {
+	if info, ok := c.contexts[displayName]; ok {
+		return info.sourcePath
 	}
-
-	// Walk each kubeconfig file and check if it defines this context.
-	for _, path := range c.loadingRules.Precedence {
-		cfg, err := clientcmd.LoadFromFile(path)
-		if err != nil {
-			continue
-		}
-		if _, ok := cfg.Contexts[contextName]; ok {
-			return path
-		}
-	}
-
 	// Fallback to the first file.
 	if len(c.loadingRules.Precedence) > 0 {
 		return c.loadingRules.Precedence[0]
 	}
 	return ""
+}
+
+// OriginalContextName returns the context name as written in the source
+// kubeconfig file for the given lfk display name. Subprocesses (kubectl
+// --context, helm --kube-context) must be passed this value, because the
+// disambiguated display name only exists inside lfk and won't resolve in the
+// merged kubeconfig kubectl loads. Returns the input unchanged when the name
+// is not registered (preserves the no-collision and external-context cases).
+func (c *Client) OriginalContextName(displayName string) string {
+	if info, ok := c.contexts[displayName]; ok {
+		return info.original
+	}
+	return displayName
 }
 
 // buildKubeconfigPaths assembles the list of kubeconfig file paths to load.
@@ -220,35 +407,61 @@ func containsPath(paths []string, target string) bool {
 	return slices.Contains(paths, target)
 }
 
-// GetContexts returns all available kube contexts.
+// GetContexts returns all available kube contexts using their lfk display
+// names (which match the original names when there are no collisions and are
+// disambiguated as "name (basename)" when several files declare the same
+// context name).
 func (c *Client) GetContexts() ([]model.Item, error) {
-	items := make([]model.Item, 0, len(c.rawConfig.Contexts))
-	for name := range c.rawConfig.Contexts {
+	if len(c.contexts) == 0 {
+		// Fallback for tests that construct a Client directly without
+		// running NewClient: surface whatever rawConfig holds.
+		items := make([]model.Item, 0, len(c.rawConfig.Contexts))
+		for name := range c.rawConfig.Contexts {
+			status := ""
+			if name == c.rawConfig.CurrentContext {
+				status = "current"
+			}
+			items = append(items, model.Item{Name: name, Status: status})
+		}
+		sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+		return items, nil
+	}
+	items := make([]model.Item, 0, len(c.contextOrder))
+	for _, display := range c.contextOrder {
 		status := ""
-		if name == c.rawConfig.CurrentContext {
+		if display == c.currentContext {
 			status = "current"
 		}
-		items = append(items, model.Item{Name: name, Status: status})
+		items = append(items, model.Item{Name: display, Status: status})
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 	return items, nil
 }
 
-// CurrentContext returns the current context name from the kubeconfig.
+// CurrentContext returns the lfk display name of the current context.
 func (c *Client) CurrentContext() string {
+	if c.currentContext != "" {
+		return c.currentContext
+	}
 	return c.rawConfig.CurrentContext
 }
 
-// ContextExists returns true if the named context is defined in the loaded kubeconfig.
-func (c *Client) ContextExists(name string) bool {
-	_, ok := c.rawConfig.Contexts[name]
+// ContextExists reports whether the lfk display name is defined.
+func (c *Client) ContextExists(displayName string) bool {
+	if _, ok := c.contexts[displayName]; ok {
+		return true
+	}
+	// Fallback for clients constructed without collectContexts (tests).
+	_, ok := c.rawConfig.Contexts[displayName]
 	return ok
 }
 
-// DefaultNamespace returns the namespace configured for the given context,
-// falling back to "default" if none is set.
-func (c *Client) DefaultNamespace(contextName string) string {
-	if ctx, ok := c.rawConfig.Contexts[contextName]; ok && ctx.Namespace != "" {
+// DefaultNamespace returns the namespace configured for the given lfk display
+// name, falling back to "default" if none is set.
+func (c *Client) DefaultNamespace(displayName string) string {
+	if info, ok := c.contexts[displayName]; ok && info.namespace != "" {
+		return info.namespace
+	}
+	if ctx, ok := c.rawConfig.Contexts[displayName]; ok && ctx != nil && ctx.Namespace != "" {
 		return ctx.Namespace
 	}
 	return "default"

@@ -150,17 +150,17 @@ func (m Model) loadPodsForLogAction() tea.Cmd {
 	kind := m.actionCtx.kind
 	name := m.actionCtx.name
 	kctx := m.actionCtx.context
-	kubeconfigPaths := m.client.KubeconfigPaths()
+	kubeconfigPaths := m.client.KubeconfigPathForContext(kctx)
 
 	return func() tea.Msg {
 		// Get the selector for this parent resource.
-		selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx)
+		selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, m.kubectlContext(kctx))
 		if selector == "" {
 			return podLogSelectMsg{err: fmt.Errorf("could not determine pod selector for %s/%s", kind, name)}
 		}
 
 		// Fetch pods matching the selector.
-		args := []string{"get", "pods", "-l", selector, "-n", ns, "--context", kctx, "-o", "json"}
+		args := []string{"get", "pods", "-l", selector, "-n", ns, "--context", m.kubectlContext(kctx), "-o", "json"}
 		cmd := exec.Command(kubectlPath, args...)
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
 		logger.Info("Running kubectl command", "cmd", cmd.String())
@@ -321,29 +321,37 @@ func (m Model) bulkForceDeleteResources() tea.Cmd {
 			}
 			logger.Info("Bulk force deleting", "resource", rt.Resource, "name", ref.Name, "namespace", itemNs)
 
+			// Resolve KUBECONFIG to just the file that defines actionCtx so
+			// that overlapping cluster/user names across kubeconfigs do not
+			// route this command to the wrong cluster — see issue #23. Also
+			// translate the lfk display name back to the literal kubeconfig
+			// context name for the --context flag.
+			kubeconfigPath := client.KubeconfigPathForContext(actionCtx)
+			kubectlCtx := client.OriginalContextName(actionCtx)
+
 			// Remove finalizers first.
 			patchArgs := []string{
-				"patch", rt.Resource, ref.Name, "--context", actionCtx,
+				"patch", rt.Resource, ref.Name, "--context", kubectlCtx,
 				"--type", "merge", "-p", `{"metadata":{"finalizers":null}}`,
 			}
 			if rt.Namespaced {
 				patchArgs = append(patchArgs, "-n", itemNs)
 			}
 			patchCmd := exec.Command(kubectlPath, patchArgs...)
-			patchCmd.Env = append(os.Environ(), "KUBECONFIG="+client.KubeconfigPaths())
+			patchCmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPath)
 			logger.Info("Running kubectl command", "cmd", patchCmd.String())
 			patchCmd.Run() //nolint:errcheck
 
 			// Force delete.
 			deleteArgs := []string{
-				"delete", rt.Resource, ref.Name, "--context", actionCtx,
+				"delete", rt.Resource, ref.Name, "--context", kubectlCtx,
 				"--grace-period=0", "--force",
 			}
 			if rt.Namespaced {
 				deleteArgs = append(deleteArgs, "-n", itemNs)
 			}
 			cmd := exec.Command(kubectlPath, deleteArgs...)
-			cmd.Env = append(os.Environ(), "KUBECONFIG="+client.KubeconfigPaths())
+			cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPath)
 			logger.Info("Running kubectl command", "cmd", cmd.String())
 			if output, err := cmd.CombinedOutput(); err != nil {
 				logger.Error("kubectl bulk force delete failed", "cmd", cmd.String(), "error", err, "output", string(output))
@@ -632,12 +640,12 @@ func (m Model) applyTemplateFile(tmpFile, ctx, ns string) tea.Cmd {
 	return func() tea.Msg {
 		defer func() { _ = os.Remove(tmpFile) }()
 
-		args := []string{"apply", "-f", tmpFile, "--context", ctx}
+		args := []string{"apply", "-f", tmpFile, "--context", m.kubectlContext(ctx)}
 		if ns != "" {
 			args = append(args, "-n", ns)
 		}
 		cmd := exec.Command(kubectlPath, args...)
-		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPaths())
+		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPathForContext(ctx))
 		logger.Info("Running kubectl command", "cmd", cmd.String())
 		output, err := cmd.CombinedOutput()
 		if err != nil {
