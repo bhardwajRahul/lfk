@@ -50,19 +50,19 @@ func TestFormatAge(t *testing.T) {
 func TestGetInt(t *testing.T) {
 	tests := []struct {
 		name     string
-		m        map[string]interface{}
+		m        map[string]any
 		key      string
 		expected int64
 	}{
-		{"int64 value", map[string]interface{}{"count": int64(42)}, "count", 42},
-		{"float64 value", map[string]interface{}{"count": float64(99.9)}, "count", 99},
-		{"missing key", map[string]interface{}{"other": int64(1)}, "count", 0},
+		{"int64 value", map[string]any{"count": int64(42)}, "count", 42},
+		{"float64 value", map[string]any{"count": float64(99.9)}, "count", 99},
+		{"missing key", map[string]any{"other": int64(1)}, "count", 0},
 		{"nil map", nil, "count", 0},
-		{"wrong type string", map[string]interface{}{"count": "hello"}, "count", 0},
-		{"wrong type bool", map[string]interface{}{"count": true}, "count", 0},
-		{"zero int64", map[string]interface{}{"count": int64(0)}, "count", 0},
-		{"negative int64", map[string]interface{}{"count": int64(-5)}, "count", -5},
-		{"negative float64", map[string]interface{}{"count": float64(-3.7)}, "count", -3},
+		{"wrong type string", map[string]any{"count": "hello"}, "count", 0},
+		{"wrong type bool", map[string]any{"count": true}, "count", 0},
+		{"zero int64", map[string]any{"count": int64(0)}, "count", 0},
+		{"negative int64", map[string]any{"count": int64(-5)}, "count", -5},
+		{"negative float64", map[string]any{"count": float64(-3.7)}, "count", -3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestGetInt(t *testing.T) {
 
 func TestParseEventTimestamp(t *testing.T) {
 	t.Run("valid RFC3339", func(t *testing.T) {
-		obj := map[string]interface{}{
+		obj := map[string]any{
 			"lastTimestamp": "2024-01-15T10:30:00Z",
 		}
 		result := parseEventTimestamp(obj, "lastTimestamp")
@@ -86,7 +86,7 @@ func TestParseEventTimestamp(t *testing.T) {
 	})
 
 	t.Run("valid RFC3339Nano", func(t *testing.T) {
-		obj := map[string]interface{}{
+		obj := map[string]any{
 			"eventTime": "2024-01-15T10:30:00.123456789Z",
 		}
 		result := parseEventTimestamp(obj, "eventTime")
@@ -94,31 +94,31 @@ func TestParseEventTimestamp(t *testing.T) {
 	})
 
 	t.Run("missing field", func(t *testing.T) {
-		obj := map[string]interface{}{}
+		obj := map[string]any{}
 		result := parseEventTimestamp(obj, "lastTimestamp")
 		assert.True(t, result.IsZero())
 	})
 
 	t.Run("nil value", func(t *testing.T) {
-		obj := map[string]interface{}{"lastTimestamp": nil}
+		obj := map[string]any{"lastTimestamp": nil}
 		result := parseEventTimestamp(obj, "lastTimestamp")
 		assert.True(t, result.IsZero())
 	})
 
 	t.Run("empty string", func(t *testing.T) {
-		obj := map[string]interface{}{"lastTimestamp": ""}
+		obj := map[string]any{"lastTimestamp": ""}
 		result := parseEventTimestamp(obj, "lastTimestamp")
 		assert.True(t, result.IsZero())
 	})
 
 	t.Run("invalid format", func(t *testing.T) {
-		obj := map[string]interface{}{"lastTimestamp": "not-a-date"}
+		obj := map[string]any{"lastTimestamp": "not-a-date"}
 		result := parseEventTimestamp(obj, "lastTimestamp")
 		assert.True(t, result.IsZero())
 	})
 
 	t.Run("non-string type", func(t *testing.T) {
-		obj := map[string]interface{}{"lastTimestamp": 12345}
+		obj := map[string]any{"lastTimestamp": 12345}
 		result := parseEventTimestamp(obj, "lastTimestamp")
 		assert.True(t, result.IsZero())
 	})
@@ -128,8 +128,8 @@ func TestParseEventTimestamp(t *testing.T) {
 
 func TestExtractStatus(t *testing.T) {
 	t.Run("phase field", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{
+		obj := map[string]any{
+			"status": map[string]any{
 				"phase": "Running",
 			},
 		}
@@ -137,12 +137,12 @@ func TestExtractStatus(t *testing.T) {
 	})
 
 	t.Run("ArgoCD health+sync", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{
-				"health": map[string]interface{}{
+		obj := map[string]any{
+			"status": map[string]any{
+				"health": map[string]any{
 					"status": "Healthy",
 				},
-				"sync": map[string]interface{}{
+				"sync": map[string]any{
 					"status": "Synced",
 				},
 			},
@@ -151,9 +151,9 @@ func TestExtractStatus(t *testing.T) {
 	})
 
 	t.Run("ArgoCD health only", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{
-				"health": map[string]interface{}{
+		obj := map[string]any{
+			"status": map[string]any{
+				"health": map[string]any{
 					"status": "Degraded",
 				},
 			},
@@ -162,14 +162,14 @@ func TestExtractStatus(t *testing.T) {
 	})
 
 	t.Run("conditions with Available", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{
+		obj := map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
 						"type":   "Progressing",
 						"status": "True",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"type":   "Available",
 						"status": "True",
 					},
@@ -180,14 +180,14 @@ func TestExtractStatus(t *testing.T) {
 	})
 
 	t.Run("conditions fallback to last", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{
+		obj := map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
 						"type":   "Initialized",
 						"status": "True",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"type":   "Ready",
 						"status": "False",
 					},
@@ -198,14 +198,14 @@ func TestExtractStatus(t *testing.T) {
 	})
 
 	t.Run("Available condition with False status", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{
+		obj := map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
 						"type":   "Available",
 						"status": "False",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"type":   "Progressing",
 						"status": "True",
 					},
@@ -217,30 +217,30 @@ func TestExtractStatus(t *testing.T) {
 	})
 
 	t.Run("no status field", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"metadata": map[string]interface{}{},
+		obj := map[string]any{
+			"metadata": map[string]any{},
 		}
 		assert.Equal(t, "", extractStatus(obj))
 	})
 
 	t.Run("status is not a map", func(t *testing.T) {
-		obj := map[string]interface{}{
+		obj := map[string]any{
 			"status": "something",
 		}
 		assert.Equal(t, "", extractStatus(obj))
 	})
 
 	t.Run("empty status map", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{},
+		obj := map[string]any{
+			"status": map[string]any{},
 		}
 		assert.Equal(t, "", extractStatus(obj))
 	})
 
 	t.Run("empty conditions array", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{},
+		obj := map[string]any{
+			"status": map[string]any{
+				"conditions": []any{},
 			},
 		}
 		assert.Equal(t, "", extractStatus(obj))
@@ -351,20 +351,20 @@ func indexOf(s, substr string) int {
 
 func TestPopulateResourceDetails_LastRestartAt(t *testing.T) {
 	t.Run("sets LastRestartAt from container lastState.terminated.finishedAt", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{"name": "app"},
+		obj := map[string]any{
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{"name": "app"},
 				},
 			},
-			"status": map[string]interface{}{
-				"containerStatuses": []interface{}{
-					map[string]interface{}{
+			"status": map[string]any{
+				"containerStatuses": []any{
+					map[string]any{
 						"name":         "app",
 						"ready":        true,
 						"restartCount": float64(3),
-						"lastState": map[string]interface{}{
-							"terminated": map[string]interface{}{
+						"lastState": map[string]any{
+							"terminated": map[string]any{
 								"finishedAt": "2025-06-15T12:30:00Z",
 							},
 						},
@@ -381,31 +381,31 @@ func TestPopulateResourceDetails_LastRestartAt(t *testing.T) {
 	})
 
 	t.Run("picks the most recent LastRestartAt across containers", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{"name": "app"},
-					map[string]interface{}{"name": "sidecar"},
+		obj := map[string]any{
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{"name": "app"},
+					map[string]any{"name": "sidecar"},
 				},
 			},
-			"status": map[string]interface{}{
-				"containerStatuses": []interface{}{
-					map[string]interface{}{
+			"status": map[string]any{
+				"containerStatuses": []any{
+					map[string]any{
 						"name":         "app",
 						"ready":        true,
 						"restartCount": float64(1),
-						"lastState": map[string]interface{}{
-							"terminated": map[string]interface{}{
+						"lastState": map[string]any{
+							"terminated": map[string]any{
 								"finishedAt": "2025-06-15T10:00:00Z",
 							},
 						},
 					},
-					map[string]interface{}{
+					map[string]any{
 						"name":         "sidecar",
 						"ready":        true,
 						"restartCount": float64(2),
-						"lastState": map[string]interface{}{
-							"terminated": map[string]interface{}{
+						"lastState": map[string]any{
+							"terminated": map[string]any{
 								"finishedAt": "2025-06-15T14:00:00Z",
 							},
 						},
@@ -421,15 +421,15 @@ func TestPopulateResourceDetails_LastRestartAt(t *testing.T) {
 	})
 
 	t.Run("zero LastRestartAt when no lastState", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{"name": "app"},
+		obj := map[string]any{
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{"name": "app"},
 				},
 			},
-			"status": map[string]interface{}{
-				"containerStatuses": []interface{}{
-					map[string]interface{}{
+			"status": map[string]any{
+				"containerStatuses": []any{
+					map[string]any{
 						"name":         "app",
 						"ready":        true,
 						"restartCount": float64(0),
@@ -444,20 +444,20 @@ func TestPopulateResourceDetails_LastRestartAt(t *testing.T) {
 	})
 
 	t.Run("zero LastRestartAt when lastState has no terminated", func(t *testing.T) {
-		obj := map[string]interface{}{
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{"name": "app"},
+		obj := map[string]any{
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{"name": "app"},
 				},
 			},
-			"status": map[string]interface{}{
-				"containerStatuses": []interface{}{
-					map[string]interface{}{
+			"status": map[string]any{
+				"containerStatuses": []any{
+					map[string]any{
 						"name":         "app",
 						"ready":        false,
 						"restartCount": float64(1),
-						"lastState": map[string]interface{}{
-							"waiting": map[string]interface{}{
+						"lastState": map[string]any{
+							"waiting": map[string]any{
 								"reason": "CrashLoopBackOff",
 							},
 						},
@@ -503,27 +503,27 @@ func TestComputeQuotaPercent(t *testing.T) {
 // --- evaluateSimpleJSONPath ---
 
 func TestEvaluateSimpleJSONPath(t *testing.T) {
-	obj := map[string]interface{}{
-		"status": map[string]interface{}{
+	obj := map[string]any{
+		"status": map[string]any{
 			"phase": "Running",
-			"conditions": []interface{}{
-				map[string]interface{}{
+			"conditions": []any{
+				map[string]any{
 					"type":   "Ready",
 					"status": "True",
 				},
-				map[string]interface{}{
+				map[string]any{
 					"type":   "Initialized",
 					"status": "True",
 				},
 			},
 		},
-		"spec": map[string]interface{}{
-			"source": map[string]interface{}{
+		"spec": map[string]any{
+			"source": map[string]any{
 				"repoURL": "https://github.com/example/repo",
 			},
 			"replicas": float64(3),
 		},
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"creationTimestamp": "2025-01-15T10:30:00Z",
 		},
 	}
@@ -531,7 +531,7 @@ func TestEvaluateSimpleJSONPath(t *testing.T) {
 	tests := []struct {
 		name    string
 		path    string
-		wantVal interface{}
+		wantVal any
 		wantOK  bool
 	}{
 		{"simple field", ".status.phase", "Running", true},
@@ -563,7 +563,7 @@ func TestEvaluateSimpleJSONPath(t *testing.T) {
 func TestFormatPrinterValue(t *testing.T) {
 	tests := []struct {
 		name    string
-		val     interface{}
+		val     any
 		colType string
 		want    string
 	}{
@@ -596,23 +596,23 @@ func TestFormatPrinterValue(t *testing.T) {
 
 func TestExtractCRDPrinterColumns(t *testing.T) {
 	t.Run("extracts columns from matching version", func(t *testing.T) {
-		spec := map[string]interface{}{
-			"versions": []interface{}{
-				map[string]interface{}{
+		spec := map[string]any{
+			"versions": []any{
+				map[string]any{
 					"name":   "v1alpha1",
 					"served": true,
-					"additionalPrinterColumns": []interface{}{
-						map[string]interface{}{
+					"additionalPrinterColumns": []any{
+						map[string]any{
 							"name":     "Status",
 							"type":     "string",
 							"jsonPath": ".status.phase",
 						},
-						map[string]interface{}{
+						map[string]any{
 							"name":     "Repo",
 							"type":     "string",
 							"jsonPath": ".spec.source.repoURL",
 						},
-						map[string]interface{}{
+						map[string]any{
 							"name":     "Age",
 							"type":     "date",
 							"jsonPath": ".metadata.creationTimestamp",
@@ -631,13 +631,13 @@ func TestExtractCRDPrinterColumns(t *testing.T) {
 	})
 
 	t.Run("returns nil for non-matching version", func(t *testing.T) {
-		spec := map[string]interface{}{
-			"versions": []interface{}{
-				map[string]interface{}{
+		spec := map[string]any{
+			"versions": []any{
+				map[string]any{
 					"name":   "v1",
 					"served": true,
-					"additionalPrinterColumns": []interface{}{
-						map[string]interface{}{
+					"additionalPrinterColumns": []any{
+						map[string]any{
 							"name":     "Status",
 							"type":     "string",
 							"jsonPath": ".status.phase",
@@ -651,15 +651,15 @@ func TestExtractCRDPrinterColumns(t *testing.T) {
 	})
 
 	t.Run("returns nil when no versions", func(t *testing.T) {
-		spec := map[string]interface{}{}
+		spec := map[string]any{}
 		cols := extractCRDPrinterColumns(spec, "v1")
 		assert.Nil(t, cols)
 	})
 
 	t.Run("returns nil when no additionalPrinterColumns", func(t *testing.T) {
-		spec := map[string]interface{}{
-			"versions": []interface{}{
-				map[string]interface{}{
+		spec := map[string]any{
+			"versions": []any{
+				map[string]any{
 					"name":   "v1",
 					"served": true,
 				},
@@ -670,23 +670,23 @@ func TestExtractCRDPrinterColumns(t *testing.T) {
 	})
 
 	t.Run("skips columns with empty name or jsonPath", func(t *testing.T) {
-		spec := map[string]interface{}{
-			"versions": []interface{}{
-				map[string]interface{}{
+		spec := map[string]any{
+			"versions": []any{
+				map[string]any{
 					"name":   "v1",
 					"served": true,
-					"additionalPrinterColumns": []interface{}{
-						map[string]interface{}{
+					"additionalPrinterColumns": []any{
+						map[string]any{
 							"name":     "",
 							"type":     "string",
 							"jsonPath": ".status.phase",
 						},
-						map[string]interface{}{
+						map[string]any{
 							"name":     "Status",
 							"type":     "string",
 							"jsonPath": "",
 						},
-						map[string]interface{}{
+						map[string]any{
 							"name":     "Valid",
 							"type":     "string",
 							"jsonPath": ".status.phase",
@@ -706,13 +706,13 @@ func TestExtractCRDPrinterColumns(t *testing.T) {
 func TestExtractGenericConditions(t *testing.T) {
 	t.Run("prefers Ready condition", func(t *testing.T) {
 		ti := &model.Item{}
-		conditions := []interface{}{
-			map[string]interface{}{
+		conditions := []any{
+			map[string]any{
 				"type":   "Initialized",
 				"status": "True",
 				"reason": "InitDone",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"type":               "Ready",
 				"status":             "True",
 				"reason":             "AllGood",
@@ -732,12 +732,12 @@ func TestExtractGenericConditions(t *testing.T) {
 
 	t.Run("falls back to last condition", func(t *testing.T) {
 		ti := &model.Item{}
-		conditions := []interface{}{
-			map[string]interface{}{
+		conditions := []any{
+			map[string]any{
 				"type":   "Initialized",
 				"status": "True",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"type":    "Available",
 				"status":  "False",
 				"reason":  "MinimumReplicasUnavailable",
@@ -753,15 +753,15 @@ func TestExtractGenericConditions(t *testing.T) {
 
 	t.Run("truncates long messages", func(t *testing.T) {
 		ti := &model.Item{}
-		longMsg := ""
+		var longMsg strings.Builder
 		for i := range 100 {
-			longMsg += fmt.Sprintf("x%d", i)
+			fmt.Fprintf(&longMsg, "x%d", i)
 		}
-		conditions := []interface{}{
-			map[string]interface{}{
+		conditions := []any{
+			map[string]any{
 				"type":    "Ready",
 				"status":  "False",
-				"message": longMsg,
+				"message": longMsg.String(),
 			},
 		}
 		extractGenericConditions(ti, conditions)
@@ -776,7 +776,7 @@ func TestExtractGenericConditions(t *testing.T) {
 
 	t.Run("empty conditions", func(t *testing.T) {
 		ti := &model.Item{}
-		extractGenericConditions(ti, []interface{}{})
+		extractGenericConditions(ti, []any{})
 		assert.Empty(t, ti.Columns)
 	})
 }

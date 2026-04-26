@@ -267,10 +267,7 @@ func (m Model) handleExplorerActionKeyPageUp() (tea.Model, tea.Cmd, bool) {
 	}
 	visible := m.visibleMiddleItems()
 	halfPage := (m.height - 4) / 2
-	c := m.cursor() - halfPage
-	if c < 0 {
-		c = 0
-	}
+	c := max(m.cursor()-halfPage, 0)
 	if c >= len(visible) {
 		c = len(visible) - 1
 	}
@@ -313,10 +310,7 @@ func (m Model) handleExplorerActionKeyPageBack() (tea.Model, tea.Cmd, bool) {
 	}
 	visible := m.visibleMiddleItems()
 	fullPage := m.height - 4
-	c := m.cursor() - fullPage
-	if c < 0 {
-		c = 0
-	}
+	c := max(m.cursor()-fullPage, 0)
 	if c >= len(visible) {
 		c = len(visible) - 1
 	}

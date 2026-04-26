@@ -29,7 +29,7 @@ func TestParseColorModeMsg_Light(t *testing.T) {
 func TestParseColorModeMsg_Unrelated(t *testing.T) {
 	cases := []struct {
 		name string
-		msg  interface{}
+		msg  any
 	}{
 		{"string", "hello"},
 		{"int", 42},

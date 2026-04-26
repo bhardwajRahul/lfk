@@ -234,10 +234,7 @@ func (m *Model) helpScrollToMatch() {
 	}
 	target := m.helpMatchLines[m.helpMatchIdx]
 	visible := m.helpVisibleLines()
-	m.helpScroll = target - visible/2
-	if m.helpScroll < 0 {
-		m.helpScroll = 0
-	}
+	m.helpScroll = max(target-visible/2, 0)
 }
 
 // helpVisibleLines returns the number of help-content rows that fit
@@ -261,10 +258,7 @@ func (m *Model) helpVisibleLines() int {
 // undoing phantom scroll before the viewport visibly moves.
 func (m *Model) clampHelpScroll() {
 	totalLines := len(ui.BuildHelpLines(m.helpFilter.Value, m.helpContextMode))
-	maxScroll := totalLines - m.helpVisibleLines()
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalLines-m.helpVisibleLines(), 0)
 	if m.helpScroll > maxScroll {
 		m.helpScroll = maxScroll
 	}

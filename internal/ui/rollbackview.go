@@ -14,14 +14,8 @@ func RenderRollbackOverlay(revisions []k8s.DeploymentRevision, cursor int, scree
 		return OverlayStyle.Render(DimStyle.Render("No revisions found"))
 	}
 
-	boxW := screenWidth * 70 / 100
-	if boxW < 50 {
-		boxW = 50
-	}
-	boxH := screenHeight * 60 / 100
-	if boxH < 10 {
-		boxH = 10
-	}
+	boxW := max(screenWidth*70/100, 50)
+	boxH := max(screenHeight*60/100, 10)
 
 	title := OverlayTitleStyle.Render("Rollback Deployment")
 
@@ -30,18 +24,14 @@ func RenderRollbackOverlay(revisions []k8s.DeploymentRevision, cursor int, scree
 	hdr := fmt.Sprintf("  %-8s  %-30s  %-8s  %-30s  %s", "REV", "REPLICASET", "PODS", "IMAGE", "AGE")
 	lines = append(lines, DimStyle.Bold(true).Render(hdr))
 
-	contentH := boxH - 6 // borders, title, help
-	if contentH < 3 {
-		contentH = 3
-	}
+	contentH := max(
+		// borders, title, help
+		boxH-6, 3)
 	start := 0
 	if cursor >= contentH {
 		start = cursor - contentH + 1
 	}
-	end := start + contentH
-	if end > len(revisions) {
-		end = len(revisions)
-	}
+	end := min(start+contentH, len(revisions))
 
 	for i := start; i < end; i++ {
 		rev := revisions[i]
@@ -92,14 +82,8 @@ func RenderHelmRollbackOverlay(revisions []HelmRevision, cursor int, screenWidth
 		return OverlayStyle.Render(DimStyle.Render("No revisions found"))
 	}
 
-	boxW := screenWidth * 80 / 100
-	if boxW < 60 {
-		boxW = 60
-	}
-	boxH := screenHeight * 60 / 100
-	if boxH < 10 {
-		boxH = 10
-	}
+	boxW := max(screenWidth*80/100, 60)
+	boxH := max(screenHeight*60/100, 10)
 
 	title := OverlayTitleStyle.Render("Rollback Helm Release")
 
@@ -109,18 +93,14 @@ func RenderHelmRollbackOverlay(revisions []HelmRevision, cursor int, screenWidth
 		"REV", "STATUS", "CHART", "APP VER", "DESCRIPTION", "UPDATED")
 	lines = append(lines, DimStyle.Bold(true).Render(hdr))
 
-	contentH := boxH - 6 // borders, title, help
-	if contentH < 3 {
-		contentH = 3
-	}
+	contentH := max(
+		// borders, title, help
+		boxH-6, 3)
 	start := 0
 	if cursor >= contentH {
 		start = cursor - contentH + 1
 	}
-	end := start + contentH
-	if end > len(revisions) {
-		end = len(revisions)
-	}
+	end := min(start+contentH, len(revisions))
 
 	for i := start; i < end; i++ {
 		rev := revisions[i]

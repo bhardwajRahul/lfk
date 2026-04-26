@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -315,12 +316,7 @@ func matchesContainerFilter(line string, selectedContainers []string) bool {
 		return true // unexpected format
 	}
 	containerName := prefix[lastSlash+1:]
-	for _, sc := range selectedContainers {
-		if sc == containerName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(selectedContainers, containerName)
 }
 
 // waitForLogLine returns a tea.Cmd that reads the next line from the log channel.
@@ -429,9 +425,7 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			defer cmd.Wait() //nolint:errcheck
 			scanner := bufio.NewScanner(stdout)
 			scanner.Buffer(make([]byte, 0, 256*1024), 1024*1024)
@@ -442,7 +436,7 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 					return
 				}
 			}
-		}()
+		})
 	}
 
 	// Close the channel once all goroutines finish.
@@ -521,9 +515,7 @@ func (m Model) restartMultiLogStream() (Model, tea.Cmd) {
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			defer cmd.Wait() //nolint:errcheck
 			scanner := bufio.NewScanner(stdout)
 			scanner.Buffer(make([]byte, 0, 256*1024), 1024*1024)
@@ -534,7 +526,7 @@ func (m Model) restartMultiLogStream() (Model, tea.Cmd) {
 					return
 				}
 			}
-		}()
+		})
 	}
 
 	go func() {
@@ -621,7 +613,7 @@ func (m *Model) fetchOlderLogs() tea.Cmd {
 		}
 
 		var lines []string
-		for _, line := range strings.Split(string(output), "\n") {
+		for line := range strings.SplitSeq(string(output), "\n") {
 			if line == "" {
 				continue
 			}

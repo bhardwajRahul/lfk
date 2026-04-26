@@ -366,33 +366,21 @@ func FormatItemNameOnly(item model.Item, width int) string {
 		if resolvedIcon != "" {
 			icon := IconStyle.Render(resolvedIcon + " ")
 			iconW := lipgloss.Width(icon)
-			remaining := width - prefixW - iconW - deprecationW
-			if remaining < 1 {
-				remaining = 1
-			}
+			remaining := max(width-prefixW-iconW-deprecationW, 1)
 			return prefix + icon + NormalStyle.Render(Truncate(displayName, remaining)) + deprecationSuffix
 		}
-		remaining := width - prefixW - deprecationW
-		if remaining < 1 {
-			remaining = 1
-		}
+		remaining := max(width-prefixW-deprecationW, 1)
 		return prefix + NormalStyle.Render(Truncate(displayName, remaining)) + deprecationSuffix
 	}
 
 	if resolvedIcon != "" {
 		icon := IconStyle.Render(resolvedIcon + " ")
 		iconW := lipgloss.Width(icon)
-		remaining := width - iconW - deprecationW
-		if remaining < 1 {
-			remaining = 1
-		}
+		remaining := max(width-iconW-deprecationW, 1)
 		return icon + NormalStyle.Render(Truncate(displayName, remaining)) + deprecationSuffix
 	}
 
-	remaining := width - deprecationW
-	if remaining < 1 {
-		remaining = 1
-	}
+	remaining := max(width-deprecationW, 1)
 	return NormalStyle.Render(Truncate(displayName, remaining)) + deprecationSuffix
 }
 
@@ -420,33 +408,21 @@ func FormatItemNameOnlyPlain(item model.Item, width int) string {
 		if resolvedIcon != "" {
 			icon := resolvedIcon + " "
 			iconW := lipgloss.Width(icon)
-			remaining := width - prefixW - iconW - deprecationW
-			if remaining < 1 {
-				remaining = 1
-			}
+			remaining := max(width-prefixW-iconW-deprecationW, 1)
 			return prefix + icon + Truncate(displayName, remaining) + deprecationSuffix
 		}
-		remaining := width - prefixW - deprecationW
-		if remaining < 1 {
-			remaining = 1
-		}
+		remaining := max(width-prefixW-deprecationW, 1)
 		return prefix + Truncate(displayName, remaining) + deprecationSuffix
 	}
 
 	if resolvedIcon != "" {
 		icon := resolvedIcon + " "
 		iconW := lipgloss.Width(icon)
-		remaining := width - iconW - deprecationW
-		if remaining < 1 {
-			remaining = 1
-		}
+		remaining := max(width-iconW-deprecationW, 1)
 		return icon + Truncate(displayName, remaining) + deprecationSuffix
 	}
 
-	remaining := width - deprecationW
-	if remaining < 1 {
-		remaining = 1
-	}
+	remaining := max(width-deprecationW, 1)
 	return Truncate(displayName, remaining) + deprecationSuffix
 }
 
@@ -462,10 +438,7 @@ func wrapExtraValue(val string, width int) []string {
 	}
 	var lines []string
 	for i := width; i < len(runes); i += width {
-		end := i + width
-		if end > len(runes) {
-			end = len(runes)
-		}
+		end := min(i+width, len(runes))
 		lines = append(lines, string(runes[i:end]))
 	}
 	return lines
@@ -793,10 +766,7 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 	}
 
 	// Name column gets all remaining space so the table fills the full width.
-	nameW := width - nsW - readyW - restartsW - ageW - statusW - markerColW - extraTotalW
-	if nameW < 10 {
-		nameW = 10
-	}
+	nameW := max(width-nsW-readyW-restartsW-ageW-statusW-markerColW-extraTotalW, 10)
 
 	// Render header with sort indicators fitted within column widths.
 	if headerLabel == "" {
@@ -916,10 +886,7 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 				}
 			}
 			if cursor-scrollOff >= 0 && startIdx > cursor-scrollOff {
-				startIdx = cursor - scrollOff
-				if startIdx < 0 {
-					startIdx = 0
-				}
+				startIdx = max(cursor-scrollOff, 0)
 			}
 			// Check the new position BEFORE decrementing so we
 			// don't overshoot when an earlier row has 2 display

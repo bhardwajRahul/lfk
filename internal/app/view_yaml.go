@@ -65,10 +65,7 @@ func (m Model) viewYAML() string {
 		hint = ui.StatusBarBgStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(searchBar)
 	}
 
-	maxLines := m.height - 4
-	if maxLines < 3 {
-		maxLines = 3
-	}
+	maxLines := max(m.height-4, 3)
 
 	// Build visible lines with fold indicators, respecting collapsed sections.
 	visLines, mapping := buildVisibleLines(m.yamlContent, m.yamlSections, m.yamlCollapsed)
@@ -87,10 +84,7 @@ func (m Model) viewYAML() string {
 
 	// Compute line number gutter width.
 	totalOrigLines := len(strings.Split(m.yamlContent, "\n"))
-	gutterWidth := len(fmt.Sprintf("%d", totalOrigLines))
-	if gutterWidth < 2 {
-		gutterWidth = 2
-	}
+	gutterWidth := max(len(fmt.Sprintf("%d", totalOrigLines)), 2)
 
 	// Build a set of original matching lines for search highlight.
 	matchSet := make(map[int]bool)
@@ -130,10 +124,9 @@ func (m Model) viewYAML() string {
 	}
 
 	// Content width for wrapping/truncation.
-	contentWidth := m.width - 4 // border (2) + padding (2)
-	if contentWidth < 10 {
-		contentWidth = 10
-	}
+	contentWidth := max(
+		// border (2) + padding (2)
+		m.width-4, 10)
 
 	// Apply YAML highlighting to visible lines, with search highlights and cursor.
 	renderCtx := yamlRenderCtx{
@@ -295,10 +288,7 @@ func yamlPrependGutter(content, lineNum, foldPrefix string, isCursor, isSelected
 // renderYAMLWrappedLine renders a single YAML line with word wrapping.
 func renderYAMLWrappedLine(result []string, contentLine, foldPrefix string, visIdx, origLine int, ctx yamlRenderCtx) []string {
 	gutterOverhead := 1 + ctx.gutterWidth + 1 + yamlFoldPrefixLen
-	wrapWidth := ctx.contentWidth - gutterOverhead
-	if wrapWidth < 10 {
-		wrapWidth = 10
-	}
+	wrapWidth := max(ctx.contentWidth-gutterOverhead, 10)
 	subLines := ui.WrapLine(contentLine, wrapWidth)
 	for si, sub := range subLines {
 		hl := yamlApplySearchHighlight(sub, ctx.searchQuery, origLine, ctx.currentMatch, ctx.matchSet)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"strings"
@@ -682,9 +683,7 @@ func (m Model) saveSecretData() tea.Cmd {
 	}
 	name := sel.Name
 	data := make(map[string]string, len(m.secretData.Data))
-	for k, v := range m.secretData.Data {
-		data[k] = v
-	}
+	maps.Copy(data, m.secretData.Data)
 	client := m.client
 
 	return func() tea.Msg {
@@ -732,9 +731,7 @@ func (m Model) saveConfigMapData() tea.Cmd {
 	}
 	name := sel.Name
 	data := make(map[string]string, len(m.configMapData.Data))
-	for k, v := range m.configMapData.Data {
-		data[k] = v
-	}
+	maps.Copy(data, m.configMapData.Data)
 	client := m.client
 
 	return func() tea.Msg {
@@ -782,13 +779,9 @@ func (m Model) saveLabelData() tea.Cmd {
 	name := sel.Name
 	rt := m.labelResourceType
 	labels := make(map[string]string, len(m.labelData.Labels))
-	for k, v := range m.labelData.Labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, m.labelData.Labels)
 	annotations := make(map[string]string, len(m.labelData.Annotations))
-	for k, v := range m.labelData.Annotations {
-		annotations[k] = v
-	}
+	maps.Copy(annotations, m.labelData.Annotations)
 	client := m.client
 
 	return func() tea.Msg {

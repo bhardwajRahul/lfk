@@ -11,7 +11,7 @@ import (
 // Both may be nil if the test does not exercise those code paths.
 // To inject a fake metadata client, set the testMetaClient field directly on
 // the returned *Client (or use NewTestClientWithMeta).
-func NewTestClient(cs, dyn interface{}) *Client {
+func NewTestClient(cs, dyn any) *Client {
 	return &Client{
 		rawConfig: api.Config{
 			Contexts: map[string]*api.Context{

@@ -19,10 +19,7 @@ func (m Model) yamlViewportLines() int {
 	if len(m.tabs) > 1 {
 		overhead = 6
 	}
-	lines := m.height - overhead
-	if lines < 3 {
-		lines = 3
-	}
+	lines := max(m.height-overhead, 3)
 	return lines
 }
 
@@ -192,16 +189,10 @@ func (m Model) handleYAMLVisualG(totalVisible, maxScroll int) (tea.Model, tea.Cm
 		if lineNum > 0 {
 			lineNum--
 		}
-		m.yamlCursor = min(lineNum, totalVisible-1)
-		if m.yamlCursor < 0 {
-			m.yamlCursor = 0
-		}
+		m.yamlCursor = max(min(lineNum, totalVisible-1), 0)
 		m.ensureYAMLCursorVisible()
 	} else {
-		m.yamlCursor = totalVisible - 1
-		if m.yamlCursor < 0 {
-			m.yamlCursor = 0
-		}
+		m.yamlCursor = max(totalVisible-1, 0)
 		m.yamlScroll = maxScroll
 	}
 	return m, nil
@@ -260,16 +251,10 @@ func (m Model) yamlVisualCopyChar(selStart, selEnd int, mapping []int, origLines
 			}
 			parts = append(parts, string(runes[cs:ce]))
 		} else if i == selStart {
-			cs := startCol
-			if cs > len(runes) {
-				cs = len(runes)
-			}
+			cs := min(startCol, len(runes))
 			parts = append(parts, string(runes[cs:]))
 		} else if i == selEnd {
-			ce := endCol + 1
-			if ce > len(runes) {
-				ce = len(runes)
-			}
+			ce := min(endCol+1, len(runes))
 			parts = append(parts, string(runes[:ce]))
 		} else {
 			parts = append(parts, line)
@@ -328,10 +313,7 @@ func (m Model) handleYAMLVisualWordMotion(key string) (tea.Model, tea.Cmd) {
 			m.yamlVisualCurCol = lineLen - 1
 		}
 	case "^":
-		col := firstNonWhitespace(visLines[m.yamlCursor])
-		if col < yamlFoldPrefixLen {
-			col = yamlFoldPrefixLen
-		}
+		col := max(firstNonWhitespace(visLines[m.yamlCursor]), yamlFoldPrefixLen)
 		m.yamlVisualCurCol = col
 	case "w":
 		m.yamlWordForward(visLines, nextWordStart)
@@ -373,10 +355,7 @@ func (m *Model) yamlWordBackward(visLines []string, motionFn func(string, int) i
 	if newCol < 0 && m.yamlCursor > 0 {
 		m.yamlCursor--
 		lineLen := len([]rune(visLines[m.yamlCursor]))
-		newCol = motionFn(visLines[m.yamlCursor], lineLen)
-		if newCol < 0 {
-			newCol = 0
-		}
+		newCol = max(motionFn(visLines[m.yamlCursor], lineLen), 0)
 		m.yamlVisualCurCol = max(yamlFoldPrefixLen, newCol)
 		m.ensureYAMLCursorVisible()
 	} else {
@@ -387,10 +366,7 @@ func (m *Model) yamlWordBackward(visLines []string, motionFn func(string, int) i
 // yamlMaxScroll returns the maximum scroll offset for the YAML viewer.
 func (m Model) yamlMaxScroll(totalVisible int) int {
 	viewportLines := m.yamlViewportLines()
-	maxScroll := totalVisible - viewportLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalVisible-viewportLines, 0)
 	return maxScroll
 }
 
@@ -560,10 +536,7 @@ func (m Model) handleYAMLNormalG(totalVisible, maxScroll int) (tea.Model, tea.Cm
 		m.ensureYAMLCursorVisible()
 		return m, nil
 	}
-	m.yamlCursor = totalVisible - 1
-	if m.yamlCursor < 0 {
-		m.yamlCursor = 0
-	}
+	m.yamlCursor = max(totalVisible-1, 0)
 	m.yamlScroll = maxScroll
 	return m, nil
 }
@@ -594,10 +567,7 @@ func (m Model) handleYAMLNormalPageDown(totalVisible int) (tea.Model, tea.Cmd) {
 // with scrolloff margin.
 func (m *Model) ensureYAMLCursorVisible() {
 	maxLines := m.yamlViewportLines()
-	so := ui.ConfigScrollOff
-	if so > maxLines/2 {
-		so = maxLines / 2
-	}
+	so := min(ui.ConfigScrollOff, maxLines/2)
 	if m.yamlCursor < m.yamlScroll+so {
 		m.yamlScroll = m.yamlCursor - so
 	}
@@ -613,10 +583,7 @@ func (m *Model) ensureYAMLCursorVisible() {
 func (m *Model) clampYAMLScroll() {
 	totalVisible := visibleLineCount(m.yamlContent, m.yamlSections, m.yamlCollapsed)
 	viewportLines := m.yamlViewportLines()
-	maxScroll := totalVisible - viewportLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalVisible-viewportLines, 0)
 	if m.yamlScroll > maxScroll {
 		m.yamlScroll = maxScroll
 	}
@@ -648,10 +615,7 @@ func (m *Model) yamlScrollToMatchFolded(viewportLines int) {
 	}
 
 	totalVisible := len(mapping)
-	maxScroll := totalVisible - viewportLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalVisible-viewportLines, 0)
 
 	// Move cursor to the match and center it in the viewport.
 	m.yamlCursor = visIdx
@@ -664,13 +628,7 @@ func (m *Model) yamlScrollToMatchFolded(viewportLines int) {
 			m.yamlVisualCurCol = col
 		}
 	}
-	m.yamlScroll = visIdx - viewportLines/2
-	if m.yamlScroll > maxScroll {
-		m.yamlScroll = maxScroll
-	}
-	if m.yamlScroll < 0 {
-		m.yamlScroll = 0
-	}
+	m.yamlScroll = max(min(visIdx-viewportLines/2, maxScroll), 0)
 }
 
 // yamlNextIntraLineMatch checks for another match on the current YAML line

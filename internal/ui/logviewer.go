@@ -20,16 +20,10 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	footer := renderLogFooter(width, statusMsg, statusIsErr, searchActive, searchInput, visualMode, canSwitchPod, canFilterContainers)
 
 	// Content area: subtract border top + bottom (2 lines).
-	contentHeight := height - 2
-	if contentHeight < 1 {
-		contentHeight = 1
-	}
+	contentHeight := max(height-2, 1)
 
 	// Content width accounting for border (2) + padding (2).
-	contentWidth := width - 4
-	if contentWidth < 10 {
-		contentWidth = 10
-	}
+	contentWidth := max(width-4, 10)
 
 	// Calculate line number width if needed.
 	lineNumWidth := 0
@@ -45,10 +39,7 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	// Strip timestamps and/or pod prefixes from visible lines.
 	displayLines := lines
 	if (!timestamps || hidePrefixes) && len(lines) > 0 {
-		end := scroll + contentHeight
-		if end > len(lines) {
-			end = len(lines)
-		}
+		end := min(scroll+contentHeight, len(lines))
 		displayLines = make([]string, len(lines))
 		copy(displayLines, lines)
 		for i := scroll; i < end; i++ {
@@ -66,10 +57,7 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	// layout. ANSI SGR sequences are preserved when ConfigLogRenderAnsi is on
 	// so colour output from log producers renders correctly.
 	{
-		end := scroll + contentHeight
-		if end > len(displayLines) {
-			end = len(displayLines)
-		}
+		end := min(scroll+contentHeight, len(displayLines))
 		for i := scroll; i < end; i++ {
 			displayLines[i] = sanitizeLogLine(displayLines[i], ConfigLogRenderAnsi)
 		}
@@ -231,16 +219,10 @@ func highlightSearchMatches(lines []string, query string) []string {
 func renderPlainLines(lines []string, scroll, height, width int, lineNumbers bool, lineNumWidth int, cursor int, selStart, selEnd, visualStart int, visualType rune, visualCol, visualCurCol int) []string {
 	var result []string
 
-	end := scroll + height
-	if end > len(lines) {
-		end = len(lines)
-	}
+	end := min(scroll+height, len(lines))
 
 	// Reserve 1 column for cursor gutter.
-	effectiveWidth := width - 1
-	if effectiveWidth < 10 {
-		effectiveWidth = 10
-	}
+	effectiveWidth := max(width-1, 10)
 
 	for i := scroll; i < end; i++ {
 		line := lines[i]
@@ -472,8 +454,8 @@ func colorizePodPrefix(line string) string {
 
 	// Extract pod name for color hashing (between first and last slash).
 	podName := prefix
-	if firstSlash := strings.Index(prefix, "/"); firstSlash >= 0 {
-		afterFirst := prefix[firstSlash+1:]
+	if _, after, ok := strings.Cut(prefix, "/"); ok {
+		afterFirst := after
 		if lastSlash := strings.LastIndex(afterFirst, "/"); lastSlash >= 0 {
 			podName = afterFirst[:lastSlash]
 		} else {
@@ -497,11 +479,11 @@ func StripPodPrefix(line string) string {
 	if len(line) == 0 || line[0] != '[' {
 		return line
 	}
-	closeBracket := strings.Index(line, "] ")
-	if closeBracket < 0 {
+	_, after, ok := strings.Cut(line, "] ")
+	if !ok {
 		return line
 	}
-	return line[closeBracket+2:]
+	return after
 }
 
 // sanitizeLogLine replaces non-printable control bytes (NUL, DEL, the C0

@@ -71,10 +71,7 @@ func (m *Model) setCursor(v int) {
 
 // clampCursor ensures the cursor is within bounds for visible (filtered) middleItems.
 func (m *Model) clampCursor() {
-	c := m.cursor()
-	if c < 0 {
-		c = 0
-	}
+	c := max(m.cursor(), 0)
 	visible := m.visibleMiddleItems()
 	if len(visible) > 0 && c >= len(visible) {
 		c = len(visible) - 1

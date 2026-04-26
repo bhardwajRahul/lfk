@@ -37,15 +37,15 @@ func TestWatchTickRemovesDeletedPodFromList(t *testing.T) {
 		{Group: "", Version: "v1", Resource: "pods"}: "PodList",
 	}
 	pod := &unstructured.Unstructured{}
-	pod.SetUnstructuredContent(map[string]interface{}{
+	pod.SetUnstructuredContent(map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Pod",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":              "doomed-pod",
 			"namespace":         "default",
 			"creationTimestamp": time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339),
 		},
-		"status": map[string]interface{}{"phase": "Running"},
+		"status": map[string]any{"phase": "Running"},
 	})
 	dyn := dynfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrs, pod)
 

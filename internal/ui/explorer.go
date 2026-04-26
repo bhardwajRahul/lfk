@@ -124,10 +124,7 @@ func VimScrollOff(scroll, cursor, numEntries, height, scrollOff int, displayLine
 		scrollOff = maxSO
 	}
 
-	startEntry := scroll
-	if startEntry < 0 {
-		startEntry = 0
-	}
+	startEntry := max(scroll, 0)
 	if startEntry >= numEntries {
 		startEntry = numEntries - 1
 	}
@@ -157,10 +154,7 @@ func VimScrollOff(scroll, cursor, numEntries, height, scrollOff int, displayLine
 	}
 
 	// Top scrolloff: ensure cursor is at least scrollOff entries from the top.
-	topTarget := cursor - scrollOff
-	if topTarget < 0 {
-		topTarget = 0
-	}
+	topTarget := max(cursor-scrollOff, 0)
 	if startEntry > topTarget {
 		startEntry = topTarget
 	}
@@ -368,10 +362,7 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 				}
 			}
 			if cursor-scrollOff >= 0 && startEntry > cursor-scrollOff {
-				startEntry = cursor - scrollOff
-				if startEntry < 0 {
-					startEntry = 0
-				}
+				startEntry = max(cursor-scrollOff, 0)
 			}
 			// Check the new position BEFORE decrementing so we
 			// don't overshoot when an earlier entry has 2-3
@@ -582,10 +573,7 @@ func FormatItem(item model.Item, width int) string {
 
 	if rightSide != "" {
 		rightW := lipgloss.Width(rightSide)
-		maxNameW := width - rightW - 2
-		if maxNameW < 8 {
-			maxNameW = 8
-		}
+		maxNameW := max(width-rightW-2, 8)
 		visualName := name
 		if lipgloss.Width(visualName) > maxNameW {
 			rawName := displayName
@@ -594,10 +582,7 @@ func FormatItem(item model.Item, width int) string {
 				iconPrefix = IconStyle.Render(icon) + " "
 			}
 			iconW := lipgloss.Width(iconPrefix)
-			available := maxNameW - iconW
-			if available < 4 {
-				available = 4
-			}
+			available := max(maxNameW-iconW, 4)
 			if len(rawName) > available {
 				rawName = rawName[:available-1] + "~"
 			}
@@ -614,10 +599,7 @@ func FormatItem(item model.Item, width int) string {
 			visualName = iconPrefix + highlightName(displayName, ActiveHighlightQuery)
 		}
 		nameW := lipgloss.Width(visualName)
-		padding := width - nameW - rightW - 1
-		if padding < 1 {
-			padding = 1
-		}
+		padding := max(width-nameW-rightW-1, 1)
 		return visualName + strings.Repeat(" ", padding) + rightSide
 	}
 
@@ -688,10 +670,7 @@ func FormatItemPlain(item model.Item, width int) string {
 
 	if rightSide != "" {
 		rightW := lipgloss.Width(rightSide)
-		maxNameW := width - rightW - 2
-		if maxNameW < 8 {
-			maxNameW = 8
-		}
+		maxNameW := max(width-rightW-2, 8)
 		visualName := name
 		if lipgloss.Width(visualName) > maxNameW {
 			rawName := displayName
@@ -700,20 +679,14 @@ func FormatItemPlain(item model.Item, width int) string {
 				iconPrefix = icon + " "
 			}
 			iconW := lipgloss.Width(iconPrefix)
-			available := maxNameW - iconW
-			if available < 4 {
-				available = 4
-			}
+			available := max(maxNameW-iconW, 4)
 			if len(rawName) > available {
 				rawName = rawName[:available-1] + "~"
 			}
 			visualName = iconPrefix + rawName
 		}
 		nameW := lipgloss.Width(visualName)
-		padding := width - nameW - rightW - 1
-		if padding < 1 {
-			padding = 1
-		}
+		padding := max(width-nameW-rightW-1, 1)
 		return visualName + strings.Repeat(" ", padding) + rightSide
 	}
 

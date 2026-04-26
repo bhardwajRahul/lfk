@@ -431,18 +431,9 @@ func BuildHelpLines(filter, contextMode string) []string {
 // callers (clamp helpers, scroll-to-match positioning) compute the
 // same maxScroll the renderer enforces.
 func HelpVisibleLines(screenHeight int) int {
-	boxH := screenHeight * 80 / 100
-	if boxH < 20 {
-		boxH = 20
-	}
-	maxLines := boxH - 6
-	if maxLines < 5 {
-		maxLines = 5
-	}
-	visibleLines := maxLines - 2
-	if visibleLines < 1 {
-		visibleLines = 1
-	}
+	boxH := max(screenHeight*80/100, 20)
+	maxLines := max(boxH-6, 5)
+	visibleLines := max(maxLines-2, 1)
 	return visibleLines
 }
 
@@ -506,18 +497,12 @@ func buildHelpLines(filter, contextMode string) []string {
 // in the visible lines without removing them (/ key). contextMode
 // limits sections to the current view (empty = explorer).
 func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter, search, contextMode string) string {
-	boxW := screenWidth * 70 / 100
-	if boxW < 50 {
-		boxW = 50
-	}
+	boxW := max(screenWidth*70/100, 50)
 	// Mirror HelpVisibleLines so outer height stays in sync with the
 	// inner row budget — lipgloss pads short content to this height,
 	// stopping the box from shrinking when filter narrows results or
 	// from growing when long lines wrap.
-	boxH := screenHeight * 80 / 100
-	if boxH < 20 {
-		boxH = 20
-	}
+	boxH := max(screenHeight*80/100, 20)
 
 	contentW := boxW - 6 // account for border + padding
 
@@ -530,10 +515,7 @@ func RenderHelpScreen(screenWidth, screenHeight, scroll int, filter, search, con
 	// descriptions to two rows, the rendered row count would diverge
 	// from len(lines), and the outer box height would drift — making
 	// a filter that narrows results visibly shrink the window.
-	innerW := contentW - 2
-	if innerW < 10 {
-		innerW = 10
-	}
+	innerW := max(contentW-2, 10)
 	for i, line := range lines {
 		lines[i] = Truncate(line, innerW)
 	}

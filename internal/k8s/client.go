@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -31,9 +32,9 @@ type Client struct {
 	// testClientset, testDynClient, and testMetaClient allow tests to inject
 	// fake clients. When set, the corresponding *ForContext helpers return
 	// these instead of building real clients from the kubeconfig.
-	testClientset  interface{} // kubernetes.Interface (avoid import cycle in non-test code)
-	testDynClient  interface{} // dynamic.Interface
-	testMetaClient interface{} // metadata.Interface
+	testClientset  any // kubernetes.Interface (avoid import cycle in non-test code)
+	testDynClient  any // dynamic.Interface
+	testMetaClient any // metadata.Interface
 
 	// secretLazyLoading, when true, routes Secret listing through the
 	// metadata-only API so decoded values are lazy-fetched on hover instead
@@ -216,12 +217,7 @@ func collectConfigDirPaths(dir string) []string {
 }
 
 func containsPath(paths []string, target string) bool {
-	for _, p := range paths {
-		if p == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(paths, target)
 }
 
 // GetContexts returns all available kube contexts.
@@ -474,7 +470,7 @@ func (c *Client) buildResourceItem(item *unstructured.Unstructured, rt *model.Re
 
 // populatePrinterColumns evaluates CRD additionalPrinterColumns and appends
 // them to the item's columns, skipping duplicates and status-matching values.
-func populatePrinterColumns(ti *model.Item, obj map[string]interface{}, printerColumns []model.PrinterColumn) {
+func populatePrinterColumns(ti *model.Item, obj map[string]any, printerColumns []model.PrinterColumn) {
 	if len(printerColumns) == 0 {
 		return
 	}
@@ -506,17 +502,17 @@ func populatePrinterColumns(ti *model.Item, obj map[string]interface{}, printerC
 
 // populateOwnerReferences extracts owner references from the object metadata
 // and appends them as columns for navigation.
-func populateOwnerReferences(ti *model.Item, obj map[string]interface{}) {
-	metadata, ok := obj["metadata"].(map[string]interface{})
+func populateOwnerReferences(ti *model.Item, obj map[string]any) {
+	metadata, ok := obj["metadata"].(map[string]any)
 	if !ok {
 		return
 	}
-	ownerRefs, ok := metadata["ownerReferences"].([]interface{})
+	ownerRefs, ok := metadata["ownerReferences"].([]any)
 	if !ok {
 		return
 	}
 	for i, ref := range ownerRefs {
-		refMap, ok := ref.(map[string]interface{})
+		refMap, ok := ref.(map[string]any)
 		if !ok {
 			continue
 		}

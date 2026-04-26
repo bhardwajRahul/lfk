@@ -642,8 +642,8 @@ func applyColorscheme(theme *Theme, cfg configFile) {
 // isDual=true when the string contains at least one "dark:" or "light:" prefix.
 // Segment order and surrounding whitespace are both tolerated.
 func parseDualColorscheme(s string) (dark, light string, isDual bool) {
-	parts := strings.Split(s, ",")
-	for _, p := range parts {
+	parts := strings.SplitSeq(s, ",")
+	for p := range parts {
 		p = strings.TrimSpace(p)
 		lower := strings.ToLower(p)
 		switch {

@@ -595,10 +595,7 @@ func (m Model) handleLogKeyB() Model {
 		if newCol < 0 && m.logCursor > 0 {
 			m.logCursor--
 			lineLen := len([]rune(m.logLines[m.logCursor]))
-			newCol = prevWordStart(m.logLines[m.logCursor], lineLen)
-			if newCol < 0 {
-				newCol = 0
-			}
+			newCol = max(prevWordStart(m.logLines[m.logCursor], lineLen), 0)
 			m.logVisualCurCol = newCol
 			m.clampLogScroll()
 		} else {
@@ -731,10 +728,7 @@ func (m Model) handleLogKeyB2() Model {
 		if newCol < 0 && m.logCursor > 0 {
 			m.logCursor--
 			lineLen := len([]rune(m.logLines[m.logCursor]))
-			newCol = prevWORDStart(m.logLines[m.logCursor], lineLen)
-			if newCol < 0 {
-				newCol = 0
-			}
+			newCol = max(prevWORDStart(m.logLines[m.logCursor], lineLen), 0)
 			m.logVisualCurCol = newCol
 			m.clampLogScroll()
 		} else {
@@ -971,16 +965,10 @@ func (m *Model) buildLogYankText() (string, int) {
 				cs, ce = clampSliceBounds(cs, ce, len(runes))
 				parts = append(parts, string(runes[cs:ce]))
 			case j == 0:
-				cs := startCol
-				if cs > len(runes) {
-					cs = len(runes)
-				}
+				cs := min(startCol, len(runes))
 				parts = append(parts, string(runes[cs:]))
 			case j == len(displayed)-1:
-				ce := endCol + 1
-				if ce > len(runes) {
-					ce = len(runes)
-				}
+				ce := min(endCol+1, len(runes))
 				parts = append(parts, string(runes[:ce]))
 			default:
 				parts = append(parts, line)
@@ -1118,10 +1106,7 @@ func (m Model) handleLogVisualKeyB() (tea.Model, tea.Cmd) {
 		if newCol < 0 && m.logCursor > 0 {
 			m.logCursor--
 			lineLen := len([]rune(m.logLines[m.logCursor]))
-			newCol = prevWordStart(m.logLines[m.logCursor], lineLen)
-			if newCol < 0 {
-				newCol = 0
-			}
+			newCol = max(prevWordStart(m.logLines[m.logCursor], lineLen), 0)
 			m.logVisualCurCol = newCol
 			m.ensureLogCursorVisible()
 		} else {
@@ -1197,10 +1182,7 @@ func (m Model) handleLogVisualKeyB2() (tea.Model, tea.Cmd) {
 		if newCol < 0 && m.logCursor > 0 {
 			m.logCursor--
 			lineLen := len([]rune(m.logLines[m.logCursor]))
-			newCol = prevWORDStart(m.logLines[m.logCursor], lineLen)
-			if newCol < 0 {
-				newCol = 0
-			}
+			newCol = max(prevWORDStart(m.logLines[m.logCursor], lineLen), 0)
 			m.logVisualCurCol = newCol
 			m.ensureLogCursorVisible()
 		} else {

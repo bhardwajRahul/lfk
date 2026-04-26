@@ -53,21 +53,16 @@ func (m Model) viewDescribe() string {
 
 	lines := strings.Split(m.describeContent, "\n")
 
-	maxLines := m.height - 4
-	if maxLines < 3 {
-		maxLines = 3
-	}
+	maxLines := max(m.height-4, 3)
 
 	// Content width for wrapping/truncation.
 	// Account for cursor gutter (1 char).
-	contentWidth := m.width - 4 // border (2) + padding (2)
-	if contentWidth < 10 {
-		contentWidth = 10
-	}
-	lineContentWidth := contentWidth - 1 // -1 for cursor gutter
-	if lineContentWidth < 10 {
-		lineContentWidth = 10
-	}
+	contentWidth := max(
+		// border (2) + padding (2)
+		m.width-4, 10)
+	lineContentWidth := max(
+		// -1 for cursor gutter
+		contentWidth-1, 10)
 
 	scroll := m.describeScroll
 	if scroll > len(lines) {
@@ -193,10 +188,7 @@ func highlightDescribeSearchLine(line, lowerQuery string) string {
 		if idx > 0 {
 			result.WriteString(line[pos : pos+idx])
 		}
-		matchEnd := pos + idx + len(lowerQuery)
-		if matchEnd > len(line) {
-			matchEnd = len(line)
-		}
+		matchEnd := min(pos+idx+len(lowerQuery), len(line))
 		result.WriteString(matchStyle.Render(line[pos+idx : matchEnd]))
 		pos = matchEnd
 	}
@@ -261,10 +253,9 @@ func (m Model) viewDiff() string {
 }
 
 func (m Model) logViewHeight() int {
-	h := m.height - 2 // title + footer (border is handled inside RenderLogViewer)
-	if h < 3 {
-		h = 3
-	}
+	h := max(
+		// title + footer (border is handled inside RenderLogViewer)
+		m.height-2, 3)
 	return h
 }
 
@@ -284,10 +275,7 @@ func (m *Model) logContentHeight() int {
 }
 
 func (m *Model) clampLogScroll() {
-	viewH := m.logContentHeight()
-	if viewH < 1 {
-		viewH = 1
-	}
+	viewH := max(m.logContentHeight(), 1)
 
 	var maxScroll int
 	if m.logWrap {
@@ -295,19 +283,17 @@ func (m *Model) clampLogScroll() {
 		// Walk backward from the end, accumulating visual lines until we
 		// exceed viewH. The first source line that pushes us over is the
 		// maximum scroll position.
-		contentWidth := m.width - 4 // match logviewer.go contentWidth calculation
-		if contentWidth < 10 {
-			contentWidth = 10
-		}
+		contentWidth := max(
+			// match logviewer.go contentWidth calculation
+			m.width-4, 10)
 		// Account for cursor gutter (1) and line number gutter width.
 		lineNumWidth := 0
 		if m.logLineNumbers && len(m.logLines) > 0 {
 			lineNumWidth = len(fmt.Sprintf("%d", len(m.logLines))) + 1
 		}
-		availWidth := contentWidth - 1 - lineNumWidth // -1 for cursor gutter
-		if availWidth < 10 {
-			availWidth = 10
-		}
+		availWidth := max(
+			// -1 for cursor gutter
+			contentWidth-1-lineNumWidth, 10)
 
 		visualLines := 0
 		maxScroll = len(m.logLines) // default: can scroll to end
@@ -341,14 +327,8 @@ func (m *Model) ensureLogCursorVisible() {
 	if len(m.logLines) > 0 && m.logCursor >= len(m.logLines) {
 		m.logCursor = len(m.logLines) - 1
 	}
-	viewH := m.logContentHeight()
-	if viewH < 1 {
-		viewH = 1
-	}
-	so := ui.ConfigScrollOff
-	if so > viewH/2 {
-		so = viewH / 2
-	}
+	viewH := max(m.logContentHeight(), 1)
+	so := min(ui.ConfigScrollOff, viewH/2)
 	// Scroll up if cursor is above viewport (with scrolloff).
 	if m.logCursor < m.logScroll+so {
 		m.logScroll = m.logCursor - so
@@ -366,18 +346,14 @@ func (m *Model) logMaxScroll() int {
 	viewH := m.logContentHeight()
 
 	if m.logWrap {
-		contentWidth := m.width - 4
-		if contentWidth < 10 {
-			contentWidth = 10
-		}
+		contentWidth := max(m.width-4, 10)
 		lineNumWidth := 0
 		if m.logLineNumbers && len(m.logLines) > 0 {
 			lineNumWidth = len(fmt.Sprintf("%d", len(m.logLines))) + 1
 		}
-		availWidth := contentWidth - 1 - lineNumWidth // -1 for cursor gutter
-		if availWidth < 10 {
-			availWidth = 10
-		}
+		availWidth := max(
+			// -1 for cursor gutter
+			contentWidth-1-lineNumWidth, 10)
 
 		visualLines := 0
 		maxScroll := len(m.logLines)
@@ -432,14 +408,10 @@ func (m Model) viewExecTerminal() string {
 
 	// Render terminal content. Overhead: exec title (1) + border top/bottom (2) + hint line (1) = 4.
 	// The outer View() already subtracted the main title bar and tab bar from m.height.
-	viewH := m.height - 4
-	if viewH < 3 {
-		viewH = 3
-	}
-	viewW := m.width - 4 // border left/right + padding
-	if viewW < 10 {
-		viewW = 10
-	}
+	viewH := max(m.height-4, 3)
+	viewW := max(
+		// border left/right + padding
+		m.width-4, 10)
 
 	var termContent string
 	if m.execTerm != nil {
@@ -456,10 +428,7 @@ func (m Model) viewExecTerminal() string {
 		if rows > viewH {
 			renderH = viewH
 			// Ensure cursor row is within the visible portion.
-			startY = cursor.Y - viewH + 1
-			if startY < 0 {
-				startY = 0
-			}
+			startY = max(cursor.Y-viewH+1, 0)
 			if startY+viewH > rows {
 				startY = rows - viewH
 			}

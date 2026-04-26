@@ -138,12 +138,12 @@ func (c *Client) fetchCRDPrinterColumns(ctx context.Context, contextName string)
 
 	out := make(map[string][]model.PrinterColumn, len(list.Items))
 	for _, item := range list.Items {
-		spec, ok := item.Object["spec"].(map[string]interface{})
+		spec, ok := item.Object["spec"].(map[string]any)
 		if !ok {
 			continue
 		}
 		group, _ := spec["group"].(string)
-		names, ok := spec["names"].(map[string]interface{})
+		names, ok := spec["names"].(map[string]any)
 		if !ok {
 			continue
 		}

@@ -33,10 +33,9 @@ func headerWithIndicator(label string, colName string, colWidth int) string {
 		return padRight(label, colWidth)
 	}
 	// Truncate label to make room for the indicator.
-	maxLabel := colWidth - 2 // space + indicator
-	if maxLabel < 1 {
-		maxLabel = 1
-	}
+	maxLabel := max(
+		// space + indicator
+		colWidth-2, 1)
 	if len(label) > maxLabel {
 		label = label[:maxLabel]
 	}
@@ -233,10 +232,7 @@ func autoDetectColumns(seen map[string]*colInfo, order []string, items []model.I
 		blocked[k] = true
 	}
 
-	threshold := len(items) / 5
-	if threshold < 1 {
-		threshold = 1
-	}
+	threshold := max(len(items)/5, 1)
 	alwaysShow := map[string]bool{"Condition": true}
 	var candidates []string
 	for _, key := range order {
@@ -420,22 +416,23 @@ func formatTableRowOrdered(name, ns, ready, restarts, status, age string,
 	nameW, nsW, readyW, restartsW, statusW, ageW int,
 	order []string, extraCols []extraColumn, item *model.Item,
 ) string {
-	row := padRight(Truncate(name, nameW-1), nameW)
+	var row strings.Builder
+	row.WriteString(padRight(Truncate(name, nameW-1), nameW))
 	for _, key := range order {
 		if isBuiltinColumnKey(key) {
-			row += plainBuiltinCell(key, ns, ready, restarts, status, age,
-				nsW, readyW, restartsW, statusW, ageW)
+			row.WriteString(plainBuiltinCell(key, ns, ready, restarts, status, age,
+				nsW, readyW, restartsW, statusW, ageW))
 			continue
 		}
 		// Extra column: look up metadata and emit via plainExtraCell.
 		for _, ec := range extraCols {
 			if ec.key == key {
-				row += plainExtraCell(ec, item)
+				row.WriteString(plainExtraCell(ec, item))
 				break
 			}
 		}
 	}
-	return row
+	return row.String()
 }
 
 // formatTableRowStyledOrdered builds a styled table row using the given
@@ -445,20 +442,21 @@ func formatTableRowStyledOrdered(item model.Item,
 	nameW, nsW, readyW, restartsW, statusW, ageW int,
 	order []string, extraCols []extraColumn, anyRecentRestart bool,
 ) string {
-	base := styledNameCell(item, nameW)
+	var base strings.Builder
+	base.WriteString(styledNameCell(item, nameW))
 	for _, key := range order {
 		if isBuiltinColumnKey(key) {
-			base += styledBuiltinCell(key, item, nsW, readyW, restartsW, statusW, ageW, anyRecentRestart)
+			base.WriteString(styledBuiltinCell(key, item, nsW, readyW, restartsW, statusW, ageW, anyRecentRestart))
 			continue
 		}
 		for _, ec := range extraCols {
 			if ec.key == key {
-				base += styledExtraCell(ec, &item)
+				base.WriteString(styledExtraCell(ec, &item))
 				break
 			}
 		}
 	}
-	return base
+	return base.String()
 }
 
 // styledNameCell renders the Name column with optional icon and dimmed
@@ -478,19 +476,15 @@ func styledNameCell(item model.Item, nameW int) string {
 		}
 		icon := iconSt.Render(resolvedIcon) + " "
 		iconVisualW := lipgloss.Width(icon)
-		nameRemaining := nameW - iconVisualW - 1 // -1 reserves gap before next column
-		if nameRemaining < 1 {
-			nameRemaining = 1
-		}
+		nameRemaining := max(
+			// -1 reserves gap before next column
+			nameW-iconVisualW-1, 1)
 		namePart := Truncate(item.Name, nameRemaining)
 		if ActiveHighlightQuery != "" {
 			namePart = highlightName(namePart, ActiveHighlightQuery)
 		}
 		nameVisualW := lipgloss.Width(namePart)
-		pad := nameW - iconVisualW - nameVisualW
-		if pad < 0 {
-			pad = 0
-		}
+		pad := max(nameW-iconVisualW-nameVisualW, 0)
 		if isDimmed {
 			namePart = DimStyle.Render(namePart)
 		}
@@ -563,8 +557,8 @@ func ParseResourceValue(val string, isCPU bool) int64 {
 	}
 	if isCPU {
 		// CPU: "100m" or "1.5" (cores)
-		if strings.HasSuffix(val, "m") {
-			n, _ := strconv.ParseFloat(strings.TrimSuffix(val, "m"), 64)
+		if before, ok := strings.CutSuffix(val, "m"); ok {
+			n, _ := strconv.ParseFloat(before, 64)
 			return int64(n)
 		}
 		n, _ := strconv.ParseFloat(val, 64)
@@ -654,10 +648,7 @@ func RenderTabBar(tabLabels []string, activeTab, width int) string {
 	maxBarW := width - 2
 
 	// Truncate long labels.
-	maxLabelLen := maxBarW / max(1, len(tabLabels))
-	if maxLabelLen < 8 {
-		maxLabelLen = 8
-	}
+	maxLabelLen := max(maxBarW/max(1, len(tabLabels)), 8)
 
 	type renderedTab struct {
 		text  string

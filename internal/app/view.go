@@ -257,10 +257,9 @@ func (m Model) viewExplorer() string {
 		rightW = max(10, usable-leftW-middleW)
 	}
 
-	contentHeight := m.height - 4 // room for title(1) + column borders(2) + status(1)
-	if contentHeight < 3 {
-		contentHeight = 3
-	}
+	contentHeight := max(
+		// room for title(1) + column borders(2) + status(1)
+		m.height-4, 3)
 
 	// Tab bar (only shown with 2+ tabs).
 	var tabBar string
@@ -368,14 +367,7 @@ func (m Model) commandBarDropdown() string {
 		return ""
 	}
 
-	maxHeight := m.height / 2
-	if maxHeight > 10 {
-		maxHeight = 10
-	}
-
-	if maxHeight < 1 {
-		maxHeight = 1
-	}
+	maxHeight := max(min(m.height/2, 10), 1)
 
 	return ui.RenderCommandDropdown(
 		m.commandBarSuggestions,
@@ -388,10 +380,7 @@ func (m Model) commandBarDropdown() string {
 func (m Model) renderTitleBar() string {
 	// TitleBarStyle has Padding(0, 1) which adds 2 chars of horizontal padding.
 	// The inner content area is m.width - 2.
-	innerWidth := m.width - 2
-	if innerWidth < 10 {
-		innerWidth = 10
-	}
+	innerWidth := max(m.width-2, 10)
 
 	var watchIndicator string
 	if m.watchMode {
@@ -434,10 +423,9 @@ func (m Model) renderTitleBar() string {
 
 	// Calculate available width for breadcrumb.
 	fixedWidth := lipgloss.Width(watchIndicator) + lipgloss.Width(mutationProgress) + lipgloss.Width(tasksIndicator) + lipgloss.Width(nsLabel) + lipgloss.Width(versionLabel)
-	maxBcWidth := innerWidth - fixedWidth - 1 // -1 for minimum gap
-	if maxBcWidth < 10 {
-		maxBcWidth = 10
-	}
+	maxBcWidth := max(
+		// -1 for minimum gap
+		innerWidth-fixedWidth-1, 10)
 
 	bcText := " " + m.breadcrumb() + " "
 	if lipgloss.Width(bcText) > maxBcWidth {
@@ -449,10 +437,7 @@ func (m Model) renderTitleBar() string {
 	bc := ui.TitleBreadcrumbStyle.Render(bcText)
 
 	contentWidth := lipgloss.Width(bc) + lipgloss.Width(watchIndicator) + lipgloss.Width(mutationProgress) + lipgloss.Width(tasksIndicator) + lipgloss.Width(nsLabel) + lipgloss.Width(versionLabel)
-	gap := innerWidth - contentWidth
-	if gap < 0 {
-		gap = 0
-	}
+	gap := max(innerWidth-contentWidth, 0)
 
 	barContent := bc + watchIndicator + ui.BarDimStyle.Render(strings.Repeat(" ", gap)) + mutationProgress + tasksIndicator + nsLabel + versionLabel
 	return ui.TitleBarStyle.Width(m.width).MaxWidth(m.width).MaxHeight(1).Render(barContent)
@@ -503,7 +488,7 @@ func (m Model) viewExplorerDashboardSingleCol(dashContent string, fullW, content
 // viewExplorerDashboardTwoCol renders a two-column fullscreen dashboard.
 func (m Model) viewExplorerDashboardTwoCol(dashContent string, fullW, contentHeight int) string {
 	leftW := fullW / 2
-	for _, line := range strings.Split(dashContent, "\n") {
+	for line := range strings.SplitSeq(dashContent, "\n") {
 		if w := lipgloss.Width(line); w+2 > leftW {
 			leftW = w + 2
 		}
@@ -571,10 +556,7 @@ func scrollContent(content string, scroll int) string {
 // wrapEventsColumn word-wraps event lines to fit the right column width.
 func wrapEventsColumn(rawLines []string, rightW int) []string {
 	pad := "  "
-	maxContentW := rightW - 4
-	if maxContentW < 10 {
-		maxContentW = 10
-	}
+	maxContentW := max(rightW-4, 10)
 	wrapStyle := lipgloss.NewStyle().Width(maxContentW)
 	result := make([]string, 0, len(rawLines))
 	for _, line := range rawLines {
@@ -584,7 +566,7 @@ func wrapEventsColumn(rawLines []string, rightW int) []string {
 			result = append(result, pad+line)
 		} else {
 			wrapped := wrapStyle.Render(line)
-			for _, wl := range strings.Split(wrapped, "\n") {
+			for wl := range strings.SplitSeq(wrapped, "\n") {
 				result = append(result, pad+wl)
 			}
 		}

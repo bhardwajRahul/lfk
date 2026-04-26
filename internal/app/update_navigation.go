@@ -11,10 +11,7 @@ import (
 
 func (m Model) moveCursor(delta int) (tea.Model, tea.Cmd) {
 	visible := m.visibleMiddleItems()
-	c := m.cursor() + delta
-	if c < 0 {
-		c = 0
-	}
+	c := max(m.cursor()+delta, 0)
 	if c >= len(visible) {
 		c = len(visible) - 1
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,14 +10,14 @@ import (
 
 // yamlContent helper: 50 lines to ensure scrolling works with default height 40.
 func makeYAMLContent(n int) string {
-	var lines string
+	var lines strings.Builder
 	for i := range n {
 		if i > 0 {
-			lines += "\n"
+			lines.WriteString("\n")
 		}
-		lines += "  key: value"
+		lines.WriteString("  key: value")
 	}
-	return lines
+	return lines.String()
 }
 
 func baseYAMLModel() Model {

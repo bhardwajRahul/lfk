@@ -40,8 +40,8 @@ func loadCommandHistory() *commandHistory {
 	if err != nil {
 		return h
 	}
-	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(strings.TrimRight(string(data), "\n"), "\n")
+	for line := range lines {
 		if line != "" {
 			h.entries = append(h.entries, line)
 		}

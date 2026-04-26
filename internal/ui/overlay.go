@@ -189,10 +189,7 @@ func RenderNamespaceOverlay(items []model.Item, filter string, cursor int, curre
 	start := VimScrollOff(overlayNsScroll, cursor, len(items), maxVisible, scrollOff, displayLines)
 	overlayNsScroll = start
 
-	end := start + maxVisible
-	if end > len(items) {
-		end = len(items)
-	}
+	end := min(start+maxVisible, len(items))
 
 	b.WriteString(RenderScrollAbove(start, end-start, len(items), 0))
 	b.WriteString("\n")
@@ -230,10 +227,7 @@ func RenderNamespaceOverlay(items []model.Item, filter string, cursor int, curre
 // RenderActionOverlay renders the action menu overlay content.
 func RenderActionOverlay(items []model.Item, cursor int, width int) string {
 	// Account for overlay border (1 each side) + padding (2 each side) = 6 total.
-	innerW := width - 6
-	if innerW < 20 {
-		innerW = 20
-	}
+	innerW := max(width-6, 20)
 
 	var b strings.Builder
 	b.WriteString(OverlayTitleStyle.Render("Actions"))
@@ -644,10 +638,7 @@ func RenderBookmarkOverlay(allBookmarks []model.Bookmark, filter string, cursor,
 	if cursor >= maxVisible {
 		start = cursor - maxVisible + 1
 	}
-	end := start + maxVisible
-	if end > len(bookmarks) {
-		end = len(bookmarks)
-	}
+	end := min(start+maxVisible, len(bookmarks))
 
 	b.WriteString(RenderScrollAbove(start, end-start, len(bookmarks), 0))
 	b.WriteString("\n")
@@ -725,21 +716,16 @@ func RenderTemplateOverlay(templates []model.ResourceTemplate, filter string, cu
 
 	// Fixed-height list: title(1) + filter(1) = 2 header lines + padding(2).
 	interiorH := overlayH - 2
-	maxVisible := interiorH - 3 // 2 header lines + 1 blank
-	if maxVisible < 1 {
-		maxVisible = 1
-	}
-	if maxVisible > len(templates) {
-		maxVisible = len(templates)
-	}
+	maxVisible := min(
+		// 2 header lines + 1 blank, with a floor of 1
+		max(interiorH-3, 1),
+		len(templates),
+	)
 	start := 0
 	if cursor >= maxVisible {
 		start = cursor - maxVisible + 1
 	}
-	end := start + maxVisible
-	if end > len(templates) {
-		end = len(templates)
-	}
+	end := min(start+maxVisible, len(templates))
 
 	b.WriteString(RenderScrollAbove(start, end-start, len(templates), 0))
 	b.WriteString("\n")

@@ -161,7 +161,7 @@ func (c *Client) ResizePVC(contextName, namespace, name, newSize string) error {
 	}
 
 	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumeclaims"}
-	patch := []byte(fmt.Sprintf(`{"spec":{"resources":{"requests":{"storage":"%s"}}}}`, newSize))
+	patch := fmt.Appendf(nil, `{"spec":{"resources":{"requests":{"storage":"%s"}}}}`, newSize)
 	_, err = dynClient.Resource(gvr).Namespace(namespace).Patch(
 		context.Background(), name, k8stypes.MergePatchType, patch, metav1.PatchOptions{},
 	)
@@ -178,11 +178,11 @@ func (c *Client) RestartResource(contextName, namespace, name, kind string) erro
 		return err
 	}
 
-	patch := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"annotations": map[string]interface{}{
+	patch := map[string]any{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"metadata": map[string]any{
+					"annotations": map[string]any{
 						"kubectl.kubernetes.io/restartedAt": time.Now().Format(time.RFC3339),
 					},
 				},
@@ -249,8 +249,8 @@ func (c *Client) RollbackDeployment(ctx context.Context, contextName, namespace,
 		rev, _ := strconv.ParseInt(rs.Annotations["deployment.kubernetes.io/revision"], 10, 64)
 		if rev == revision {
 			// Patch the deployment with this RS's pod template.
-			patchData, err := json.Marshal(map[string]interface{}{
-				"spec": map[string]interface{}{
+			patchData, err := json.Marshal(map[string]any{
+				"spec": map[string]any{
 					"template": rs.Spec.Template,
 				},
 			})

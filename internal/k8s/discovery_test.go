@@ -140,21 +140,21 @@ func TestDiscoverAPIResources_MergesPrinterColumns(t *testing.T) {
 
 	// Fake CRD object with one printer column for foos.
 	crd := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "apiextensions.k8s.io/v1",
 			"kind":       "CustomResourceDefinition",
-			"metadata":   map[string]interface{}{"name": "foos.example.com"},
-			"spec": map[string]interface{}{
+			"metadata":   map[string]any{"name": "foos.example.com"},
+			"spec": map[string]any{
 				"group": "example.com",
-				"names": map[string]interface{}{"plural": "foos", "kind": "Foo"},
+				"names": map[string]any{"plural": "foos", "kind": "Foo"},
 				"scope": "Namespaced",
-				"versions": []interface{}{
-					map[string]interface{}{
+				"versions": []any{
+					map[string]any{
 						"name":    "v1",
 						"served":  true,
 						"storage": true,
-						"additionalPrinterColumns": []interface{}{
-							map[string]interface{}{"name": "Phase", "type": "string", "jsonPath": ".status.phase"},
+						"additionalPrinterColumns": []any{
+							map[string]any{"name": "Phase", "type": "string", "jsonPath": ".status.phase"},
 						},
 					},
 				},
@@ -211,9 +211,9 @@ func TestDiscoverAPIResources_PartialGroupFailure(t *testing.T) {
 	// Inject a per-GV discovery error that client-go aggregates as
 	// ErrGroupDiscoveryFailed: the first ServerResourcesForGroupVersion
 	// call fails, subsequent calls fall through to the normal lookup.
-	var callCount int32
+	var callCount atomic.Int32
 	fd.PrependReactor("get", "resource", func(action clienttesting.Action) (bool, runtime.Object, error) {
-		if atomic.AddInt32(&callCount, 1) == 1 {
+		if callCount.Add(1) == 1 {
 			return true, nil, errors.New("boom")
 		}
 		return false, nil, nil

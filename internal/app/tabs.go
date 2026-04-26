@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -447,10 +448,7 @@ func (m *Model) sanitizeError(err error) string {
 	for strings.Contains(s, "  ") {
 		s = strings.ReplaceAll(s, "  ", " ")
 	}
-	maxLen := m.width - 20
-	if maxLen < 40 {
-		maxLen = 40
-	}
+	maxLen := max(m.width-20, 40)
 	if len(s) > maxLen {
 		s = s[:maxLen-3] + "..."
 	}
@@ -471,10 +469,9 @@ func fullErrorMessage(err error) string {
 func (m *Model) sanitizeMessage(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "\r", " ")
-	maxLen := m.width - 6 // account for status bar padding
-	if maxLen < 40 {
-		maxLen = 40
-	}
+	maxLen := max(
+		// account for status bar padding
+		m.width-6, 40)
 	runes := []rune(s)
 	if len(runes) > maxLen {
 		s = string(runes[:maxLen-3]) + "..."
@@ -980,9 +977,7 @@ func copyMapStringInt(m map[string]int) map[string]int {
 		return make(map[string]int)
 	}
 	c := make(map[string]int, len(m))
-	for k, v := range m {
-		c[k] = v
-	}
+	maps.Copy(c, m)
 	return c
 }
 
@@ -992,9 +987,7 @@ func copyMapStringBool(m map[string]bool) map[string]bool {
 		return make(map[string]bool)
 	}
 	c := make(map[string]bool, len(m))
-	for k, v := range m {
-		c[k] = v
-	}
+	maps.Copy(c, m)
 	return c
 }
 
@@ -1018,9 +1011,7 @@ func copyMapStringString(m map[string]string) map[string]string {
 		return make(map[string]string)
 	}
 	c := make(map[string]string, len(m))
-	for k, v := range m {
-		c[k] = v
-	}
+	maps.Copy(c, m)
 	return c
 }
 

@@ -937,7 +937,8 @@ func (m Model) executeActionUntaint() (tea.Model, tea.Cmd) { //nolint:unparam //
 	name := m.actionCtx.name
 	// Pre-fill with existing taint keys for convenient removal. The
 	// "kubectl" prefix is required so the command classifies as cmdKubectl.
-	prefill := "kubectl taint node " + name + " "
+	var prefill strings.Builder
+	prefill.WriteString("kubectl taint node " + name + " ")
 	for _, col := range m.actionCtx.columns {
 		if col.Key == "Taints" && col.Value != "" {
 			// Parse taint strings and append removal syntax (key-).
@@ -947,16 +948,16 @@ func (m Model) executeActionUntaint() (tea.Model, tea.Cmd) { //nolint:unparam //
 				taintKey := strings.SplitN(p, "=", 2)[0]
 				taintKey = strings.SplitN(taintKey, ":", 2)[0]
 				if i > 0 {
-					prefill += " "
+					prefill.WriteString(" ")
 				}
-				prefill += taintKey + "-"
+				prefill.WriteString(taintKey + "-")
 			}
 			break
 		}
 	}
 	m.commandBarActive = true
 	m.commandBarInput.Clear()
-	m.commandBarInput.Insert(prefill)
+	m.commandBarInput.Insert(prefill.String())
 	m.commandBarSuggestions = nil
 	m.commandBarSelectedSuggestion = 0
 	return m, nil

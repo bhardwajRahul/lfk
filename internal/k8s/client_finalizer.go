@@ -155,8 +155,8 @@ func (c *Client) RemoveFinalizerFromResource(
 	// Use a merge patch that sets the entire finalizers list.
 	// Since finalizers is a simple list of strings, replacing the whole list
 	// is the safest approach to avoid partial updates.
-	patchData, err := json.Marshal(map[string]interface{}{
-		"metadata": map[string]interface{}{
+	patchData, err := json.Marshal(map[string]any{
+		"metadata": map[string]any{
 			"finalizers": newFinalizers,
 		},
 	})

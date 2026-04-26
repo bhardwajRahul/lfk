@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -107,9 +108,7 @@ func (c *Client) UpdateConfigMapData(contextName, namespace, name string, data m
 	}
 
 	cm.Data = make(map[string]string, len(data))
-	for k, v := range data {
-		cm.Data[k] = v
-	}
+	maps.Copy(cm.Data, data)
 
 	_, err = cs.CoreV1().ConfigMaps(namespace).Update(context.Background(), cm, metav1.UpdateOptions{})
 	if err != nil {
@@ -196,7 +195,7 @@ func (c *Client) UpdateLabelAnnotationData(ctx context.Context, contextName stri
 	}
 
 	// Build patch maps with null for deleted keys (merge patch semantics).
-	labelPatch := make(map[string]interface{}, len(labels))
+	labelPatch := make(map[string]any, len(labels))
 	for k, v := range labels {
 		labelPatch[k] = v
 	}
@@ -206,7 +205,7 @@ func (c *Client) UpdateLabelAnnotationData(ctx context.Context, contextName stri
 		}
 	}
 
-	annotPatch := make(map[string]interface{}, len(annotations))
+	annotPatch := make(map[string]any, len(annotations))
 	for k, v := range annotations {
 		annotPatch[k] = v
 	}
@@ -216,8 +215,8 @@ func (c *Client) UpdateLabelAnnotationData(ctx context.Context, contextName stri
 		}
 	}
 
-	patchData, err := json.Marshal(map[string]interface{}{
-		"metadata": map[string]interface{}{
+	patchData, err := json.Marshal(map[string]any{
+		"metadata": map[string]any{
 			"labels":      labelPatch,
 			"annotations": annotPatch,
 		},

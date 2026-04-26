@@ -46,25 +46,16 @@ func RenderColumnToggleOverlay(entries []ColumnToggleEntry, cursor int, filter s
 		return b.String()
 	}
 
-	innerW := width - 6
-	if innerW < 20 {
-		innerW = 20
-	}
+	innerW := max(width-6, 20)
 
 	// Reserve rows for title (1) + filter (1) + blank separator (1) +
 	// overlay border/padding (~3) so the visible-item count is honest.
-	maxVisible := height - 6
-	if maxVisible < 1 {
-		maxVisible = 1
-	}
+	maxVisible := max(height-6, 1)
 	scrollOff := ConfigScrollOff
 	if maxVisible < 8 {
 		scrollOff = 0
 	}
-	scrollOffset := 0
-	if cursor-scrollOff < scrollOffset {
-		scrollOffset = cursor - scrollOff
-	}
+	scrollOffset := min(cursor-scrollOff, 0)
 	if cursor+scrollOff >= scrollOffset+maxVisible {
 		scrollOffset = cursor + scrollOff - maxVisible + 1
 	}
@@ -72,15 +63,9 @@ func RenderColumnToggleOverlay(entries []ColumnToggleEntry, cursor int, filter s
 		scrollOffset = 0
 	}
 	if scrollOffset+maxVisible > len(entries) {
-		scrollOffset = len(entries) - maxVisible
-		if scrollOffset < 0 {
-			scrollOffset = 0
-		}
+		scrollOffset = max(len(entries)-maxVisible, 0)
 	}
-	endIdx := scrollOffset + maxVisible
-	if endIdx > len(entries) {
-		endIdx = len(entries)
-	}
+	endIdx := min(scrollOffset+maxVisible, len(entries))
 
 	b.WriteString(RenderScrollAbove(scrollOffset, endIdx-scrollOffset, len(entries), innerW))
 	b.WriteString("\n")

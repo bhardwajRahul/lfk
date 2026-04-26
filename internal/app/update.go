@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -1677,10 +1678,9 @@ func (m Model) updateMetricsLoaded(msg metricsLoadedMsg) Model {
 	// Calculate available width for the metrics bar.
 	usable := m.width - 6
 	rightW := max(10, usable-max(10, usable*12/100)-max(10, usable*51/100))
-	innerW := rightW - 4 // column padding + border
-	if innerW < 20 {
-		innerW = 20
-	}
+	innerW := max(
+		// column padding + border
+		rightW-4, 20)
 	m.metricsContent = ui.RenderResourceUsage(
 		msg.cpuUsed, msg.cpuReq, msg.cpuLim,
 		msg.memUsed, msg.memReq, msg.memLim,
@@ -1700,10 +1700,7 @@ func (m Model) updatePreviewEventsLoaded(msg previewEventsLoadedMsg) Model {
 	// Calculate available width for the events section.
 	usable := m.width - 6
 	rightW := max(10, usable-max(10, usable*12/100)-max(10, usable*51/100))
-	innerW := rightW - 4
-	if innerW < 20 {
-		innerW = 20
-	}
+	innerW := max(rightW-4, 20)
 	entries := make([]ui.EventTimelineEntry, len(msg.events))
 	for i, e := range msg.events {
 		entries[i] = ui.EventTimelineEntry{
@@ -1983,9 +1980,7 @@ func (m Model) updateSecretDataLoaded(msg secretDataLoadedMsg) (tea.Model, tea.C
 	m.secretData = msg.data
 	// Snapshot the original data for dirty detection on save.
 	m.secretDataOriginal = make(map[string]string, len(msg.data.Data))
-	for k, v := range msg.data.Data {
-		m.secretDataOriginal[k] = v
-	}
+	maps.Copy(m.secretDataOriginal, msg.data.Data)
 	m.secretCursor = 0
 	m.secretRevealed = make(map[string]bool)
 	m.secretAllRevealed = false
@@ -2040,9 +2035,7 @@ func (m Model) updateConfigMapDataLoaded(msg configMapDataLoadedMsg) (tea.Model,
 	m.configMapData = msg.data
 	// Snapshot the original data for dirty detection on save.
 	m.configMapDataOriginal = make(map[string]string, len(msg.data.Data))
-	for k, v := range msg.data.Data {
-		m.configMapDataOriginal[k] = v
-	}
+	maps.Copy(m.configMapDataOriginal, msg.data.Data)
 	m.configMapCursor = 0
 	m.configMapEditing = false
 	m.configMapEditColumn = -1
@@ -2068,13 +2061,9 @@ func (m Model) updateLabelDataLoaded(msg labelDataLoadedMsg) (tea.Model, tea.Cmd
 	m.labelData = msg.data
 	// Snapshot both maps for dirty detection on save.
 	m.labelLabelsOriginal = make(map[string]string, len(msg.data.Labels))
-	for k, v := range msg.data.Labels {
-		m.labelLabelsOriginal[k] = v
-	}
+	maps.Copy(m.labelLabelsOriginal, msg.data.Labels)
 	m.labelAnnotationsOriginal = make(map[string]string, len(msg.data.Annotations))
-	for k, v := range msg.data.Annotations {
-		m.labelAnnotationsOriginal[k] = v
-	}
+	maps.Copy(m.labelAnnotationsOriginal, msg.data.Annotations)
 	m.labelCursor = 0
 	m.labelTab = 0
 	m.labelEditing = false

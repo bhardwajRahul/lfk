@@ -59,14 +59,8 @@ func (m *Model) ensureEventCursorVisible() {
 	if total > 0 && m.eventTimelineCursor >= total {
 		m.eventTimelineCursor = total - 1
 	}
-	viewH := m.eventContentHeight()
-	if viewH < 1 {
-		viewH = 1
-	}
-	so := ui.ConfigScrollOff
-	if so > viewH/2 {
-		so = viewH / 2
-	}
+	viewH := max(m.eventContentHeight(), 1)
+	so := min(ui.ConfigScrollOff, viewH/2)
 	if m.eventTimelineCursor < m.eventTimelineScroll+so {
 		m.eventTimelineScroll = m.eventTimelineCursor - so
 	}
@@ -479,16 +473,10 @@ func (m Model) handleEventTimelineVisualKeyY() (tea.Model, tea.Cmd) {
 				}
 				parts = append(parts, string(runes[cs:ce]))
 			} else if i == selStart {
-				cs := startCol
-				if cs > len(runes) {
-					cs = len(runes)
-				}
+				cs := min(startCol, len(runes))
 				parts = append(parts, string(runes[cs:]))
 			} else if i == selEnd {
-				ce := endCol + 1
-				if ce > len(runes) {
-					ce = len(runes)
-				}
+				ce := min(endCol+1, len(runes))
 				parts = append(parts, string(runes[:ce]))
 			} else {
 				parts = append(parts, line)

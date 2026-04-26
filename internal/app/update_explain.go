@@ -102,10 +102,7 @@ func (m *Model) exitExplainView() {
 // handleExplainKey handles keyboard input in the explain view mode.
 func (m Model) handleExplainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	fieldCount := len(m.explainFields)
-	visibleLines := m.height - 6
-	if visibleLines < 3 {
-		visibleLines = 3
-	}
+	visibleLines := max(m.height-6, 3)
 
 	switch msg.String() {
 	case "?", "f1":

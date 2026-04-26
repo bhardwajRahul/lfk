@@ -503,15 +503,15 @@ func (c *Client) wrapWithOwners(ctx context.Context, dynClient dynamic.Interface
 
 // appendContainerNodes extracts init containers and containers from an
 // unstructured pod object and appends them as children of the given node.
-func appendContainerNodes(podNode *model.ResourceNode, obj map[string]interface{}) {
-	spec, _ := obj["spec"].(map[string]interface{})
+func appendContainerNodes(podNode *model.ResourceNode, obj map[string]any) {
+	spec, _ := obj["spec"].(map[string]any)
 	if spec == nil {
 		return
 	}
 	for _, key := range []string{"initContainers", "containers"} {
-		containers, _ := spec[key].([]interface{})
+		containers, _ := spec[key].([]any)
 		for _, c := range containers {
-			cMap, ok := c.(map[string]interface{})
+			cMap, ok := c.(map[string]any)
 			if !ok {
 				continue
 			}

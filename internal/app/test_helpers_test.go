@@ -704,27 +704,27 @@ func newRichDynClient() *dynfake.FakeDynamicClient {
 	}
 
 	// Create nodes.
-	node1 := &unstructured.Unstructured{Object: map[string]interface{}{
+	node1 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Node",
-		"metadata": map[string]interface{}{"name": "node-1"},
-		"status": map[string]interface{}{
-			"conditions": []interface{}{
-				map[string]interface{}{"type": "Ready", "status": "True"},
+		"metadata": map[string]any{"name": "node-1"},
+		"status": map[string]any{
+			"conditions": []any{
+				map[string]any{"type": "Ready", "status": "True"},
 			},
-			"allocatable": map[string]interface{}{
+			"allocatable": map[string]any{
 				"cpu":    "4",
 				"memory": "8Gi",
 			},
 		},
 	}}
-	node2 := &unstructured.Unstructured{Object: map[string]interface{}{
+	node2 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Node",
-		"metadata": map[string]interface{}{"name": "node-2"},
-		"status": map[string]interface{}{
-			"conditions": []interface{}{
-				map[string]interface{}{"type": "Ready", "status": "False"},
+		"metadata": map[string]any{"name": "node-2"},
+		"status": map[string]any{
+			"conditions": []any{
+				map[string]any{"type": "Ready", "status": "False"},
 			},
-			"allocatable": map[string]interface{}{
+			"allocatable": map[string]any{
 				"cpu":    "2",
 				"memory": "4Gi",
 			},
@@ -732,51 +732,51 @@ func newRichDynClient() *dynfake.FakeDynamicClient {
 	}}
 
 	// Create pods with different statuses.
-	pod1 := &unstructured.Unstructured{Object: map[string]interface{}{
+	pod1 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Pod",
-		"metadata": map[string]interface{}{"name": "pod-running", "namespace": "default"},
-		"status":   map[string]interface{}{"phase": "Running"},
+		"metadata": map[string]any{"name": "pod-running", "namespace": "default"},
+		"status":   map[string]any{"phase": "Running"},
 	}}
-	pod2 := &unstructured.Unstructured{Object: map[string]interface{}{
+	pod2 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Pod",
-		"metadata": map[string]interface{}{"name": "pod-pending", "namespace": "default"},
-		"status":   map[string]interface{}{"phase": "Pending"},
+		"metadata": map[string]any{"name": "pod-pending", "namespace": "default"},
+		"status":   map[string]any{"phase": "Pending"},
 	}}
-	pod3 := &unstructured.Unstructured{Object: map[string]interface{}{
+	pod3 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Pod",
-		"metadata": map[string]interface{}{"name": "pod-failed", "namespace": "default"},
-		"status":   map[string]interface{}{"phase": "Failed"},
+		"metadata": map[string]any{"name": "pod-failed", "namespace": "default"},
+		"status":   map[string]any{"phase": "Failed"},
 	}}
 
 	// Namespaces.
-	ns1 := &unstructured.Unstructured{Object: map[string]interface{}{
+	ns1 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Namespace",
-		"metadata": map[string]interface{}{"name": "default"},
+		"metadata": map[string]any{"name": "default"},
 	}}
-	ns2 := &unstructured.Unstructured{Object: map[string]interface{}{
+	ns2 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Namespace",
-		"metadata": map[string]interface{}{"name": "kube-system"},
+		"metadata": map[string]any{"name": "kube-system"},
 	}}
 
 	// Events.
-	evt1 := &unstructured.Unstructured{Object: map[string]interface{}{
+	evt1 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Event",
-		"metadata": map[string]interface{}{"name": "evt-warning", "namespace": "default"},
+		"metadata": map[string]any{"name": "evt-warning", "namespace": "default"},
 		"type":     "Warning",
 		"reason":   "FailedScheduling",
 		"message":  "0/2 nodes are available",
 		"count":    int64(3),
-		"involvedObject": map[string]interface{}{
+		"involvedObject": map[string]any{
 			"name": "pod-pending",
 		},
 	}}
-	evt2 := &unstructured.Unstructured{Object: map[string]interface{}{
+	evt2 := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1", "kind": "Event",
-		"metadata": map[string]interface{}{"name": "evt-normal", "namespace": "default"},
+		"metadata": map[string]any{"name": "evt-normal", "namespace": "default"},
 		"type":     "Normal",
 		"reason":   "Pulled",
 		"message":  "Successfully pulled image",
-		"involvedObject": map[string]interface{}{
+		"involvedObject": map[string]any{
 			"name": "pod-running",
 		},
 	}}

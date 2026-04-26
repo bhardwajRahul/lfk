@@ -2,6 +2,7 @@
 package model
 
 import (
+	"slices"
 	"time"
 )
 
@@ -49,12 +50,7 @@ func (e ResourceTypeEntry) CanList() bool {
 	if len(e.Verbs) == 0 {
 		return true
 	}
-	for _, v := range e.Verbs {
-		if v == "list" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e.Verbs, "list")
 }
 
 // PrinterColumn represents an additionalPrinterColumn from a CRD spec.

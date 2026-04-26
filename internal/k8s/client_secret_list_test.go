@@ -261,26 +261,26 @@ func TestGetResources_NonSecretUsesDynamicPath(t *testing.T) {
 			{Group: "", Version: "v1", Resource: "pods"}: "PodList",
 		},
 		&unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "v1",
 				"kind":       "Pod",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":              "my-pod",
 					"namespace":         "default",
 					"creationTimestamp": "2026-04-24T00:00:00Z",
 				},
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
 							"name":  "app",
 							"image": "nginx:latest",
 						},
 					},
 				},
-				"status": map[string]interface{}{
+				"status": map[string]any{
 					"phase": "Running",
-					"containerStatuses": []interface{}{
-						map[string]interface{}{
+					"containerStatuses": []any{
+						map[string]any{
 							"name":         "app",
 							"ready":        true,
 							"restartCount": int64(0),

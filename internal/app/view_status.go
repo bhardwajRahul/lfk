@@ -75,10 +75,7 @@ func (m Model) breadcrumb() string {
 func (m Model) statusBar() string {
 	// StatusBarBgStyle has Padding(0, 1) which adds 2 chars of horizontal padding.
 	// Use MaxWidth on the content to prevent overflow.
-	innerWidth := m.width - 2
-	if innerWidth < 10 {
-		innerWidth = 10
-	}
+	innerWidth := max(m.width-2, 10)
 
 	// Show command bar when active.
 	if m.commandBarActive {

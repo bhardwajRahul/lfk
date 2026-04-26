@@ -392,16 +392,10 @@ func visualCopyChar(lines []string, selStart, selEnd, anchorCol, cursorCol int, 
 			}
 			parts = append(parts, string(runes[cs:ce]))
 		} else if i == selStart {
-			cs := startCol
-			if cs > len(runes) {
-				cs = len(runes)
-			}
+			cs := min(startCol, len(runes))
 			parts = append(parts, string(runes[cs:]))
 		} else if i == selEnd {
-			ce := endCol + 1
-			if ce > len(runes) {
-				ce = len(runes)
-			}
+			ce := min(endCol+1, len(runes))
 			parts = append(parts, string(runes[:ce]))
 		} else {
 			parts = append(parts, line)
@@ -468,10 +462,7 @@ func (m Model) handleDescribeSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // describeContentHeight returns the visible content height for the describe view.
 func (m *Model) describeContentHeight() int {
-	h := m.height - 4
-	if h < 3 {
-		h = 3
-	}
+	h := max(m.height-4, 3)
 	return h
 }
 
@@ -487,10 +478,7 @@ func (m *Model) ensureDescribeCursorVisible() {
 		m.describeCursor = 0
 	}
 	viewH := m.describeContentHeight()
-	so := ui.ConfigScrollOff
-	if so > viewH/2 {
-		so = viewH / 2
-	}
+	so := min(ui.ConfigScrollOff, viewH/2)
 	if m.describeCursor < m.describeScroll+so {
 		m.describeScroll = m.describeCursor - so
 	}
@@ -570,10 +558,7 @@ func (m Model) diffViewMetrics(foldRegions []ui.DiffFoldRegion) (totalLines, vis
 	if visibleLines < 3 {
 		visibleLines = 3
 	}
-	maxScroll = totalLines - visibleLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll = max(totalLines-visibleLines, 0)
 	return totalLines, visibleLines, maxScroll
 }
 
@@ -809,18 +794,12 @@ func (m *Model) diffWordMotion(key string, foldRegions []ui.DiffFoldRegion) {
 		}
 	case "b":
 		if lineText != "" {
-			newCol := prevWordStart(lineText, m.diffVisualCurCol)
-			if newCol < 0 {
-				newCol = 0
-			}
+			newCol := max(prevWordStart(lineText, m.diffVisualCurCol), 0)
 			m.diffVisualCurCol = newCol
 		}
 	case "B":
 		if lineText != "" {
-			newCol := prevWORDStart(lineText, m.diffVisualCurCol)
-			if newCol < 0 {
-				newCol = 0
-			}
+			newCol := max(prevWORDStart(lineText, m.diffVisualCurCol), 0)
 			m.diffVisualCurCol = newCol
 		}
 	case "e":
@@ -1014,10 +993,7 @@ func (m *Model) ensureDiffFoldState(regions []ui.DiffFoldRegion) {
 
 // ensureDiffCursorVisible adjusts diffScroll so the cursor is within the viewport.
 func (m *Model) ensureDiffCursorVisible(viewportLines, maxScroll int) {
-	so := ui.ConfigScrollOff
-	if so > viewportLines/2 {
-		so = viewportLines / 2
-	}
+	so := min(ui.ConfigScrollOff, viewportLines/2)
 	if m.diffCursor < m.diffScroll+so {
 		m.diffScroll = m.diffCursor - so
 	}
@@ -1046,10 +1022,7 @@ func (m *Model) diffScrollToMatch(foldRegions []ui.DiffFoldRegion, viewportLines
 
 	// Move cursor line and center in viewport.
 	m.diffCursor = visIdx
-	m.diffScroll = visIdx - viewportLines/2
-	if m.diffScroll < 0 {
-		m.diffScroll = 0
-	}
+	m.diffScroll = max(visIdx-viewportLines/2, 0)
 
 	// Move cursor column to the match position on the active side.
 	lineText := m.diffCurrentLineText(foldRegions)

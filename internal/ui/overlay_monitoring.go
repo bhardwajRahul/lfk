@@ -234,10 +234,7 @@ func RenderColorschemeOverlay(entries []SchemeEntry, filter string, cursor int, 
 	start := VimScrollOff(overlaySchemeScroll, cursorDisplayIdx, len(items), maxVisible, scrollOff, displayLines)
 	overlaySchemeScroll = start
 
-	end := start + maxVisible
-	if end > len(items) {
-		end = len(items)
-	}
+	end := min(start+maxVisible, len(items))
 
 	b.WriteString(RenderScrollAbove(start, end-start, len(items), 0))
 	b.WriteString("\n")
@@ -512,13 +509,7 @@ func RenderQuotaDashboardOverlay(quotas []QuotaEntry, width, height int) string 
 	b.WriteString("\n")
 
 	// Bar width adapts to the overlay width. Reserve space for label, percentage, and values.
-	barWidth := width - 40
-	if barWidth < 10 {
-		barWidth = 10
-	}
-	if barWidth > 40 {
-		barWidth = 40
-	}
+	barWidth := min(max(width-40, 10), 40)
 
 	// Severity color styles.
 	greenStyle := lipgloss.NewStyle().Foreground(ThemeColor("#9ece6a")).Background(SurfaceBg)
@@ -538,13 +529,7 @@ func RenderQuotaDashboardOverlay(quotas []QuotaEntry, width, height int) string 
 			b.WriteString(OverlayNormalStyle.Render(nameLabel))
 
 			// Build the usage bar.
-			filled := int(res.Percent / 100.0 * float64(barWidth))
-			if filled > barWidth {
-				filled = barWidth
-			}
-			if filled < 0 {
-				filled = 0
-			}
+			filled := max(min(int(res.Percent/100.0*float64(barWidth)), barWidth), 0)
 			empty := barWidth - filled
 
 			filledStr := strings.Repeat("\u2588", filled)
@@ -801,13 +786,7 @@ func RenderEventViewer(p EventViewerParams) string {
 
 	// Clamp scroll.
 	maxScroll := max(len(p.Lines)-maxVisible, 0)
-	scroll := p.Scroll
-	if scroll > maxScroll {
-		scroll = maxScroll
-	}
-	if scroll < 0 {
-		scroll = 0
-	}
+	scroll := max(min(p.Scroll, maxScroll), 0)
 
 	end := min(scroll+maxVisible, len(p.Lines))
 

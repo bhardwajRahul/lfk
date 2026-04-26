@@ -121,10 +121,7 @@ func RenderDiffView(left, right, leftName, rightName string, scroll, width, heig
 
 	// Calculate column widths: split the available content area in half with a separator.
 	// -1 for cursor gutter (> or space).
-	colWidth := (width - 8 - gutterWidth*2) / 2
-	if colWidth < 10 {
-		colWidth = 10
-	}
+	colWidth := max((width-8-gutterWidth*2)/2, 10)
 
 	// Build header.
 	gutterPad := strings.Repeat(" ", gutterWidth)
@@ -133,17 +130,11 @@ func RenderDiffView(left, right, leftName, rightName string, scroll, width, heig
 	header := gutterPad + padToWidth(leftHeader, colWidth) + separatorStyle.Render(" | ") + gutterPad + padToWidth(rightHeader, colWidth)
 
 	// Reserve lines for title, hint bar, border (top+bottom), header, and separator.
-	maxLines := height - 6
-	if maxLines < 3 {
-		maxLines = 3
-	}
+	maxLines := max(height-6, 3)
 
 	// Clamp scroll.
 	totalLines := len(visLines)
-	maxScroll := totalLines - maxLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalLines-maxLines, 0)
 	if scroll > maxScroll {
 		scroll = maxScroll
 	}
@@ -483,10 +474,7 @@ func RenderUnifiedDiffView(left, right, leftName, rightName string, scroll, widt
 	title := TitleStyle.Width(width).MaxWidth(width).MaxHeight(1).Render(titleText)
 
 	// Reserve lines for title, hint bar, and border (top+bottom).
-	maxLines := height - 4
-	if maxLines < 3 {
-		maxLines = 3
-	}
+	maxLines := max(height-4, 3)
 
 	// Separate headers (always visible) from scrollable content.
 	var headerLines []unifiedLine
@@ -500,17 +488,11 @@ func RenderUnifiedDiffView(left, right, leftName, rightName string, scroll, widt
 	}
 
 	// Content area = maxLines minus header lines.
-	contentMaxLines := maxLines - len(headerLines)
-	if contentMaxLines < 1 {
-		contentMaxLines = 1
-	}
+	contentMaxLines := max(maxLines-len(headerLines), 1)
 
 	// Clamp scroll on content lines only.
 	totalContent := len(contentLines)
-	maxScroll := totalContent - contentMaxLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalContent-contentMaxLines, 0)
 	if scroll > maxScroll {
 		scroll = maxScroll
 	}

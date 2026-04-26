@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/janosmiko/lfk/internal/model"
@@ -385,10 +386,5 @@ func TestExtractShellCommandNoPrefix(t *testing.T) {
 
 // containsFlag checks if a flag exists in a slice of args.
 func containsFlag(args []string, flag string) bool {
-	for _, a := range args {
-		if a == flag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, flag)
 }

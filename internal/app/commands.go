@@ -468,11 +468,11 @@ func (m Model) batchPatchLabels(key, value string, remove bool, isAnnotation boo
 			if ctx.Err() != nil {
 				break
 			}
-			var patch map[string]interface{}
+			var patch map[string]any
 			if remove {
-				patch = map[string]interface{}{key: nil}
+				patch = map[string]any{key: nil}
 			} else {
-				patch = map[string]interface{}{key: value}
+				patch = map[string]any{key: value}
 			}
 			itemNs := item.Namespace
 			if itemNs == "" {

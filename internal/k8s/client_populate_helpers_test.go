@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -14,17 +15,17 @@ import (
 func TestPopulateMetadataFields(t *testing.T) {
 	t.Run("extracts labels, finalizers, and annotations", func(t *testing.T) {
 		ti := &model.Item{}
-		obj := map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{
+		obj := map[string]any{
+			"metadata": map[string]any{
+				"labels": map[string]any{
 					"app":                          "nginx",
 					"app.kubernetes.io/instance":   "my-release",
 					"app.kubernetes.io/managed-by": "Helm",
 				},
-				"finalizers": []interface{}{
+				"finalizers": []any{
 					"kubernetes.io/pvc-protection",
 				},
-				"annotations": map[string]interface{}{
+				"annotations": map[string]any{
 					"note": "test",
 				},
 			},
@@ -43,9 +44,9 @@ func TestPopulateMetadataFields(t *testing.T) {
 
 	t.Run("filters helm.sh/chart label", func(t *testing.T) {
 		ti := &model.Item{}
-		obj := map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{
+		obj := map[string]any{
+			"metadata": map[string]any{
+				"labels": map[string]any{
 					"app":           "web",
 					"helm.sh/chart": "my-chart-1.0.0",
 				},
@@ -61,7 +62,7 @@ func TestPopulateMetadataFields(t *testing.T) {
 
 	t.Run("nil metadata does nothing", func(t *testing.T) {
 		ti := &model.Item{}
-		obj := map[string]interface{}{}
+		obj := map[string]any{}
 
 		populateMetadataFields(ti, obj)
 
@@ -70,10 +71,10 @@ func TestPopulateMetadataFields(t *testing.T) {
 
 	t.Run("empty labels and finalizers produce no columns", func(t *testing.T) {
 		ti := &model.Item{}
-		obj := map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"labels":     map[string]interface{}{},
-				"finalizers": []interface{}{},
+		obj := map[string]any{
+			"metadata": map[string]any{
+				"labels":     map[string]any{},
+				"finalizers": []any{},
 			},
 		}
 
@@ -83,15 +84,15 @@ func TestPopulateMetadataFields(t *testing.T) {
 	})
 
 	t.Run("truncates long annotation values", func(t *testing.T) {
-		longValue := ""
+		var longValue strings.Builder
 		for range 200 {
-			longValue += "x"
+			longValue.WriteString("x")
 		}
 		ti := &model.Item{}
-		obj := map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"annotations": map[string]interface{}{
-					"long-key": longValue,
+		obj := map[string]any{
+			"metadata": map[string]any{
+				"annotations": map[string]any{
+					"long-key": longValue.String(),
 				},
 			},
 		}
@@ -105,9 +106,9 @@ func TestPopulateMetadataFields(t *testing.T) {
 
 	t.Run("only managed-by labels produces no labels column", func(t *testing.T) {
 		ti := &model.Item{}
-		obj := map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{
+		obj := map[string]any{
+			"metadata": map[string]any{
+				"labels": map[string]any{
 					"app.kubernetes.io/managed-by": "Helm",
 					"helm.sh/chart":                "test-1.0",
 				},
@@ -124,9 +125,9 @@ func TestPopulateMetadataFields(t *testing.T) {
 
 	t.Run("multiple finalizers joined with comma", func(t *testing.T) {
 		ti := &model.Item{}
-		obj := map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"finalizers": []interface{}{
+		obj := map[string]any{
+			"metadata": map[string]any{
+				"finalizers": []any{
 					"kubernetes.io/pvc-protection",
 					"custom-finalizer.io/cleanup",
 				},
@@ -146,12 +147,12 @@ func TestPopulateMetadataFields(t *testing.T) {
 func TestPopulateContainerImages(t *testing.T) {
 	t.Run("extracts images from template spec", func(t *testing.T) {
 		ti := &model.Item{}
-		spec := map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{"image": "nginx:1.25"},
-						map[string]interface{}{"image": "sidecar:v2"},
+		spec := map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{"image": "nginx:1.25"},
+						map[string]any{"image": "sidecar:v2"},
 					},
 				},
 			},
@@ -165,7 +166,7 @@ func TestPopulateContainerImages(t *testing.T) {
 
 	t.Run("no template does nothing", func(t *testing.T) {
 		ti := &model.Item{}
-		spec := map[string]interface{}{}
+		spec := map[string]any{}
 
 		populateContainerImages(ti, spec)
 
@@ -174,9 +175,9 @@ func TestPopulateContainerImages(t *testing.T) {
 
 	t.Run("no containers does nothing", func(t *testing.T) {
 		ti := &model.Item{}
-		spec := map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{},
+		spec := map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{},
 			},
 		}
 
@@ -187,7 +188,7 @@ func TestPopulateContainerImages(t *testing.T) {
 
 	t.Run("non-map template spec does nothing", func(t *testing.T) {
 		ti := &model.Item{}
-		spec := map[string]interface{}{
+		spec := map[string]any{
 			"template": "not-a-map",
 		}
 
@@ -198,12 +199,12 @@ func TestPopulateContainerImages(t *testing.T) {
 
 	t.Run("container without image is skipped", func(t *testing.T) {
 		ti := &model.Item{}
-		spec := map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{"name": "no-image"},
-						map[string]interface{}{"image": "real:v1"},
+		spec := map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{"name": "no-image"},
+						map[string]any{"image": "real:v1"},
 					},
 				},
 			},
@@ -220,14 +221,14 @@ func TestPopulateContainerImages(t *testing.T) {
 
 func TestExtractContainerResources(t *testing.T) {
 	t.Run("single container with all resources", func(t *testing.T) {
-		containers := []interface{}{
-			map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+		containers := []any{
+			map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "100m",
 						"memory": "128Mi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "500m",
 						"memory": "256Mi",
 					},
@@ -244,15 +245,15 @@ func TestExtractContainerResources(t *testing.T) {
 	})
 
 	t.Run("multiple containers sum with plus sign", func(t *testing.T) {
-		containers := []interface{}{
-			map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{"cpu": "100m"},
+		containers := []any{
+			map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{"cpu": "100m"},
 				},
 			},
-			map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{"cpu": "200m"},
+			map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{"cpu": "200m"},
 				},
 			},
 		}
@@ -272,11 +273,11 @@ func TestExtractContainerResources(t *testing.T) {
 	})
 
 	t.Run("container without resources skipped", func(t *testing.T) {
-		containers := []interface{}{
-			map[string]interface{}{"name": "no-resources"},
-			map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{"cpu": "50m"},
+		containers := []any{
+			map[string]any{"name": "no-resources"},
+			map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{"cpu": "50m"},
 				},
 			},
 		}
@@ -287,11 +288,11 @@ func TestExtractContainerResources(t *testing.T) {
 	})
 
 	t.Run("non-map entry skipped", func(t *testing.T) {
-		containers := []interface{}{
+		containers := []any{
 			"not-a-map",
-			map[string]interface{}{
-				"resources": map[string]interface{}{
-					"limits": map[string]interface{}{"memory": "512Mi"},
+			map[string]any{
+				"resources": map[string]any{
+					"limits": map[string]any{"memory": "512Mi"},
 				},
 			},
 		}
@@ -306,13 +307,13 @@ func TestExtractContainerResources(t *testing.T) {
 
 func TestExtractTemplateResources(t *testing.T) {
 	t.Run("extracts from template.spec.containers", func(t *testing.T) {
-		spec := map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
-							"resources": map[string]interface{}{
-								"requests": map[string]interface{}{"cpu": "250m", "memory": "64Mi"},
+		spec := map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
+							"resources": map[string]any{
+								"requests": map[string]any{"cpu": "250m", "memory": "64Mi"},
 							},
 						},
 					},
@@ -329,7 +330,7 @@ func TestExtractTemplateResources(t *testing.T) {
 	})
 
 	t.Run("no template returns empty", func(t *testing.T) {
-		cpuReq, cpuLim, memReq, memLim := extractTemplateResources(map[string]interface{}{})
+		cpuReq, cpuLim, memReq, memLim := extractTemplateResources(map[string]any{})
 
 		assert.Empty(t, cpuReq)
 		assert.Empty(t, cpuLim)
@@ -338,8 +339,8 @@ func TestExtractTemplateResources(t *testing.T) {
 	})
 
 	t.Run("no spec in template returns empty", func(t *testing.T) {
-		spec := map[string]interface{}{
-			"template": map[string]interface{}{},
+		spec := map[string]any{
+			"template": map[string]any{},
 		}
 
 		cpuReq, cpuLim, memReq, memLim := extractTemplateResources(spec)
