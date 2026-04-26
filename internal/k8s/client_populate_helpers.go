@@ -8,7 +8,26 @@ import (
 	"time"
 
 	"github.com/janosmiko/lfk/internal/model"
+	"github.com/robfig/cron/v3"
 )
+
+func nextCronFire(schedule, timeZone string, now time.Time) (time.Time, bool) {
+	if schedule == "" {
+		return time.Time{}, false
+	}
+	if timeZone != "" {
+		loc, err := time.LoadLocation(timeZone)
+		if err != nil {
+			return time.Time{}, false
+		}
+		now = now.In(loc)
+	}
+	parsed, err := cron.ParseStandard(schedule)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed.Next(now), true
+}
 
 // populateMetadataFields extracts labels, finalizers, and annotations from the
 // object metadata and appends them as columns for preview display.

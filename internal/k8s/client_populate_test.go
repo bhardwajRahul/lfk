@@ -1241,6 +1241,76 @@ func TestPopulateResourceDetails_CronJob(t *testing.T) {
 	}
 }
 
+func TestPopulateResourceDetails_CronJob_Next(t *testing.T) {
+	tests := []struct {
+		name     string
+		obj      map[string]interface{}
+		wantNext bool
+	}{
+		{
+			name: "valid schedule, not suspended",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"schedule": "*/5 * * * *",
+					"suspend":  false,
+				},
+			},
+			wantNext: true,
+		},
+		{
+			name: "suspended cronjob skips next",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"schedule": "*/5 * * * *",
+					"suspend":  true,
+				},
+			},
+			wantNext: false,
+		},
+		{
+			name: "invalid schedule skips next",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"schedule": "not a cron expression",
+					"suspend":  false,
+				},
+			},
+			wantNext: false,
+		},
+		{
+			name: "valid schedule with valid timezone",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"schedule": "0 0 * * *",
+					"timeZone": "America/New_York",
+					"suspend":  false,
+				},
+			},
+			wantNext: true,
+		},
+		{
+			name: "invalid timezone skips next",
+			obj: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"schedule": "0 0 * * *",
+					"timeZone": "Not/A_Real_Zone",
+					"suspend":  false,
+				},
+			},
+			wantNext: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ti := &model.Item{}
+			populateResourceDetails(ti, tt.obj, "CronJob")
+			_, hasNext := columnsToMap(ti.Columns)["Next"]
+			assert.Equal(t, tt.wantNext, hasNext, "Next column presence mismatch")
+		})
+	}
+}
+
 // --- populateResourceDetails: Job ---
 
 func TestPopulateResourceDetails_Job(t *testing.T) {

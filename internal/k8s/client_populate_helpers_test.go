@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -383,5 +384,44 @@ func TestAddResourceColumns(t *testing.T) {
 		addResourceColumns(ti, "", "", "", "")
 
 		assert.Empty(t, ti.Columns)
+	})
+}
+
+func TestNextCronFire(t *testing.T) {
+	now := time.Date(2026, 4, 26, 4, 33, 0, 0, time.UTC)
+
+	t.Run("every-5-minutes schedule fires at the next 5-minute mark", func(t *testing.T) {
+		next, ok := nextCronFire("*/5 * * * *", "", now)
+		assert.True(t, ok)
+		assert.Equal(t, time.Date(2026, 4, 26, 4, 35, 0, 0, time.UTC), next)
+	})
+
+	t.Run("daily-midnight schedule respects America/New_York", func(t *testing.T) {
+		next, ok := nextCronFire("0 0 * * *", "America/New_York", now)
+		assert.True(t, ok)
+		assert.True(t, next.After(now))
+		assert.Equal(t, 4, next.UTC().Hour())
+		assert.Equal(t, 27, next.UTC().Day())
+	})
+
+	t.Run("invalid schedule returns false", func(t *testing.T) {
+		_, ok := nextCronFire("not a cron expression", "", now)
+		assert.False(t, ok)
+	})
+
+	t.Run("invalid timezone returns false", func(t *testing.T) {
+		_, ok := nextCronFire("*/5 * * * *", "Not/A_Real_Zone", now)
+		assert.False(t, ok)
+	})
+
+	t.Run("empty schedule returns false", func(t *testing.T) {
+		_, ok := nextCronFire("", "", now)
+		assert.False(t, ok)
+	})
+
+	t.Run("predefined @hourly schedule", func(t *testing.T) {
+		next, ok := nextCronFire("@hourly", "", now)
+		assert.True(t, ok)
+		assert.Equal(t, time.Date(2026, 4, 26, 5, 0, 0, 0, time.UTC), next)
 	})
 }
