@@ -280,12 +280,14 @@ func (m *Model) toggleSelection(item model.Item) {
 	} else {
 		m.selectedItems[key] = true
 	}
+	m.selectionRev++
 }
 
 // clearSelection removes all items from the multi-selection set and resets the region anchor.
 func (m *Model) clearSelection() {
 	m.selectedItems = make(map[string]bool)
 	m.selectionAnchor = -1
+	m.selectionRev++
 }
 
 // hasSelection returns true if any items are selected.

@@ -1743,6 +1743,7 @@ func (m Model) updatePreviewSecretDataLoaded(msg previewSecretDataLoadedMsg) Mod
 	m.secretPreviewCache[key] = msg.data
 
 	// Inject secret:<key> columns into every matching middleItems entry.
+	m.middleItemsRev++
 	for i := range m.middleItems {
 		item := &m.middleItems[i]
 		if item.Name != msg.name {
@@ -1790,6 +1791,7 @@ func (m Model) updatePodMetricsEnriched(msg podMetricsEnrichedMsg) Model {
 	// regardless of query scope (all-namespaces vs single-namespace), so
 	// this lookup is consistent. For cluster-scoped items (no namespace)
 	// the key collapses to "/name" on both sides.
+	m.middleItemsRev++
 	for i := range m.middleItems {
 		item := &m.middleItems[i]
 		key := item.Namespace + "/" + item.Name

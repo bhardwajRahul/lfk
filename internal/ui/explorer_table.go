@@ -588,116 +588,130 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 		return b.String()
 	}
 
-	// Detect which detail columns have data.
-	hasNs, hasReady, hasRestarts, hasAge, hasStatus := false, false, false, false, false
-	for _, item := range items {
-		if item.Namespace != "" {
-			hasNs = true
-		}
-		if item.Ready != "" {
-			hasReady = true
-		}
-		if item.Restarts != "" {
-			hasRestarts = true
-		}
-		if item.Age != "" {
-			hasAge = true
-		}
-		if item.Status != "" {
-			hasStatus = true
-		}
-	}
+	var hasNs, hasReady, hasRestarts, hasAge, hasStatus bool
+	var nsW, readyW, restartsW, ageW, statusW int
+	var anyRecentRestart bool
 
-	// Apply user-chosen built-in column suppression from the column toggle
-	// overlay. Only the middle column honors this — child/right previews do
-	// not use ActiveHiddenBuiltinColumns so their layout stays stable.
-	if ActiveMiddleScroll >= 0 && ActiveHiddenBuiltinColumns != nil {
-		if ActiveHiddenBuiltinColumns["Namespace"] {
-			hasNs = false
-		}
-		if ActiveHiddenBuiltinColumns["Ready"] {
-			hasReady = false
-		}
-		if ActiveHiddenBuiltinColumns["Restarts"] {
-			hasRestarts = false
-		}
-		if ActiveHiddenBuiltinColumns["Age"] {
-			hasAge = false
-		}
-		if ActiveHiddenBuiltinColumns["Status"] {
-			hasStatus = false
-		}
-	}
-
-	// Content-aware column widths: size each column based on actual data,
-	// then give all remaining space to the name column so the table fills
-	// the full available width.
-	nsW, readyW, restartsW, ageW, statusW := 0, 0, 0, 0, 0
-	if hasNs {
-		nsW = len("NAMESPACE") // minimum: header width
+	if ActiveTableLayout != nil && ActiveTableLayout.Computed {
+		hasNs = ActiveTableLayout.HasNs
+		hasReady = ActiveTableLayout.HasReady
+		hasRestarts = ActiveTableLayout.HasRestarts
+		hasAge = ActiveTableLayout.HasAge
+		hasStatus = ActiveTableLayout.HasStatus
+		nsW = ActiveTableLayout.NsW
+		readyW = ActiveTableLayout.ReadyW
+		restartsW = ActiveTableLayout.RestartsW
+		ageW = ActiveTableLayout.AgeW
+		statusW = ActiveTableLayout.StatusW
+		anyRecentRestart = ActiveTableLayout.AnyRecentRestart
+	} else {
+		// Detect which detail columns have data.
 		for _, item := range items {
-			if w := len(item.Namespace); w > nsW {
-				nsW = w
+			if item.Namespace != "" {
+				hasNs = true
+			}
+			if item.Ready != "" {
+				hasReady = true
+			}
+			if item.Restarts != "" {
+				hasRestarts = true
+			}
+			if item.Age != "" {
+				hasAge = true
+			}
+			if item.Status != "" {
+				hasStatus = true
 			}
 		}
-		nsW++ // spacing
-		// Cap to avoid extremely long namespaces dominating the layout.
-		if nsW > 30 {
-			nsW = 30
-		}
-	}
-	if hasReady {
-		readyW = len("READY") // 5
-		for _, item := range items {
-			if w := len(item.Ready); w > readyW {
-				readyW = w
+
+		// Apply user-chosen built-in column suppression from the column toggle
+		// overlay. Only the middle column honors this — child/right previews do
+		// not use ActiveHiddenBuiltinColumns so their layout stays stable.
+		if ActiveMiddleScroll >= 0 && ActiveHiddenBuiltinColumns != nil {
+			if ActiveHiddenBuiltinColumns["Namespace"] {
+				hasNs = false
+			}
+			if ActiveHiddenBuiltinColumns["Ready"] {
+				hasReady = false
+			}
+			if ActiveHiddenBuiltinColumns["Restarts"] {
+				hasRestarts = false
+			}
+			if ActiveHiddenBuiltinColumns["Age"] {
+				hasAge = false
+			}
+			if ActiveHiddenBuiltinColumns["Status"] {
+				hasStatus = false
 			}
 		}
-		readyW++ // spacing
-	}
-	// Check if any item has a recent restart — if so, reserve arrow space for all.
-	anyRecentRestart := false
-	if hasRestarts {
-		restartsW = len("RS") + 1 // 3
-		for _, item := range items {
-			if rc, _ := strconv.Atoi(item.Restarts); rc > 0 {
-				if !item.LastRestartAt.IsZero() && time.Since(item.LastRestartAt) < time.Hour {
-					anyRecentRestart = true
-					break
+
+		// Content-aware column widths: size each column based on actual data,
+		// then give all remaining space to the name column so the table fills
+		// the full available width.
+		if hasNs {
+			nsW = len("NAMESPACE") // minimum: header width
+			for _, item := range items {
+				if w := len(item.Namespace); w > nsW {
+					nsW = w
+				}
+			}
+			nsW++ // spacing
+			if nsW > 30 {
+				nsW = 30
+			}
+		}
+		if hasReady {
+			readyW = len("READY") // 5
+			for _, item := range items {
+				if w := len(item.Ready); w > readyW {
+					readyW = w
+				}
+			}
+			readyW++ // spacing
+		}
+		// Check if any item has a recent restart — if so, reserve arrow space for all.
+		if hasRestarts {
+			restartsW = len("RS") + 1 // 3
+			for _, item := range items {
+				if rc, _ := strconv.Atoi(item.Restarts); rc > 0 {
+					if !item.LastRestartAt.IsZero() && time.Since(item.LastRestartAt) < time.Hour {
+						anyRecentRestart = true
+						break
+					}
+				}
+			}
+			for _, item := range items {
+				w := len(item.Restarts)
+				if anyRecentRestart {
+					w++ // reserve space for "↑" indicator (or placeholder)
+				}
+				if w >= restartsW {
+					restartsW = w + 1
 				}
 			}
 		}
-		for _, item := range items {
-			w := len(item.Restarts)
-			if anyRecentRestart {
-				w++ // reserve space for "↑" indicator (or placeholder)
+		if hasAge {
+			ageW = len("AGE") + 1 // 4
+			for _, item := range items {
+				if w := len(LiveAge(item)); w >= ageW {
+					ageW = w + 1
+				}
 			}
-			if w >= restartsW {
-				restartsW = w + 1
-			}
-		}
-	}
-	if hasAge {
-		ageW = len("AGE") + 1 // 4
-		for _, item := range items {
-			if w := len(LiveAge(item)); w >= ageW {
-				ageW = w + 1
+			if ageW > 10 {
+				ageW = 10
 			}
 		}
-		if ageW > 10 {
-			ageW = 10
-		}
-	}
-	if hasStatus {
-		statusW = len("STATUS") // minimum for header
-		for _, item := range items {
-			if w := len(item.Status); w > statusW {
-				statusW = w
+		if hasStatus {
+			statusW = len("STATUS") // minimum for header
+			for _, item := range items {
+				if w := len(item.Status); w > statusW {
+					statusW = w
+				}
 			}
-		}
-		statusW++ // spacing
-		if statusW > 20 {
-			statusW = 20
+			statusW++ // spacing
+			if statusW > 20 {
+				statusW = 20
+			}
 		}
 	}
 	// Reserve space for the selection marker column in the focus pane
@@ -708,24 +722,45 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 		markerColW = 2
 	}
 
-	// Collect extra columns from item data (additionalPrinterColumns).
-	// Derive the resource kind from the first item (all items in a table share the same kind).
-	tableKind := ""
-	if len(items) > 0 {
-		tableKind = items[0].Kind
-	}
-	extraCols := collectExtraColumns(items, width, nsW+readyW+restartsW+ageW+statusW+markerColW, tableKind)
+	var extraCols []extraColumn
+	if ActiveTableLayout != nil && ActiveTableLayout.Computed {
+		extraCols = ActiveTableLayout.ExtraCols
+	} else {
+		// Collect extra columns from item data (additionalPrinterColumns).
+		tableKind := ""
+		if len(items) > 0 {
+			tableKind = items[0].Kind
+		}
+		extraCols = collectExtraColumns(items, width, nsW+readyW+restartsW+ageW+statusW+markerColW, tableKind)
 
-	// Drop any extras that collide with a built-in key so the built-in always
-	// wins (matches the existing ActiveSortableColumns de-dup precedent) and
-	// keeps column-order serialization simple (bare keys, no disambiguation).
-	filtered := extraCols[:0]
-	for _, ec := range extraCols {
-		if !isBuiltinColumnKey(ec.key) {
-			filtered = append(filtered, ec)
+		// Drop any extras that collide with a built-in key so the built-in always
+		// wins (matches the existing ActiveSortableColumns de-dup precedent) and
+		// keeps column-order serialization simple (bare keys, no disambiguation).
+		filtered := extraCols[:0]
+		for _, ec := range extraCols {
+			if !isBuiltinColumnKey(ec.key) {
+				filtered = append(filtered, ec)
+			}
+		}
+		extraCols = filtered
+
+		// Populate the layout cache so subsequent renders skip the O(N) work.
+		if ActiveTableLayout != nil {
+			ActiveTableLayout.HasNs = hasNs
+			ActiveTableLayout.HasReady = hasReady
+			ActiveTableLayout.HasRestarts = hasRestarts
+			ActiveTableLayout.HasAge = hasAge
+			ActiveTableLayout.HasStatus = hasStatus
+			ActiveTableLayout.NsW = nsW
+			ActiveTableLayout.ReadyW = readyW
+			ActiveTableLayout.RestartsW = restartsW
+			ActiveTableLayout.AgeW = ageW
+			ActiveTableLayout.StatusW = statusW
+			ActiveTableLayout.AnyRecentRestart = anyRecentRestart
+			ActiveTableLayout.ExtraCols = extraCols
+			ActiveTableLayout.Computed = true
 		}
 	}
-	extraCols = filtered
 
 	// Populate ActiveExtraColumnKeys for the column toggle overlay.
 	// Only the active middle column is authoritative — child/right table
@@ -1007,17 +1042,30 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 			}
 			b.WriteString(ActiveSelectedStyle(i).MaxWidth(width).Render(row))
 		} else {
-			// Selection marker (styled for non-cursor rows).
-			markerPrefix := ""
-			if wantMarker {
-				markerPrefix = "  "
-				if selected {
-					markerPrefix = SelectionMarkerStyle.Render(selectionMarker)
-				}
+			var rendered string
+			if ActiveRowCache != nil {
+				rendered = ActiveRowCache[i]
 			}
-			// Non-selected row: apply styling.
-			b.WriteString(markerPrefix + formatTableRowStyledOrdered(item, nameW, nsW, readyW, restartsW, statusW, ageW,
-				order, extraCols, anyRecentRestart))
+			if rendered == "" {
+				markerPrefix := ""
+				if wantMarker {
+					markerPrefix = "  "
+					if selected {
+						markerPrefix = SelectionMarkerStyle.Render(selectionMarker)
+					}
+				}
+				rendered = markerPrefix + formatTableRowStyledOrdered(item, nameW, nsW, readyW, restartsW, statusW, ageW,
+					order, extraCols, anyRecentRestart)
+				if ActiveRowCache != nil {
+					ActiveRowCache[i] = rendered
+					if activeRowCacheMisses != nil {
+						*activeRowCacheMisses++
+					}
+				}
+			} else if activeRowCacheHits != nil {
+				*activeRowCacheHits++
+			}
+			b.WriteString(rendered)
 		}
 
 	}

@@ -558,6 +558,13 @@ type Model struct {
 	// they were created with and are discarded if it no longer matches.
 	requestGen uint64
 
+	// Bumped on in-place mutation of middleItems / selectedItems. Slice-
+	// header reassignments are caught by the TableRenderer fingerprint.
+	middleItemsRev uint64
+	selectionRev   uint64
+
+	middleTableRenderer *ui.TableRenderer
+
 	// Context cancellation for in-flight API requests. Cancelled on every
 	// navigation change so stale requests are aborted early instead of
 	// running to completion.
@@ -986,6 +993,7 @@ func NewModel(client *k8s.Client, opts StartupOptions) Model {
 		diffLineNumbers:     true,
 		reqCtx:              reqCtx,
 		reqCancel:           reqCancel,
+		middleTableRenderer: ui.NewTableRenderer(),
 		tabs: []TabState{{
 			nav:                model.NavigationState{Level: model.LevelClusters},
 			namespace:          defaultNS,

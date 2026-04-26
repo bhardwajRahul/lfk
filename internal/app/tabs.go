@@ -140,6 +140,7 @@ func (m *Model) sortMiddleItems() {
 		colName = sortColEventLastSeen
 	}
 
+	m.middleItemsRev++
 	sort.SliceStable(m.middleItems, func(i, j int) bool {
 		a, b := m.middleItems[i], m.middleItems[j]
 
