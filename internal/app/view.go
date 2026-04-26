@@ -221,6 +221,16 @@ func (m Model) viewExplorer() string {
 	}
 	defer func() { ui.ActiveHighlightQuery = "" }()
 
+	// Category bars only light up when the user opted into category
+	// matching via Tab — at LevelResourceTypes only, since that's
+	// where the bars actually render. Plain `/foo` or `f foo` thus
+	// stays a name-search both visually and behaviourally; Tab is
+	// the explicit "include groups" toggle in both senses.
+	ui.ActiveHighlightCategories = m.nav.Level == model.LevelResourceTypes &&
+		((m.searchInput.Value != "" && m.searchBroadMode) ||
+			(m.searchInput.Value == "" && m.filterText != "" && m.filterBroadMode))
+	defer func() { ui.ActiveHighlightCategories = false }()
+
 	// Set secret values visibility for rendering.
 	ui.ActiveShowSecretValues = m.showSecretValues
 

@@ -12,6 +12,14 @@ import (
 // ActiveHighlightQuery is set by the app to highlight matching text in item names.
 var ActiveHighlightQuery string
 
+// ActiveHighlightCategories opts-in to highlighting matching text in
+// the category bars too. Only set when the user explicitly opted into
+// category-aware search/filter (Tab inside the input at
+// LevelResourceTypes); otherwise category bars stay un-highlighted
+// even when ActiveHighlightQuery is non-empty, so plain `/foo` doesn't
+// flash a category that the user hasn't asked to navigate into.
+var ActiveHighlightCategories bool
+
 // ActiveFullscreenMode is set by the app to indicate fullscreen middle column mode.
 // In fullscreen mode, more columns (IP, Node, etc.) are shown.
 var ActiveFullscreenMode bool
@@ -452,12 +460,13 @@ func RenderColumn(header string, items []model.Item, cursor int, width, height i
 					headerText = "▾ " + item.Category
 				}
 			}
-			// Highlight matching text in the header so a search like
-			// "argo" visibly marks the "Argo CD" bar — keeping the
-			// visible highlight aligned with what searchMatchesItem
-			// considers a match (which jumps n/N to items in this
-			// category).
-			if ActiveHighlightQuery != "" {
+			// Highlight matching text in the header only when the
+			// user opted into category-aware search/filter via Tab
+			// (ActiveHighlightCategories). Without it, plain `/foo`
+			// would visibly mark "Argo CD" or "Networking" without
+			// actually treating those categories as match targets,
+			// confusing the user about what n/N will do.
+			if ActiveHighlightCategories && ActiveHighlightQuery != "" {
 				headerText = highlightName(headerText, ActiveHighlightQuery)
 			}
 			// Highlight category header when cursor is on a collapsed group placeholder.

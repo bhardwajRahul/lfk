@@ -487,23 +487,24 @@ func (m *Model) searchMatches(name string, queries []string) bool {
 }
 
 // searchMatchIndices returns the items indices that n/N navigation
-// should visit. Two passes:
+// should visit.
 //
-//  1. Name matches (and broad-mode column matches when on, via
-//     searchMatchesItem). This is the default behaviour — typing
-//     `/foo` matches resource type names only.
+// Default mode: name matches only (and broad-mode column matches when
+// on at deeper levels, via searchMatchesItem). Plain `/foo` matches
+// resource type names only.
 //
-//  2. Broad-mode-only category fallback at LevelResourceTypes: when
-//     pass 1 finds nothing AND searchBroadMode is on (Tab inside the
-//     search input), include exactly the FIRST item of each category
-//     whose name matches the query. So `/argo` + Tab lands on
-//     Applications (first item under "Argo CD") instead of returning
-//     nothing — without making n/N tour every member of the group.
+// Broad mode (Tab) at LevelResourceTypes additionally pulls in every
+// member of any category whose name matches the query — n/N then
+// cycles through the whole "matching group" the same way `f`
+// expansion does. So Tab + `/argo` cycles Applications and
+// ApplicationSets (both under "Argo CD"); Tab + `/ing` unions
+// Ingresses/Monitoring (name matches) with every Networking member.
 //
-// The fallback is gated on both broad mode AND LevelResourceTypes:
-// at deeper levels the category bar isn't rendered, so a category
-// match would jump n/N to a row with no visible highlight; and
-// without broad mode the user is asking for a strict name search.
+// Category expansion is gated on both broad mode AND
+// LevelResourceTypes: at deeper levels the category bar isn't
+// rendered, so a category-only match would jump n/N to a row with no
+// visible highlight; and without broad mode the user is asking for a
+// strict name search.
 func (m *Model) searchMatchIndices(items []model.Item, queries []string) []int {
 	var nameMatches []int
 	for i := range items {
@@ -514,28 +515,54 @@ func (m *Model) searchMatchIndices(items []model.Item, queries []string) []int {
 			nameMatches = append(nameMatches, i)
 		}
 	}
-	if len(nameMatches) > 0 {
+	if !m.searchBroadMode || m.nav.Level != model.LevelResourceTypes {
+		if len(nameMatches) == 0 {
+			return nil
+		}
 		return nameMatches
 	}
-	if !m.searchBroadMode || m.nav.Level != model.LevelResourceTypes {
-		return nil
-	}
-	var catMatches []int
-	seenCat := make(map[string]bool)
+
+	// Broad-mode category expansion: figure out which categories
+	// match the query, then union name matches with every member of
+	// those categories. Returned indices are sorted and deduplicated.
+	matchedCats := make(map[string]bool)
 	for i := range items {
 		if items[i].Kind == "__collapsed_group__" {
 			continue
 		}
 		cat := items[i].Category
-		if cat == "" || seenCat[cat] {
+		if cat == "" || matchedCats[cat] {
 			continue
 		}
 		if m.searchMatches(cat, queries) {
-			catMatches = append(catMatches, i)
-			seenCat[cat] = true
+			matchedCats[cat] = true
 		}
 	}
-	return catMatches
+	if len(matchedCats) == 0 {
+		if len(nameMatches) == 0 {
+			return nil
+		}
+		return nameMatches
+	}
+	included := make(map[int]bool, len(nameMatches))
+	for _, i := range nameMatches {
+		included[i] = true
+	}
+	for i := range items {
+		if items[i].Kind == "__collapsed_group__" {
+			continue
+		}
+		if matchedCats[items[i].Category] {
+			included[i] = true
+		}
+	}
+	out := make([]int, 0, len(included))
+	for i := range items {
+		if included[i] {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 // searchMatchesItem checks if an item matches the search query by

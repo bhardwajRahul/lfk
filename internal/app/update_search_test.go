@@ -122,36 +122,37 @@ func TestSearchMatchIndices(t *testing.T) {
 				"Services and NetworkPolicies (Networking) must not be included")
 	})
 
-	t.Run("broad mode at LevelResourceTypes: category fallback fires when no name match", func(t *testing.T) {
-		// Tab + `/argo`: no resource type name contains "argo", so
-		// the broad-mode category fallback kicks in. "Argo CD"
-		// category matches → first Argo CD item is Applications
-		// (index 5).
+	t.Run("broad mode at LevelResourceTypes: category match yields all members", func(t *testing.T) {
+		// Tab + `/argo`: no resource type name contains "argo", but
+		// the "Argo CD" category matches → cycle through every item
+		// under it. Both Applications and ApplicationSets are in.
 		m := Model{
 			nav:             model.NavigationState{Level: model.LevelResourceTypes},
 			searchBroadMode: true,
 		}
 		got := m.searchMatchIndices(items, []string{"argo"})
 
-		assert.Equal(t, []int{5}, got,
-			"with broad mode on, no name match should fall back to the FIRST "+
-				"item of each matched category — not every item under it")
+		// Applications=5, ApplicationSets=6.
+		assert.Equal(t, []int{5, 6}, got,
+			"with broad mode on, every item of a matched category should be a "+
+				"hit so n/N cycles through them all")
 	})
 
-	t.Run("broad mode at LevelResourceTypes: name match still wins over category", func(t *testing.T) {
-		// Even with Tab on, name matches take priority — "/ing"
-		// returns name matches, never expanding into Networking
-		// members via the category branch.
+	t.Run("broad mode at LevelResourceTypes: name matches + category members combined", func(t *testing.T) {
+		// Tab + `/ing`: name matches (Ingresses=3, Monitoring=7) UNION
+		// every item of categories whose name matches "ing"
+		// (Networking → Services=2, Ingresses=3, NetworkPolicies=4).
+		// Result is the union, sorted by item index, deduplicated.
 		m := Model{
 			nav:             model.NavigationState{Level: model.LevelResourceTypes},
 			searchBroadMode: true,
 		}
 		got := m.searchMatchIndices(items, []string{"ing"})
-		assert.Equal(t, []int{3, 7}, got,
-			"category fallback only fires when there are zero name matches")
+		assert.Equal(t, []int{2, 3, 4, 7}, got,
+			"broad mode unions name matches with all members of matched categories")
 	})
 
-	t.Run("broad mode at LevelResourceTypes: multiple matched categories yield one entry each", func(t *testing.T) {
+	t.Run("broad mode at LevelResourceTypes: multiple matched categories include all their items", func(t *testing.T) {
 		multiCat := []model.Item{
 			{Name: "AAA", Category: "Group-X"},
 			{Name: "BBB", Category: "Group-X"},
@@ -164,8 +165,8 @@ func TestSearchMatchIndices(t *testing.T) {
 		}
 		got := m.searchMatchIndices(multiCat, []string{"group"})
 
-		assert.Equal(t, []int{0, 2},
-			got, "each matched category contributes exactly its first item")
+		assert.Equal(t, []int{0, 1, 2, 3}, got,
+			"every member of every matched category is included")
 	})
 
 	t.Run("no matches at all returns nil", func(t *testing.T) {
