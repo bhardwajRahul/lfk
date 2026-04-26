@@ -124,6 +124,56 @@ func TestRenderOverPrestyled_NoEscFragmentation(t *testing.T) {
 	}
 }
 
+// TestRenderOverPrestyled_PreservesOuterAttrsUnderANSIProfile is the
+// regression test for the "category underline disappears when search
+// highlighting in NO_COLOR mode" report.
+//
+// Under termenv.ANSI (the profile lipgloss falls back to in NO_COLOR
+// mode), a Bold+Underline style renders each input character through
+// a fresh \x1b[1;4;4mX\x1b[0m wrap. A multi-character marker passed to
+// the open-code extractor would be sliced across those per-character
+// wraps and the extractor would return "" — leaving RenderOverPrestyled
+// to emit just the inner-highlighted line without the bar's open
+// sequence, so the underline stops appearing as soon as Tab enables
+// category-aware search.
+//
+// The fix uses a single-character marker so the opener can always be
+// recovered. This test asserts that the outer style's attributes
+// survive into the wrapped output.
+func TestRenderOverPrestyled_PreservesOuterAttrsUnderANSIProfile(t *testing.T) {
+	originalProfile := lipgloss.DefaultRenderer().ColorProfile()
+	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(originalProfile) })
+	lipgloss.DefaultRenderer().SetColorProfile(termenv.ANSI)
+
+	// Mirror the NO_COLOR shape of CategoryBarStyle.
+	bar := lipgloss.NewStyle().Bold(true).Underline(true)
+	hl := lipgloss.NewStyle().Bold(true).Reverse(true)
+
+	t.Run("underline survives when no match in headerText", func(t *testing.T) {
+		// Tab is on (highlighted=true) but the query "zzz" doesn't
+		// appear in the category name — HighlightMatchStyledOver
+		// returns the line unchanged. The wrapper still has to emit
+		// the bar's underline open codes around the plain text.
+		pre := HighlightMatchStyledOver("Networking", "zzz", hl, bar)
+		got := RenderOverPrestyled(pre, bar)
+		assert.Contains(t, got, "\x1b[",
+			"output must contain SGR codes when the bar style has bold+underline; got %q", got)
+		assert.Contains(t, got, "4m",
+			"underline SGR (4) must be present in the open sequence; got %q", got)
+	})
+
+	t.Run("underline survives across the highlighted run", func(t *testing.T) {
+		pre := HighlightMatchStyledOver("Networking", "net", hl, bar)
+		got := RenderOverPrestyled(pre, bar)
+		// Bar's open sequence (with underline) should appear at the
+		// very start of the rendered chunk.
+		assert.True(t, strings.HasPrefix(got, "\x1b["),
+			"rendered string must start with an SGR open sequence; got %q", got)
+		assert.Contains(t, got[:6], "4",
+			"the leading SGR sequence must include underline (4); got %q", got)
+	})
+}
+
 // Multiple matches: every inner reset must be followed by an outer
 // re-assertion, not just the first one.
 func TestHighlightMatchStyledOver_MultipleMatchesAllRestored(t *testing.T) {

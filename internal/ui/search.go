@@ -175,9 +175,21 @@ func HighlightMatchStyledOver(line, rawQuery string, style, outerStyle lipgloss.
 // styleOpenCodes extracts just the SGR open sequence a style emits
 // when rendering. Returns "" when the style produces no codes (zero
 // value or color-less). Used by HighlightMatchStyledOver to splice
-// the outer style back in after each inner highlight reset.
+// the outer style back in after each inner highlight reset, and by
+// RenderOverPrestyled to re-open the outer style around an already-
+// highlighted line.
+//
+// Implementation note: a single ASCII character is used as the marker
+// because lipgloss in some profile/attribute combinations (notably
+// Underline(true) under termenv.ANSI — the NO_COLOR profile) renders
+// each input character through a fresh open/close SGR pair. A
+// multi-character marker would be split across those per-char wraps
+// and never appear contiguously in the output, so the search would
+// fall through and return "" — yielding a missing outer style (e.g.
+// the Bold+Underline category bar losing its underline whenever
+// search highlighting was active under NO_COLOR).
 func styleOpenCodes(style lipgloss.Style) string {
-	const marker = "\x00LFK_HL_MARKER\x00"
+	const marker = "x"
 	open, _, found := strings.Cut(style.Render(marker), marker)
 	if !found {
 		return ""
