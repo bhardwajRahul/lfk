@@ -45,26 +45,39 @@ func TestSearchMatchesItem(t *testing.T) {
 		assert.True(t, m.searchMatchesItem(item, []string{"nginx"}))
 	})
 
-	t.Run("matches by category at LevelResourceTypes", func(t *testing.T) {
+	t.Run("does NOT match by category at LevelResourceTypes", func(t *testing.T) {
 		// Categories render as visible bars at the resource-types
-		// level (Workloads, Argo CD, ...). The renderer highlights
-		// matching text in those bars, so n/N jumping to items under
-		// a matching category makes sense — the user sees the marked
-		// bar and lands on the matching group.
+		// level (Workloads, Networking, Argo CD, …) and the renderer
+		// highlights matching text in those bars independently of
+		// searchMatchesItem. But matching every item that *belongs*
+		// to a matched category turned n/N into a tour of every
+		// resource type under it — e.g. "/ing" visited every item
+		// in "Networking" because the category name contains "ing".
+		// User-reported nonsense: don't multiply matches by category
+		// membership. Bar highlight stays (renderer path), n/N only
+		// hops between name matches.
 		m := Model{nav: model.NavigationState{Level: model.LevelResourceTypes}}
-		item := model.Item{Name: "Applications", Category: "Argo CD"}
-		assert.True(t, m.searchMatchesItem(item, []string{"argo"}),
-			"search at resource-types level must reach the visible category bar")
+		item := model.Item{Name: "Services", Category: "Networking"}
+		assert.False(t, m.searchMatchesItem(item, []string{"ing"}),
+			"category match would make n/N visit every Networking item "+
+				"when searching for a substring in the category name")
 	})
 
-	t.Run("does NOT match by category at deeper levels", func(t *testing.T) {
-		// At LevelResources items still carry a Category from the
-		// data model, but the bar isn't rendered there — matching it
-		// would jump n/N to a row with no visible highlight.
+	t.Run("does NOT match by category at deeper levels either", func(t *testing.T) {
 		m := Model{nav: model.NavigationState{Level: model.LevelResources}}
 		item := model.Item{Name: "my-pod", Category: "Workloads"}
 		assert.False(t, m.searchMatchesItem(item, []string{"workloads"}),
 			"category match outside LevelResourceTypes would jump to non-highlighted rows")
+	})
+
+	t.Run("name match still works under a matching category", func(t *testing.T) {
+		// Sanity: removing the category branch must not block name
+		// matches for items that happen to also share a category
+		// with the query. Searching "ing" still finds Ingress.
+		m := Model{nav: model.NavigationState{Level: model.LevelResourceTypes}}
+		item := model.Item{Name: "Ingresses", Category: "Networking"}
+		assert.True(t, m.searchMatchesItem(item, []string{"ing"}),
+			"name match must still fire when category also contains the query")
 	})
 
 	t.Run("does not match by namespace alone", func(t *testing.T) {

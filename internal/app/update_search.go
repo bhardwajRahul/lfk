@@ -487,23 +487,20 @@ func (m *Model) searchMatches(name string, queries []string) bool {
 }
 
 // searchMatchesItem checks if an item matches the search query by
-// what's visibly highlighted on screen — name and (at
-// LevelResourceTypes) the category bar above the row. When
+// what's visibly highlighted on screen — the item's name. When
 // searchBroadMode is on (Tab toggle inside the search input), also
 // scans every visible column value (annotations, labels, finalizers,
 // CRD additionalPrinterColumns, custom user columns). Internal-prefix
 // columns stay excluded.
 //
-// Category match is gated on LevelResourceTypes because that's where
-// categories actually render as visible headers ("Workloads", "Argo
-// CD", ...). At deeper levels item.Category is sometimes set but not
-// shown, so a category match there would jump the cursor to a row
-// with no visible highlight.
+// Category is intentionally NOT matched. The renderer still
+// highlights matching text inside category bars (Networking,
+// Workloads, …) on its own, but counting every item under a
+// category-matched bar as a search hit turned n/N into a tour of
+// every resource in that group — e.g. "/ing" would step through
+// every Networking item because the category name contains "ing".
 func (m *Model) searchMatchesItem(item model.Item, queries []string) bool {
 	if m.searchMatches(item.Name, queries) {
-		return true
-	}
-	if m.nav.Level == model.LevelResourceTypes && item.Category != "" && m.searchMatches(item.Category, queries) {
 		return true
 	}
 	if m.searchBroadMode {
