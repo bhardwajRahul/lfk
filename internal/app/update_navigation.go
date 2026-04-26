@@ -81,6 +81,13 @@ func (m Model) navigateParent() (tea.Model, tea.Cmd) {
 	m.activeFilterPreset = nil
 	m.unfilteredMiddleItems = nil
 
+	// Clear search highlight on level change so it doesn't bleed onto
+	// the parent level (issue requested fix). The Esc cascade clears
+	// search as its own step before navigating, so this only fires for
+	// programmatic navigateParent paths (h/left key, owner-jump back,
+	// etc.) where the search step hasn't already run.
+	m.searchInput.Clear()
+
 	// Reset scroll positions when navigating to a new level.
 	ui.ActiveMiddleScroll = 0
 	ui.ActiveLeftScroll = 0
@@ -227,6 +234,14 @@ func (m Model) navigateChild() (tea.Model, tea.Cmd) {
 	m.filterActive = false
 	m.activeFilterPreset = nil
 	m.unfilteredMiddleItems = nil
+
+	// Clear search highlight on level change so it doesn't bleed onto
+	// the child level — opening a resource is a "fresh start" for the
+	// user (issue requested fix). The Esc cascade in handleExplorerEsc
+	// already clears search as its own step before navigating parent,
+	// but programmatic navigateChild/navigateParent paths previously
+	// preserved searchInput.Value, leaving the highlight stuck.
+	m.searchInput.Clear()
 
 	switch m.nav.Level {
 	case model.LevelClusters:
