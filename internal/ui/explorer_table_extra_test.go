@@ -588,3 +588,84 @@ func TestCollectExtraColumns(t *testing.T) {
 		}
 	})
 }
+
+// TestCollectExtraColumns_NameReservationGrowsWithLongestName is the
+// regression test for issue #53: when item names are long, the Name
+// column gets squeezed to the 20-char floor while extras (HOSTS,
+// TLS HOSTS, ADDRESS, …) fill the rest. Reserve more for Name when
+// items have long names so the Name column gets the space it needs and
+// extras fall back to their cap (or get dropped) instead of always
+// winning the budget.
+func TestCollectExtraColumns_NameReservationGrowsWithLongestName(t *testing.T) {
+	// Identical extras, identical width budget — only Name length differs.
+	// Extras' natural total exceeds the post-Name-reserve budget so the
+	// difference between long and short Name reservation actually shows
+	// up at the wire.
+	extras := []model.KeyValue{
+		{Key: "HOSTS", Value: "very-long-ingress-host.example.com"},
+		{Key: "TLS HOSTS", Value: "another-long-tls-host.example.com"},
+		{Key: "ADDRESS", Value: "ingress.aws.elb.example.com"},
+		{Key: "INGRESS CLASS", Value: "nginx-public-ingress-controller"},
+	}
+	longName := "very-long-ingress-name-that-needs-room" // 39 chars
+	shortName := "ing-1"                                 // 5 chars
+
+	longItems := []model.Item{{Name: longName, Kind: "Ingress", Columns: extras}}
+	shortItems := []model.Item{{Name: shortName, Kind: "Ingress", Columns: extras}}
+
+	const totalWidth, usedWidth = 180, 25
+
+	origFS := ActiveFullscreenMode
+	ActiveFullscreenMode = true
+	t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+	sumWidths := func(cols []extraColumn) int {
+		total := 0
+		for _, c := range cols {
+			total += c.width
+		}
+		return total
+	}
+
+	longResult := collectExtraColumns(longItems, totalWidth, usedWidth, "Ingress")
+	shortResult := collectExtraColumns(shortItems, totalWidth, usedWidth, "Ingress")
+
+	longTotal := sumWidths(longResult)
+	shortTotal := sumWidths(shortResult)
+
+	assert.Less(t, longTotal, shortTotal,
+		"long item names must shrink the budget available to extra columns "+
+			"(longTotal=%d, shortTotal=%d) so the Name column gets the "+
+			"space it needs — issue #53", longTotal, shortTotal)
+
+	// And the Name column (computed by the caller as totalWidth - usedWidth -
+	// extraTotal) must end up wider than the legacy 20-char floor in the
+	// long-name case.
+	longNameW := totalWidth - usedWidth - longTotal
+	assert.Greater(t, longNameW, 20,
+		"with long item names, the residual Name column must exceed the "+
+			"old 20-char hard floor (got %d)", longNameW)
+}
+
+// TestCollectExtraColumns_NameReservationCappedAtHalfWidth guards against
+// over-correction: a single pathologically long name (200 chars) must
+// not eat the entire budget. Cap the Name reservation at half the total
+// width so extras still get a fair share.
+func TestCollectExtraColumns_NameReservationCappedAtHalfWidth(t *testing.T) {
+	extras := []model.KeyValue{
+		{Key: "HOSTS", Value: "small.example.com"},
+	}
+	hugeName := strings.Repeat("a", 200)
+	items := []model.Item{{Name: hugeName, Kind: "Ingress", Columns: extras}}
+
+	origFS := ActiveFullscreenMode
+	ActiveFullscreenMode = true
+	t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+	const totalWidth, usedWidth = 120, 25
+	result := collectExtraColumns(items, totalWidth, usedWidth, "Ingress")
+
+	assert.NotEmpty(t, result,
+		"a single very long name must not starve extras to nothing — "+
+			"Name reservation has to be capped so HOSTS still appears")
+}

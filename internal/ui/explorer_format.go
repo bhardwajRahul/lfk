@@ -121,9 +121,23 @@ func collectExtraColumns(items []model.Item, totalWidth, usedWidth int, kind str
 		return nil
 	}
 
-	// Calculate available width for extra columns (leave at least 20 chars for name).
-	minNameW := 20
-	available := totalWidth - usedWidth - minNameW
+	// Reserve budget for the Name column based on the longest item name
+	// so resource names with long identifiers (Ingress hostnames, helm
+	// releases, generated suffixes) don't get squeezed to a 20-char floor
+	// while extras (HOSTS, ADDRESS, …) eat the rest. Cap at half the total
+	// width so a single pathologically long name can't starve the extras.
+	// Floor at 20 to preserve prior behaviour when names are short.
+	// See issue #53.
+	const nameFloor = 20
+	longestName := 0
+	for _, item := range items {
+		if w := len(item.Name); w > longestName {
+			longestName = w
+		}
+	}
+	nameReserve := min(longestName+1, totalWidth/2) // +1 for column spacing
+	nameReserve = max(nameReserve, nameFloor)
+	available := totalWidth - usedWidth - nameReserve
 	if available < 8 {
 		return nil
 	}
