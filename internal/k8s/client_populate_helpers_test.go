@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -383,5 +384,62 @@ func TestAddResourceColumns(t *testing.T) {
 		addResourceColumns(ti, "", "", "", "")
 
 		assert.Empty(t, ti.Columns)
+	})
+}
+
+func TestNextCronFire(t *testing.T) {
+	now := time.Date(2026, 4, 26, 4, 33, 0, 0, time.UTC)
+
+	t.Run("every-5-minutes schedule fires at the next 5-minute mark", func(t *testing.T) {
+		next, ok := nextCronFire("*/5 * * * *", "", now)
+		assert.True(t, ok)
+		assert.Equal(t, time.Date(2026, 4, 26, 4, 35, 0, 0, time.UTC), next)
+	})
+
+	t.Run("daily-midnight schedule respects America/New_York", func(t *testing.T) {
+		next, ok := nextCronFire("0 0 * * *", "America/New_York", now)
+		assert.True(t, ok)
+		assert.True(t, next.After(now))
+		assert.Equal(t, 4, next.UTC().Hour())
+		assert.Equal(t, 27, next.UTC().Day())
+	})
+
+	t.Run("invalid schedule returns false", func(t *testing.T) {
+		_, ok := nextCronFire("not a cron expression", "", now)
+		assert.False(t, ok)
+	})
+
+	t.Run("invalid timezone returns false", func(t *testing.T) {
+		_, ok := nextCronFire("*/5 * * * *", "Not/A_Real_Zone", now)
+		assert.False(t, ok)
+	})
+
+	t.Run("empty schedule returns false", func(t *testing.T) {
+		_, ok := nextCronFire("", "", now)
+		assert.False(t, ok)
+	})
+
+	t.Run("predefined @hourly schedule", func(t *testing.T) {
+		next, ok := nextCronFire("@hourly", "", now)
+		assert.True(t, ok)
+		assert.Equal(t, time.Date(2026, 4, 26, 5, 0, 0, 0, time.UTC), next)
+	})
+
+	t.Run("empty timeZone defaults to UTC even when now is local-zoned", func(t *testing.T) {
+		// In production, populateCronJobDetails passes time.Now() — which
+		// carries the host's local timezone. A CronJob with an empty
+		// spec.timeZone is fired by kube-controller-manager in its own
+		// timezone (UTC on every managed control plane). The helper must
+		// not silently use the user's local timezone for absolute-hour
+		// schedules, or the Next column will be off by the user's UTC
+		// offset (e.g. a CET user sees `0 9 * * *` as 9am CET = 8am UTC).
+		cet := time.FixedZone("CET", 1*60*60) // UTC+1
+		nowInCET := time.Date(2026, 4, 26, 7, 0, 0, 0, cet)
+
+		next, ok := nextCronFire("0 9 * * *", "", nowInCET)
+		assert.True(t, ok)
+		assert.Equal(t, time.Date(2026, 4, 26, 9, 0, 0, 0, time.UTC), next.UTC(),
+			"empty timeZone must be evaluated as UTC (Kubernetes default), "+
+				"not whatever zone the caller's now happens to be in")
 	})
 }

@@ -668,19 +668,34 @@ func populatePVCDetails(ti *model.Item, status, spec map[string]interface{}) {
 	}
 }
 
-// populateCronJobDetails extracts schedule, suspend, and last schedule time for a CronJob.
+// populateCronJobDetails extracts schedule, suspend, and last/next schedule time for a CronJob.
 func populateCronJobDetails(ti *model.Item, status, spec map[string]interface{}) {
+	var (
+		schedule string
+		timeZone string
+		suspend  bool
+	)
 	if spec != nil {
 		if sched, ok := spec["schedule"].(string); ok {
+			schedule = sched
 			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Schedule", Value: sched})
 		}
-		if suspend, ok := spec["suspend"].(bool); ok {
-			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Suspend", Value: fmt.Sprintf("%v", suspend)})
+		if tz, ok := spec["timeZone"].(string); ok {
+			timeZone = tz
+		}
+		if s, ok := spec["suspend"].(bool); ok {
+			suspend = s
+			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Suspend", Value: fmt.Sprintf("%v", s)})
 		}
 	}
 	if status != nil {
 		if lastSchedule, ok := status["lastScheduleTime"].(string); ok {
 			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Last Schedule", Value: lastSchedule})
+		}
+	}
+	if !suspend && schedule != "" {
+		if next, ok := nextCronFire(schedule, timeZone, time.Now()); ok {
+			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Next", Value: formatAge(time.Until(next))})
 		}
 	}
 }
