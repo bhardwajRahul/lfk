@@ -10,29 +10,12 @@ import (
 
 // TableRenderer caches the non-cursor row strings and column-width layout
 // across renders, keyed by an input fingerprint. Cursor rows are always
-// re-rendered. Diagnostic counters are bumped from RenderTable's cache
-// lookup site via the package-level pointers below.
+// re-rendered.
 type TableRenderer struct {
 	fp     tableFingerprint
 	rows   map[int]string
 	layout TableLayoutCache
-
-	hits          uint64
-	misses        uint64
-	invalidations uint64
 }
-
-type CacheStats struct {
-	Hits          uint64
-	Misses        uint64
-	Invalidations uint64
-}
-
-func (r *TableRenderer) Stats() CacheStats {
-	return CacheStats{Hits: r.hits, Misses: r.misses, Invalidations: r.invalidations}
-}
-
-var activeRowCacheHits, activeRowCacheMisses *uint64
 
 type tableFingerprint struct {
 	itemsPtr     uintptr
@@ -70,19 +53,14 @@ func (r *TableRenderer) Render(headerLabel string, items []model.Item, cursor in
 		r.fp = fp
 		clear(r.rows)
 		r.layout = TableLayoutCache{}
-		r.invalidations++
 	}
 	prevCache := ActiveRowCache
 	prevLayout := ActiveTableLayout
-	prevHits, prevMisses := activeRowCacheHits, activeRowCacheMisses
 	ActiveRowCache = r.rows
 	ActiveTableLayout = &r.layout
-	activeRowCacheHits = &r.hits
-	activeRowCacheMisses = &r.misses
 	out := RenderTable(headerLabel, items, cursor, width, height, loading, spinnerView, errMsg)
 	ActiveRowCache = prevCache
 	ActiveTableLayout = prevLayout
-	activeRowCacheHits, activeRowCacheMisses = prevHits, prevMisses
 	return out
 }
 

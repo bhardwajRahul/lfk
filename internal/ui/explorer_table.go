@@ -1058,12 +1058,7 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 					order, extraCols, anyRecentRestart)
 				if ActiveRowCache != nil {
 					ActiveRowCache[i] = rendered
-					if activeRowCacheMisses != nil {
-						*activeRowCacheMisses++
-					}
 				}
-			} else if activeRowCacheHits != nil {
-				*activeRowCacheHits++
 			}
 			b.WriteString(rendered)
 		}

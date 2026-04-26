@@ -2,53 +2,17 @@ package app
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/janosmiko/lfk/internal/logger"
 	"github.com/janosmiko/lfk/internal/model"
 	"github.com/janosmiko/lfk/internal/ui"
 )
 
-// LFK_PROFILE_VIEW=1 enables per-call timing of View(). Off by default.
-var profileView = os.Getenv("LFK_PROFILE_VIEW") != ""
-
-// startViewProfile, when LFK_PROFILE_VIEW=1, returns a deferred fn that logs
-// the View() call's duration plus row-cache hit/miss deltas. Off otherwise.
-func (m Model) startViewProfile() func() {
-	if !profileView {
-		return func() {}
-	}
-	start := time.Now()
-	var before ui.CacheStats
-	if m.middleTableRenderer != nil {
-		before = m.middleTableRenderer.Stats()
-	}
-	return func() {
-		args := []any{
-			"duration_ms", time.Since(start).Milliseconds(),
-			"level", m.nav.Level,
-			"items", len(m.middleItems),
-		}
-		if m.middleTableRenderer != nil {
-			after := m.middleTableRenderer.Stats()
-			args = append(args,
-				"row_hits", after.Hits-before.Hits,
-				"row_misses", after.Misses-before.Misses,
-				"invalidated", after.Invalidations != before.Invalidations,
-			)
-		}
-		logger.Info("View()", args...)
-	}
-}
-
 // View renders the UI.
 func (m Model) View() string {
-	defer m.startViewProfile()()
 	if m.width == 0 {
 		return "Loading..."
 	}
