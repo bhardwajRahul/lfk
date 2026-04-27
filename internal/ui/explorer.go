@@ -66,6 +66,23 @@ var ActiveCollapsedCategories map[string]bool
 // A value of -1 means "no persistent scroll, calculate from scratch".
 var ActiveMiddleScroll int
 
+// ActiveRowCache and ActiveTableLayout, when non-nil, let RenderTable reuse
+// pre-rendered row strings and pre-computed column widths across calls.
+// TableRenderer owns the lifetime — it sets these before each RenderTable
+// call and restores them after. Nil disables caching for direct callers.
+var ActiveRowCache map[int]string
+
+type TableLayoutCache struct {
+	Computed bool
+
+	HasNs, HasReady, HasRestarts, HasAge, HasStatus bool
+	NsW, ReadyW, RestartsW, AgeW, StatusW           int
+	AnyRecentRestart                                bool
+	ExtraCols                                       []extraColumn
+}
+
+var ActiveTableLayout *TableLayoutCache
+
 // ActiveLeftScroll is the persistent scroll position for the left column.
 // Same semantics as ActiveMiddleScroll.
 var ActiveLeftScroll int

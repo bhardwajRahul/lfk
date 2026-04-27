@@ -114,6 +114,16 @@ func (m *Model) restoreCursorToItem(name, namespace, extra, kind string) {
 	m.clampCursor()
 }
 
+// setMiddleItems replaces the middleItems slice and bumps the row-cache rev.
+// Every path that swaps middleItems (full replace, filter-and-replace,
+// append-and-replace, nil-out) must go through this helper so the
+// TableRenderer fingerprint invalidates. Slice reassignment alone is not
+// enough — itemsPtr is only a fast-path; rev is the authoritative signal.
+func (m *Model) setMiddleItems(items []model.Item) {
+	m.middleItems = items
+	m.middleItemsRev++
+}
+
 // carryOverMetricsColumns copies metrics columns (CPU, CPU/R, CPU/L, MEM, MEM/R, MEM/L)
 // from existing middle items to new items by matching on name+namespace.
 // This prevents blinking during watch mode refreshes while metrics load async.
@@ -280,12 +290,14 @@ func (m *Model) toggleSelection(item model.Item) {
 	} else {
 		m.selectedItems[key] = true
 	}
+	m.selectionRev++
 }
 
 // clearSelection removes all items from the multi-selection set and resets the region anchor.
 func (m *Model) clearSelection() {
 	m.selectedItems = make(map[string]bool)
 	m.selectionAnchor = -1
+	m.selectionRev++
 }
 
 // hasSelection returns true if any items are selected.

@@ -495,7 +495,7 @@ func (m Model) navigateToBookmark(bm model.Bookmark) (tea.Model, tea.Cmd) {
 	// Reset column data and history; we'll rebuild from the target level.
 	m.leftItems = nil
 	m.leftItemsHistory = nil
-	m.middleItems = nil
+	m.setMiddleItems(nil)
 	m.rightItems = nil
 	m.clearRight()
 
@@ -595,9 +595,9 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 	// completed for this context, use the full list; otherwise show a loader
 	// and let updateAPIResourceDiscovery populate it when ready.
 	if discovered, ok := m.discoveredResources[sess.Context]; ok && len(discovered) > 0 {
-		m.middleItems = model.BuildSidebarItems(discovered)
+		m.setMiddleItems(model.BuildSidebarItems(discovered))
 	} else {
-		m.middleItems = model.BuildSidebarItems(model.SeedResources())
+		m.setMiddleItems(model.BuildSidebarItems(model.SeedResources()))
 	}
 	m.itemCache[m.navKey()] = m.middleItems
 	m.clearRight()
@@ -639,7 +639,7 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 			m.leftItems = m.middleItems
 			m.nav.ResourceType = rt
 			m.nav.Level = model.LevelResources
-			m.middleItems = nil
+			m.setMiddleItems(nil)
 			m.clearRight()
 			m.setCursor(0)
 			m.loading = true
@@ -656,7 +656,7 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 	// No resource type or not found: stay at resource types level.
 	// Show loader while discovery is in-flight.
 	if needsDiscovery {
-		m.middleItems = nil
+		m.setMiddleItems(nil)
 		m.loading = true
 	}
 	m.clampCursor()

@@ -542,7 +542,7 @@ func (m Model) applyFilterPreset(preset FilterPreset) (tea.Model, tea.Cmd) {
 			filtered = append(filtered, item)
 		}
 	}
-	m.middleItems = filtered
+	m.setMiddleItems(filtered)
 	m.activeFilterPreset = &preset
 	m.setCursor(0)
 	m.clampCursor()

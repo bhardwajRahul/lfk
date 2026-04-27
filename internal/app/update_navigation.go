@@ -99,7 +99,7 @@ func (m Model) navigateParent() (tea.Model, tea.Cmd) {
 		m.saveCursor()
 		m.nav.Level = model.LevelClusters
 		m.nav.Context = ""
-		m.middleItems = m.leftItems
+		m.setMiddleItems(m.leftItems)
 		m.popLeft()
 		m.clearRight()
 		m.restoreCursor()
@@ -117,9 +117,9 @@ func (m Model) navigateParent() (tea.Model, tea.Cmd) {
 		// Instead, show the loader until apiResourceDiscoveryMsg
 		// populates middleItems with the real CRD-inclusive set.
 		if discovered, ok := m.discoveredResources[m.nav.Context]; ok && len(discovered) > 0 {
-			m.middleItems = m.leftItems
+			m.setMiddleItems(m.leftItems)
 		} else {
-			m.middleItems = nil
+			m.setMiddleItems(nil)
 			m.loading = true
 		}
 		m.popLeft()
@@ -140,9 +140,9 @@ func (m Model) navigateParent() (tea.Model, tea.Cmd) {
 			m.nav.Namespace = parent.namespace
 			// Stay at LevelOwned — we're returning to the parent's owned view.
 			if cached, ok := m.itemCache[m.navKey()]; ok {
-				m.middleItems = cached
+				m.setMiddleItems(cached)
 			} else {
-				m.middleItems = m.leftItems
+				m.setMiddleItems(m.leftItems)
 			}
 			m.popLeft()
 			m.clearRight()
@@ -152,9 +152,9 @@ func (m Model) navigateParent() (tea.Model, tea.Cmd) {
 		m.nav.Level = model.LevelResources
 		m.nav.ResourceName = ""
 		if cached, ok := m.itemCache[m.navKey()]; ok {
-			m.middleItems = cached
+			m.setMiddleItems(cached)
 		} else {
-			m.middleItems = m.leftItems
+			m.setMiddleItems(m.leftItems)
 		}
 		m.popLeft()
 		m.clearRight()
@@ -173,9 +173,9 @@ func (m Model) navigateParent() (tea.Model, tea.Cmd) {
 			m.nav.OwnedName = ""
 		}
 		if cached, ok := m.itemCache[m.navKey()]; ok {
-			m.middleItems = cached
+			m.setMiddleItems(cached)
 		} else {
-			m.middleItems = m.leftItems
+			m.setMiddleItems(m.leftItems)
 		}
 		m.popLeft()
 		m.clearRight()
@@ -278,7 +278,7 @@ func (m Model) navigateChildCluster(sel *model.Item) (tea.Model, tea.Cmd) {
 	case len(m.discoveredResources[sel.Name]) > 0:
 		// Discovery already completed while hovering — pop straight into
 		// the real list, no loader at all.
-		m.middleItems = model.BuildSidebarItems(m.discoveredResources[sel.Name])
+		m.setMiddleItems(model.BuildSidebarItems(m.discoveredResources[sel.Name]))
 		m.itemCache[m.navKey()] = m.middleItems
 		m.restoreCursor()
 		m.syncExpandedGroup()
@@ -287,7 +287,7 @@ func (m Model) navigateChildCluster(sel *model.Item) (tea.Model, tea.Cmd) {
 		// something to show (seed fallback). Reuse those items so the
 		// user sees content immediately; apiResourceDiscoveryMsg will
 		// replace them with the real list when discovery completes.
-		m.middleItems = previewItems
+		m.setMiddleItems(previewItems)
 		m.itemCache[m.navKey()] = m.middleItems
 		m.restoreCursor()
 		m.syncExpandedGroup()
@@ -295,7 +295,7 @@ func (m Model) navigateChildCluster(sel *model.Item) (tea.Model, tea.Cmd) {
 	default:
 		// No preview content and no in-flight discovery — show the
 		// loader and kick off discovery below.
-		m.middleItems = nil
+		m.setMiddleItems(nil)
 		m.loading = true
 	}
 	m.setStatusMessage(fmt.Sprintf("Context: %s", sel.Name), false)
@@ -336,7 +336,7 @@ func (m Model) navigateChildResourceType(sel *model.Item) (tea.Model, tea.Cmd) {
 		m.nav.Level = model.LevelResources
 		m.pushLeft()
 		m.clearRight()
-		m.middleItems = m.portForwardItems()
+		m.setMiddleItems(m.portForwardItems())
 		m.setCursor(0)
 		m.clampCursor()
 		m.saveCurrentSession()
@@ -372,10 +372,10 @@ func (m Model) navigateChildResourceType(sel *model.Item) (tea.Model, tea.Cmd) {
 	// now lives in loadResources, which compares the cache's freshness
 	// fingerprint against the current fetch parameters.
 	if cached, cacheHit := m.itemCache[m.navKey()]; cacheHit {
-		m.middleItems = cached
+		m.setMiddleItems(cached)
 		m.restoreCursor()
 	} else {
-		m.middleItems = nil
+		m.setMiddleItems(nil)
 		m.setCursor(0)
 	}
 	m.loading = true
@@ -400,10 +400,10 @@ func (m Model) navigateChildResource(sel *model.Item) (tea.Model, tea.Cmd) {
 		m.pushLeft()
 		m.clearRight()
 		if cached, ok := m.itemCache[m.navKey()]; ok {
-			m.middleItems = cached
+			m.setMiddleItems(cached)
 			m.restoreCursor()
 		} else {
-			m.middleItems = nil
+			m.setMiddleItems(nil)
 			m.setCursor(0)
 		}
 		m.loading = true
@@ -413,10 +413,10 @@ func (m Model) navigateChildResource(sel *model.Item) (tea.Model, tea.Cmd) {
 	m.pushLeft()
 	m.clearRight()
 	if cached, ok := m.itemCache[m.navKey()]; ok {
-		m.middleItems = cached
+		m.setMiddleItems(cached)
 		m.restoreCursor()
 	} else {
-		m.middleItems = nil
+		m.setMiddleItems(nil)
 		m.setCursor(0)
 	}
 	m.loading = true
@@ -434,10 +434,10 @@ func (m Model) navigateChildOwned(sel *model.Item) (tea.Model, tea.Cmd) {
 		m.pushLeft()
 		m.clearRight()
 		if cached, ok := m.itemCache[m.navKey()]; ok {
-			m.middleItems = cached
+			m.setMiddleItems(cached)
 			m.restoreCursor()
 		} else {
-			m.middleItems = nil
+			m.setMiddleItems(nil)
 			m.setCursor(0)
 		}
 		m.loading = true
@@ -458,10 +458,10 @@ func (m Model) navigateChildOwned(sel *model.Item) (tea.Model, tea.Cmd) {
 		m.pushLeft()
 		m.clearRight()
 		if cached, ok := m.itemCache[m.navKey()]; ok {
-			m.middleItems = cached
+			m.setMiddleItems(cached)
 			m.restoreCursor()
 		} else {
-			m.middleItems = nil
+			m.setMiddleItems(nil)
 			m.setCursor(0)
 		}
 		m.loading = true

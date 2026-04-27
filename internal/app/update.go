@@ -433,7 +433,7 @@ func (m Model) updateContextsLoaded(msg contextsLoadedMsg) (tea.Model, tea.Cmd) 
 		return m, scheduleStatusClear()
 	}
 	m.err = nil
-	m.middleItems = msg.items
+	m.setMiddleItems(msg.items)
 	m.itemCache[m.navKey()] = m.middleItems
 	m.leftItems = nil
 	m.clearRight()
@@ -481,7 +481,7 @@ func (m Model) updateResourceTypes(msg resourceTypesMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.loading = false
-	m.middleItems = msg.items
+	m.setMiddleItems(msg.items)
 	m.itemCache[m.navKey()] = m.middleItems
 	m.clampCursor()
 	return m, m.loadPreview()
@@ -501,7 +501,7 @@ func (m Model) updateAPIResourceDiscovery(msg apiResourceDiscoveryMsg) Model {
 		logger.Info("API resource discovery failed", "context", msg.context, "error", msg.err.Error())
 		if m.nav.Context == msg.context && m.loading {
 			m.loading = false
-			m.middleItems = model.BuildSidebarItems(model.SeedResources())
+			m.setMiddleItems(model.BuildSidebarItems(model.SeedResources()))
 			m.itemCache[m.navKey()] = m.middleItems
 			m.restoreCursor()
 			m.syncExpandedGroup()
@@ -540,7 +540,7 @@ func (m Model) updateAPIResourceDiscovery(msg apiResourceDiscoveryMsg) Model {
 			// j/k press.
 			wasInitial := len(m.middleItems) == 0
 			m.loading = false
-			m.middleItems = merged
+			m.setMiddleItems(merged)
 			if wasInitial {
 				m.restoreCursor()
 			} else {
@@ -656,7 +656,7 @@ func (m Model) updateResourcesLoadedMain(msg resourcesLoadedMsg) (tea.Model, tea
 	if (kind == "Pod" || kind == "Node") && len(m.middleItems) > 0 {
 		m.carryOverMetricsColumns(msg.items)
 	}
-	m.middleItems = msg.items
+	m.setMiddleItems(msg.items)
 	mainCacheKey := m.navKey()
 	m.itemCache[mainCacheKey] = m.middleItems
 	// Record the cache-freshness fingerprint so a subsequent load for the
@@ -724,7 +724,7 @@ func (m *Model) applyWarningEventsFilter() {
 				filtered = append(filtered, item)
 			}
 		}
-		m.middleItems = filtered
+		m.setMiddleItems(filtered)
 	}
 }
 
@@ -735,7 +735,7 @@ func (m *Model) applyEventGrouping() {
 	if !m.eventGrouping || m.nav.ResourceType.Kind != "Event" {
 		return
 	}
-	m.middleItems = groupEvents(m.middleItems)
+	m.setMiddleItems(groupEvents(m.middleItems))
 }
 
 // rebuildEventsFromCache re-derives the visible Event list from the raw cache
@@ -748,7 +748,7 @@ func (m *Model) rebuildEventsFromCache() {
 	if !ok {
 		return
 	}
-	m.middleItems = append([]model.Item(nil), cached...)
+	m.setMiddleItems(append([]model.Item(nil), cached...))
 	m.applyWarningEventsFilter()
 	m.applyEventGrouping()
 	m.reapplyFilterPreset()
@@ -764,7 +764,7 @@ func (m *Model) reapplyFilterPreset() {
 				filtered = append(filtered, item)
 			}
 		}
-		m.middleItems = filtered
+		m.setMiddleItems(filtered)
 	}
 }
 
@@ -798,7 +798,7 @@ func (m Model) updateOwnedLoaded(msg ownedLoadedMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	prevName, prevNs, prevExtra, prevKind := m.cursorItemKey()
-	m.middleItems = msg.items
+	m.setMiddleItems(msg.items)
 	m.itemCache[m.navKey()] = m.middleItems
 	// Sort with the app-level tiebreaker on every load (see
 	// updateResourcesLoadedMain for rationale): the k8s layer returns
@@ -815,7 +815,7 @@ func (m Model) updateOwnedLoaded(msg ownedLoadedMsg) (tea.Model, tea.Cmd) {
 				filtered = append(filtered, item)
 			}
 		}
-		m.middleItems = filtered
+		m.setMiddleItems(filtered)
 		m.itemCache[m.navKey()] = m.middleItems
 	}
 	m.restoreCursorToItem(prevName, prevNs, prevExtra, prevKind)
@@ -867,7 +867,7 @@ func (m Model) updateContainersLoaded(msg containersLoadedMsg) (tea.Model, tea.C
 		m.rightItems = msg.items
 		return m, nil
 	}
-	m.middleItems = msg.items
+	m.setMiddleItems(msg.items)
 	m.itemCache[m.navKey()] = m.middleItems
 	// Sort with the app-level tiebreaker on every container-list load
 	// (see updateResourcesLoadedMain for rationale): container rows use
@@ -1096,7 +1096,7 @@ func (m Model) updatePortForwardUpdate(msg portForwardUpdateMsg) (tea.Model, tea
 		}
 	}
 	if m.nav.Level == model.LevelResources && m.nav.ResourceType.Kind == "__port_forwards__" {
-		m.middleItems = m.portForwardItems()
+		m.setMiddleItems(m.portForwardItems())
 		m.clampCursor()
 	}
 	return m, tea.Batch(cmds...)
@@ -1766,6 +1766,7 @@ func (m Model) updatePreviewSecretDataLoaded(msg previewSecretDataLoadedMsg) Mod
 	m.secretPreviewCache[key] = msg.data
 
 	// Inject secret:<key> columns into every matching middleItems entry.
+	m.middleItemsRev++
 	for i := range m.middleItems {
 		item := &m.middleItems[i]
 		if item.Name != msg.name {
@@ -1813,6 +1814,7 @@ func (m Model) updatePodMetricsEnriched(msg podMetricsEnrichedMsg) Model {
 	// regardless of query scope (all-namespaces vs single-namespace), so
 	// this lookup is consistent. For cluster-scoped items (no namespace)
 	// the key collapses to "/name" on both sides.
+	m.middleItemsRev++
 	for i := range m.middleItems {
 		item := &m.middleItems[i]
 		key := item.Namespace + "/" + item.Name
@@ -1918,6 +1920,7 @@ func (m Model) updateNodeMetricsEnriched(msg nodeMetricsEnrichedMsg) Model {
 	if len(msg.metrics) == 0 {
 		return m
 	}
+	m.middleItemsRev++
 	for i := range m.middleItems {
 		item := &m.middleItems[i]
 		nm, ok := msg.metrics[item.Name]

@@ -576,6 +576,7 @@ func (m Model) handleKeySelectRange() Model {
 	for i := lo; i <= hi && i < len(items); i++ {
 		m.selectedItems[selectionKey(items[i])] = true
 	}
+	m.selectionRev++
 	return m
 }
 
@@ -617,6 +618,7 @@ func (m Model) handleKeySelectAll() Model {
 			for _, item := range visible {
 				m.selectedItems[selectionKey(item)] = true
 			}
+			m.selectionRev++
 		}
 		m.selectionAnchor = -1
 		return m

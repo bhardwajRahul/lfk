@@ -335,7 +335,11 @@ func (m Model) viewExplorer() string {
 	var middleCol string
 	switch m.nav.Level {
 	case model.LevelResources, model.LevelOwned, model.LevelContainers:
-		middleCol = ui.RenderTable(middleHeader, m.visibleMiddleItems(), m.cursor(), middleInner, contentHeight, m.loading, m.spinner.View(), middleErrMsg)
+		if m.middleTableRenderer != nil {
+			middleCol = m.middleTableRenderer.Render(middleHeader, m.visibleMiddleItems(), m.cursor(), middleInner, contentHeight, m.loading, m.spinner.View(), middleErrMsg, m.middleItemsRev, m.selectionRev)
+		} else {
+			middleCol = ui.RenderTable(middleHeader, m.visibleMiddleItems(), m.cursor(), middleInner, contentHeight, m.loading, m.spinner.View(), middleErrMsg)
+		}
 	default:
 		middleCol = ui.RenderColumn(middleHeader, m.visibleMiddleItems(), m.cursor(), middleInner, contentHeight, true, m.loading, m.spinner.View(), middleErrMsg)
 	}
