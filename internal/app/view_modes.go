@@ -275,41 +275,7 @@ func (m *Model) logContentHeight() int {
 }
 
 func (m *Model) clampLogScroll() {
-	viewH := max(m.logContentHeight(), 1)
-
-	var maxScroll int
-	if m.logWrap {
-		// When wrapping, each source line may produce multiple visual lines.
-		// Walk backward from the end, accumulating visual lines until we
-		// exceed viewH. The first source line that pushes us over is the
-		// maximum scroll position.
-		contentWidth := max(
-			// match logviewer.go contentWidth calculation
-			m.width-4, 10)
-		// Account for cursor gutter (1) and line number gutter width.
-		lineNumWidth := 0
-		if m.logLineNumbers && len(m.logLines) > 0 {
-			lineNumWidth = len(fmt.Sprintf("%d", len(m.logLines))) + 1
-		}
-		availWidth := max(
-			// -1 for cursor gutter
-			contentWidth-1-lineNumWidth, 10)
-
-		visualLines := 0
-		maxScroll = len(m.logLines) // default: can scroll to end
-		for i := len(m.logLines) - 1; i >= 0; i-- {
-			visualLines += wrappedLineCount(m.logLines[i], availWidth)
-			if visualLines >= viewH {
-				maxScroll = i
-				break
-			}
-		}
-	} else {
-		maxScroll = len(m.logLines) - viewH
-	}
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := m.logMaxScroll()
 	if m.logScroll > maxScroll {
 		m.logScroll = maxScroll
 	}
@@ -343,22 +309,20 @@ func (m *Model) ensureLogCursorVisible() {
 // logMaxScroll returns the maximum valid scroll offset for the log viewer.
 // It is wrap-aware when logWrap is enabled.
 func (m *Model) logMaxScroll() int {
-	viewH := m.logContentHeight()
+	viewH := max(m.logContentHeight(), 1)
 
 	if m.logWrap {
-		contentWidth := max(m.width-4, 10)
-		lineNumWidth := 0
-		if m.logLineNumbers && len(m.logLines) > 0 {
-			lineNumWidth = len(fmt.Sprintf("%d", len(m.logLines))) + 1
-		}
-		availWidth := max(
-			// -1 for cursor gutter
-			contentWidth-1-lineNumWidth, 10)
-
+		availWidth := m.logWrapAvailWidth()
 		visualLines := 0
 		maxScroll := len(m.logLines)
 		for i := len(m.logLines) - 1; i >= 0; i-- {
-			visualLines += wrappedLineCount(m.logLines[i], availWidth)
+			// Use the displayed line (timestamps and pod prefixes stripped
+			// to match the renderer) so the wrap count reflects what the
+			// viewer actually paints — otherwise the raw line is longer
+			// than the rendered one and we overestimate wraps, which makes
+			// maxScroll too small and pushes the tail off the bottom when
+			// following.
+			visualLines += wrappedLineCount(m.logDisplayLine(i), availWidth)
 			if visualLines >= viewH {
 				maxScroll = i
 				break
@@ -375,6 +339,18 @@ func (m *Model) logMaxScroll() int {
 		return 0
 	}
 	return ms
+}
+
+// logWrapAvailWidth returns the per-line content width used when computing
+// wrap counts. Mirrors the logviewer's renderWrappedLines availWidth math
+// (border + padding + cursor gutter + line-number gutter).
+func (m *Model) logWrapAvailWidth() int {
+	contentWidth := max(m.width-4, 10)
+	lineNumWidth := 0
+	if m.logLineNumbers && len(m.logLines) > 0 {
+		lineNumWidth = len(fmt.Sprintf("%d", len(m.logLines))) + 1
+	}
+	return max(contentWidth-1-lineNumWidth, 10)
 }
 
 // wrappedLineCount returns how many visual lines a source line produces

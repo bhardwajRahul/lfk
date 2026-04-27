@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -147,6 +148,45 @@ func TestClampLogScrollWithWrap(t *testing.T) {
 		m.clampLogScroll()
 		assert.GreaterOrEqual(t, m.logScroll, 0)
 		assert.LessOrEqual(t, m.logScroll, len(lines))
+	})
+
+	t.Run("wrap-aware maxScroll uses display line, not raw line with timestamp", func(t *testing.T) {
+		// Regression: clampLogScroll/logMaxScroll counted wraps on the
+		// raw log lines (timestamps included), but the renderer strips
+		// timestamps before wrapping. Overestimating wraps shrank
+		// maxScroll, which pushed the tail off the bottom when following.
+		//
+		// Construct a case where each raw line wraps to 2 visual lines
+		// but stripped down to message-only content fits in 1.
+		lines := make([]string, 0, 100)
+		for i := range 100 {
+			lines = append(lines, fmt.Sprintf("2024-01-15T10:30:%02d.000000000Z msg %d", i%60, i))
+		}
+		// width=60: contentWidth=56, availWidth=55 (no line numbers).
+		// Raw line "2024-01-15T10:30:00.000000000Z msg 0" is ~36 chars
+		// (fits in 1 wrap). With a longer message we can force it.
+		// Use a long-enough message that the raw line wraps but the
+		// stripped one doesn't.
+		for i := range lines {
+			lines[i] += " " + strings.Repeat("y", 30) // raw ~66, stripped ~34
+		}
+		m := Model{
+			height:        20, // viewport height includes overhead
+			width:         60, // content width 56, avail ~55
+			tabs:          []TabState{{}},
+			logLines:      lines,
+			logWrap:       true,
+			logTimestamps: false, // timestamps stripped at render
+		}
+		ms := m.logMaxScroll()
+		// With stripped lines fitting on one visual line each and
+		// viewH around 14, maxScroll should be near len(lines)-viewH.
+		// Raw-line counting would wildly underestimate this (because
+		// raw lines wrap to 2 each, halving the source-line capacity).
+		viewH := m.logContentHeight()
+		expected := len(lines) - viewH
+		assert.Equal(t, expected, ms,
+			"maxScroll should match the no-wrap value when stripped lines fit on one row each")
 	})
 }
 
