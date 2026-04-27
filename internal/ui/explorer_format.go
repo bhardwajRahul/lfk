@@ -339,13 +339,43 @@ func getExtraColumnValue(item *model.Item, key string) string {
 	return ""
 }
 
+// columnHeaderAliases shortens column header labels without renaming the
+// underlying Column key. Renaming the key would silently break user session
+// state, persisted column configs, and the column-visibility overlay; the
+// header alias is purely cosmetic. Names listed here either:
+//   - duplicate the resource type's name (Ingress -> "Ingress Class" =>
+//     "Class"; the user already knows it's an Ingress).
+//   - are unnecessarily verbose given typical column-width budgets.
+var columnHeaderAliases = map[string]string{
+	"Ingress Class":       "Class",
+	"Storage Class":       "Class",
+	"Disruptions Allowed": "Allowed",
+	"Reclaim Policy":      "Reclaim",
+	"Session Affinity":    "Affinity",
+	"Image Pull Secrets":  "Pull Secrets",
+	"Default Backend":     "Backend",
+	"Last Transition":     "Transition",
+	"Service Account":     "SA",
+}
+
+// columnHeaderLabel returns the uppercase display label for a column key,
+// applying any alias from columnHeaderAliases. Used by plainExtraCell so
+// internal Column keys can stay descriptive while the rendered table header
+// stays compact.
+func columnHeaderLabel(key string) string {
+	if alias, ok := columnHeaderAliases[key]; ok {
+		return strings.ToUpper(alias)
+	}
+	return strings.ToUpper(key)
+}
+
 // plainExtraCell builds the plain-text cell for a single extra column.
 // When item is nil, the cell renders a header value (uppercased key plus
 // sort indicator).
 func plainExtraCell(ec extraColumn, item *model.Item) string {
 	var val string
 	if item == nil {
-		val = strings.ToUpper(ec.key) + sortIndicatorForColumn(ec.key)
+		val = columnHeaderLabel(ec.key) + sortIndicatorForColumn(ec.key)
 	} else {
 		val = getExtraColumnValue(item, ec.key)
 	}
