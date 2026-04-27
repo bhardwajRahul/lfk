@@ -730,54 +730,11 @@ func (m Model) renderErrorLogOverlay(background string) string {
 	}
 
 	if m.errorLogFullscreen {
-		// Fullscreen: replace only the body of the explorer view so the
-		// title bar (top line, plus tab bar when multi-tab) and the hint
-		// bar (bottom line) — already composed by viewExplorer — stay
-		// visible. Wrap the body in FullscreenBorderStyle so the rounded
-		// border and BaseBg fill match other fullscreen modes (YAML,
-		// Logs, Describe).
-		bgLines := strings.Split(background, "\n")
-		topLines := 1 // title bar
-		if len(m.tabs) > 1 {
-			topLines = 2 // title + tab bar
-		}
-		if topLines > len(bgLines) {
-			topLines = len(bgLines)
-		}
-		hasHint := len(bgLines) > topLines
-		// Total rows for the body box (border + padding + content).
-		boxHeight := m.height - topLines
-		if hasHint {
-			boxHeight--
-		}
-		if boxHeight < 3 {
-			boxHeight = 3
-		}
-		// The border consumes 2 rows (top/bottom), the padding adds 0
-		// vertical, so the inner content area has boxHeight-2 rows.
-		// FullscreenBorderStyle uses Padding(0, 1) + Width(width-2),
-		// so inner content width is width-4 (2 border + 2 padding).
-		contentHeight := max(boxHeight-2, 1)
-		contentWidth := max(m.width-4, 10)
-		content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, contentHeight, m.showDebugLogs, vp)
-		content = clampErrorLogLines(content, contentWidth, contentHeight)
-		// Pad to contentHeight so the box doesn't shrink on short content.
-		bodyLines := strings.Split(content, "\n")
-		for len(bodyLines) < contentHeight {
-			bodyLines = append(bodyLines, "")
-		}
-		bodyContent := strings.Join(bodyLines[:contentHeight], "\n")
-		// FillLinesBg keeps the BaseBg continuous across ANSI resets so
-		// gaps between styled segments don't render with the terminal's
-		// default background.
-		bodyContent = ui.FillLinesBg(bodyContent, contentWidth, ui.BaseBg)
-		body := ui.FullscreenBorderStyle(m.width, contentHeight).Render(bodyContent)
-		parts := append([]string{}, bgLines[:topLines]...)
-		parts = append(parts, body)
-		if hasHint {
-			parts = append(parts, bgLines[len(bgLines)-1])
-		}
-		return strings.Join(parts, "\n")
+		// Fullscreen rendering is handled by viewExplorer via the
+		// viewErrorLogFullscreen helper (same pattern as the dashboard
+		// fullscreen). The background passed in here is already that
+		// composed view, so just return it unchanged.
+		return background
 	}
 
 	overlayW := min(140, m.width-4)
