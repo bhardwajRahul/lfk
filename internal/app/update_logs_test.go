@@ -550,3 +550,44 @@ func TestCovLogVisualKeyUp(t *testing.T) {
 	rm := result.(Model)
 	assert.Equal(t, 1, rm.logCursor)
 }
+
+// --- handleLogKeyS2: Save loaded logs (S) ---
+
+func TestHandleLogKeyS2CopiesPathToClipboard(t *testing.T) {
+	// Issue #61: when the user presses S to save the loaded log buffer,
+	// the destination path should be auto-copied to the system clipboard
+	// so it survives the 5s status-clear, and the status message should
+	// announce that explicitly.
+	m := baseModel()
+	m.mode = modeLogs
+	m.logLines = []string{"line1", "line2"}
+	m.actionCtx = actionContext{name: "test-pod"}
+
+	ret, cmd := m.handleLogKeyS2()
+	rm := ret.(Model)
+
+	assert.False(t, rm.statusMessageErr, "save success should not be an error status")
+	assert.Contains(t, rm.statusMessage, "Loaded logs saved to ")
+	assert.Contains(t, rm.statusMessage, "(copied to clipboard)",
+		"status should announce the clipboard copy so the user knows the path is recoverable")
+	assert.NotNil(t, cmd, "cmd should batch the clipboard write with the status-clear timer")
+}
+
+func TestHandleLogKeyS2ErrorPathDoesNotCopy(t *testing.T) {
+	// On save failure there is nothing useful to copy; the status should
+	// still report the error and the cmd should remain just the clear timer.
+	m := baseModel()
+	m.mode = modeLogs
+	// actionCtx.name is empty; saveLoadedLogs will still try /tmp/lfk-logs--<unix>.log
+	// which works on writable filesystems, so we instead force a write failure by
+	// pointing TMPDIR at a non-existent directory.
+	t.Setenv("TMPDIR", "/this/path/does/not/exist/lfk-test")
+	m.logLines = []string{"line1"}
+
+	ret, _ := m.handleLogKeyS2()
+	rm := ret.(Model)
+
+	assert.True(t, rm.statusMessageErr, "save failure should set the error flag")
+	assert.NotContains(t, rm.statusMessage, "(copied to clipboard)",
+		"clipboard suffix only makes sense on success")
+}

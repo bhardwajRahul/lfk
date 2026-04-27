@@ -2404,6 +2404,7 @@ func (m Model) updateLogSaveAll(msg logSaveAllMsg) (tea.Model, tea.Cmd) {
 		m.setErrorFromErr("Log save failed: ", msg.err)
 		return m, scheduleStatusClear()
 	}
-	m.setStatusMessage("All logs saved to "+msg.path, false)
-	return m, scheduleStatusClear()
+	logger.Info("Saved all logs", "path", msg.path)
+	m.setStatusMessage("All logs saved to "+msg.path+" (copied to clipboard)", false)
+	return m, tea.Batch(copyToSystemClipboard(msg.path), scheduleStatusClear())
 }

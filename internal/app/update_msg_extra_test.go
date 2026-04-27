@@ -1745,7 +1745,10 @@ func TestUpdateLogSaveAllSuccess(t *testing.T) {
 	result, cmd := m.Update(logSaveAllMsg{path: "/tmp/logs.txt"})
 	mdl := result.(Model)
 	assert.Contains(t, mdl.statusMessage, "/tmp/logs.txt")
-	assert.NotNil(t, cmd) // scheduleStatusClear
+	// Issue #61: status should announce the clipboard copy so the user
+	// knows the path is recoverable after the 5s status-clear.
+	assert.Contains(t, mdl.statusMessage, "(copied to clipboard)")
+	assert.NotNil(t, cmd) // tea.Batch(copyToSystemClipboard, scheduleStatusClear)
 }
 
 func TestUpdateLogSaveAllError(t *testing.T) {

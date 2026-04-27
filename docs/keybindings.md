@@ -232,8 +232,8 @@ my namespace" mode.
 | `/` | Search in logs |
 | `n` / `N` | Next / previous search match |
 | `123G` | Jump to specific line number |
-| `S` | Save loaded logs to file |
-| `Ctrl+S` | Save all logs to file (full kubectl logs) |
+| `S` | Save loaded logs to file (path copied to clipboard) |
+| `Ctrl+S` | Save all logs to file, full kubectl logs (path copied to clipboard) |
 | `v` | Character visual selection (from cursor column) |
 | `V` | Visual line selection |
 | `Ctrl+V` | Block (column) visual selection (from cursor column) |

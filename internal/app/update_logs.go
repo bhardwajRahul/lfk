@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/janosmiko/lfk/internal/logger"
 	"github.com/janosmiko/lfk/internal/ui"
 )
 
@@ -799,8 +800,9 @@ func (m Model) handleLogKeyS2() (tea.Model, tea.Cmd) {
 		m.setErrorFromErr("Log save failed: ", err)
 		return m, scheduleStatusClear()
 	}
-	m.setStatusMessage("Loaded logs saved to "+path, false)
-	return m, scheduleStatusClear()
+	logger.Info("Saved loaded logs", "path", path)
+	m.setStatusMessage("Loaded logs saved to "+path+" (copied to clipboard)", false)
+	return m, tea.Batch(copyToSystemClipboard(path), scheduleStatusClear())
 }
 
 func (m Model) handleLogKeyCtrlS() (tea.Model, tea.Cmd) {
