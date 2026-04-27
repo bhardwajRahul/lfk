@@ -586,6 +586,41 @@ func (m Model) updateAPIResourceDiscovery(msg apiResourceDiscoveryMsg) (Model, t
 			return result.(Model), cmd
 		}
 	}
+	// Resume a deferred session restore that was holding for this context's
+	// CRD discovery. Without this, quitting on an ArgoCD Application view
+	// and re-opening lfk drops the user at the resource types level instead
+	// of the saved view.
+	if m.sessionResourceTypeAwaitingDiscovery != "" && msg.context == m.nav.Context {
+		ref := m.sessionResourceTypeAwaitingDiscovery
+		name := m.sessionResourceNameAwaitingDiscovery
+		m.sessionResourceTypeAwaitingDiscovery = ""
+		m.sessionResourceNameAwaitingDiscovery = ""
+		if rt, ok := model.FindResourceTypeIn(ref, entries); ok {
+			rtRef := rt.ResourceRef()
+			for i, item := range merged {
+				if item.Extra == rtRef {
+					m.cursorMemory[m.nav.Context] = i
+					break
+				}
+			}
+			m.leftItemsHistory = append(m.leftItemsHistory[:0:0], m.leftItemsHistory...)
+			if len(m.leftItemsHistory) == 0 {
+				contexts, _ := m.client.GetContexts()
+				m.leftItemsHistory = [][]model.Item{contexts}
+			}
+			m.leftItems = merged
+			m.nav.ResourceType = rt
+			m.nav.Level = model.LevelResources
+			m.setMiddleItems(nil)
+			m.clearRight()
+			m.setCursor(0)
+			m.loading = true
+			if name != "" {
+				m.pendingTarget = name
+			}
+			return m, m.loadResources(false)
+		}
+	}
 	return m, nil
 }
 

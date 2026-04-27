@@ -450,6 +450,45 @@ func TestNavigateToBookmark_LocalKeepsContext_FailsInWrongCluster(t *testing.T) 
 // Now: when discoveredResources has no entry for the effective context yet,
 // stash the bookmark and let updateAPIResourceDiscovery replay it once the
 // discovery message lands.
+// Regression: when lfk quits on a CRD-backed resource view (e.g. ArgoCD
+// Application) and is reopened, the seed list resolves only built-in K8s
+// resources at restore time, so resolveSessionResourceType returned false
+// and the user was dropped at the resource types level. updateAPIResource-
+// Discovery now resumes the deferred deeper navigation when the matching
+// context's entries arrive.
+func TestUpdateAPIResourceDiscovery_ResumesDeferredSessionRestore(t *testing.T) {
+	crd := customCRDResourceType()
+	rtRef := crd.ResourceRef()
+
+	m := baseFinalModel()
+	m.nav.Context = "test-ctx"
+	m.nav.Level = model.LevelResourceTypes
+	// Empty leftItemsHistory triggers GetContexts() — pre-seed it with what
+	// the live session restore would have populated so the test focuses on
+	// the deferred-deeper-navigation path.
+	m.leftItemsHistory = [][]model.Item{{}}
+	// Arm the deferred-restore state the way restoreSession would.
+	m.sessionResourceTypeAwaitingDiscovery = rtRef
+	m.sessionResourceNameAwaitingDiscovery = "my-app"
+
+	result, cmd := m.updateAPIResourceDiscovery(apiResourceDiscoveryMsg{
+		context: "test-ctx",
+		entries: []model.ResourceTypeEntry{crd},
+	})
+
+	assert.Equal(t, "", result.sessionResourceTypeAwaitingDiscovery,
+		"deferred type ref must be cleared once consumed")
+	assert.Equal(t, "", result.sessionResourceNameAwaitingDiscovery,
+		"deferred name must be cleared once consumed")
+	assert.Equal(t, model.LevelResources, result.nav.Level,
+		"navigation must drill from resource types into resources level")
+	assert.Equal(t, crd.Resource, result.nav.ResourceType.Resource,
+		"navigation must land on the CRD that just became known")
+	assert.Equal(t, "my-app", result.pendingTarget,
+		"saved resource name must roll into pendingTarget so loadResources lands on it")
+	assert.NotNil(t, cmd, "loadResources cmd must be returned to fetch the deeper level")
+}
+
 func TestNavigateToBookmark_StashesUntilDiscoveryArrives(t *testing.T) {
 	crd := customCRDResourceType()
 	m := Model{

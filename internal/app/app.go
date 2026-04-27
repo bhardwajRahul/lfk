@@ -661,6 +661,18 @@ type Model struct {
 	// Distinct from pendingBookmark (which gates save-overwrite confirmation).
 	bookmarkAwaitingDiscovery *model.Bookmark
 
+	// sessionResourceTypeAwaitingDiscovery captures the resource type ref a
+	// just-restored session wants to land on when the type wasn't yet known
+	// to the seed list (CRD-backed views like ArgoCD Application). The
+	// matching apiResourceDiscoveryMsg consumes it and navigates to the
+	// resource type so the user lands back on the view they quit from
+	// instead of being dumped at the resource types level.
+	sessionResourceTypeAwaitingDiscovery string
+	// sessionResourceNameAwaitingDiscovery is the resource name to land on
+	// once the type-await above resolves. Mirrors pendingTarget but is only
+	// armed when the type itself was deferred.
+	sessionResourceNameAwaitingDiscovery string
+
 	// Preview scroll offset for the right column.
 	previewScroll int
 

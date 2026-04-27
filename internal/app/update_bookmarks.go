@@ -649,6 +649,16 @@ func (m Model) restoreSingleTabSession(sess *SessionState, contexts []model.Item
 		// (Pods, Deployments, Services, etc.) still resolve and the user
 		// lands back on their saved view instead of the resource types list.
 		rt, ok := resolveSessionResourceType(sess.ResourceType, m.discoveredResources[sess.Context])
+		if !ok && needsDiscovery {
+			// Type ref isn't in the seed list (CRD-backed view like ArgoCD
+			// Application) and discovery is in flight. Park the deeper
+			// navigation; updateAPIResourceDiscovery will resume it once
+			// the discovered set lands. Without this the user is dropped
+			// at the resource types level even though their saved view
+			// would have resolved a moment later.
+			m.sessionResourceTypeAwaitingDiscovery = sess.ResourceType
+			m.sessionResourceNameAwaitingDiscovery = sess.ResourceName
+		}
 		if ok {
 			// Save cursor position at the resource types level so navigating
 			// back (h) restores the cursor to the correct resource type.
