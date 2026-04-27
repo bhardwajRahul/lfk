@@ -232,6 +232,40 @@ func (m Model) executeBuiltinCommand(input string) (tea.Model, tea.Cmd) {
 		m.tasksOverlayScroll = 0
 		return m, nil
 
+	// Quick aliases for hotkey-only behaviors so they're discoverable via
+	// command-palette autocomplete without forcing the user to memorize
+	// single-letter chords.
+	case "errors", "warnings":
+		// Equivalent to the `!` hotkey on the Events list -- toggles the
+		// "warnings only" filter. No-op (with status hint) when invoked
+		// outside the Events view since there's nothing to filter.
+		if m.nav.Level == model.LevelResources && m.nav.ResourceType.Kind == "Event" {
+			m.warningEventsOnly = !m.warningEventsOnly
+			m.rebuildEventsFromCache()
+			if m.warningEventsOnly {
+				m.setStatusMessage("Showing warnings only", false)
+			} else {
+				m.setStatusMessage("Showing all events", false)
+			}
+			return m, scheduleStatusClear()
+		}
+		m.setStatusMessage(":errors only applies to the Events view", true)
+		return m, scheduleStatusClear()
+
+	case "bookmarks":
+		m.overlay = overlayBookmarks
+		m.bookmarkSearchMode = bookmarkModeNormal
+		m.bookmarkFilter.Clear()
+		m.bookmarkLoadNamespace = false
+		return m, nil
+
+	case "reload", "refresh":
+		// Force-fetch the current resource list -- equivalent to Shift+R.
+		// Useful when watch mode is off or the user wants an immediate
+		// refresh after a kubectl apply outside lfk.
+		m.setStatusMessage("Reloading...", false)
+		return m, tea.Batch(m.loadResources(false), scheduleStatusClear())
+
 	default:
 		m.setStatusMessage(fmt.Sprintf("Unknown command: %s", canonical), true)
 		return m, scheduleStatusClear()
