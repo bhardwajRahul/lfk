@@ -379,9 +379,11 @@ func ApplyTheme(t Theme) {
 		Foreground(lipgloss.Color(t.Base)).
 		Bold(true)
 
+	// Same dark fg as SearchHighlightStyle for legibility on the warning
+	// bg across themes; underline is the differentiator for "current match".
 	SelectedSearchHighlightStyle = lipgloss.NewStyle().
 		Background(lipgloss.Color(t.Warning)).
-		Foreground(lipgloss.Color(t.SelectedBg)).
+		Foreground(lipgloss.Color(t.Base)).
 		Bold(true).
 		Underline(true)
 

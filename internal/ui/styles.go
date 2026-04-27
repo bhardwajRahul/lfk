@@ -285,11 +285,16 @@ var (
 				Foreground(lipgloss.Color(ColorBase)).
 				Bold(true)
 
-	// SelectedSearchHighlightStyle highlights search matches on the selected (cursor) item.
-	// Uses a contrasting color visible against the selection background.
+	// SelectedSearchHighlightStyle highlights the currently selected search
+	// match (the one n/N steps to). Uses the same dark fg as the regular
+	// SearchHighlightStyle so the text stays legible on the warning bg
+	// regardless of theme; the underline is the visual differentiator that
+	// separates "current match" from the other matches on the row, not the
+	// fg color. Previously fg was ColorSelectedBg, which painted blue text
+	// on a yellow bg in the default theme — visibly low contrast.
 	SelectedSearchHighlightStyle = lipgloss.NewStyle().
 					Background(lipgloss.Color(ColorWarning)).
-					Foreground(lipgloss.Color(ColorSelectedBg)).
+					Foreground(lipgloss.Color(ColorBase)).
 					Bold(true).
 					Underline(true)
 
