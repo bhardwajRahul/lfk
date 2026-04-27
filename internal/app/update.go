@@ -2311,7 +2311,7 @@ func (m Model) updateLogLine(msg logLineMsg) (tea.Model, tea.Cmd) {
 	}
 	m.logLines = append(m.logLines, msg.line)
 	if m.logFollow {
-		m.logScroll = m.logMaxScroll()
+		m.logScroll, m.logWrapTopSkip = m.logMaxScrollAndSkip()
 		m.logCursor = len(m.logLines) - 1
 	}
 	return m, m.waitForLogLine()

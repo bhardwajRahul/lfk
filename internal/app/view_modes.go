@@ -20,7 +20,7 @@ func (m Model) viewLogs() string {
 		statusMsg = m.statusMessage
 		statusIsErr = m.statusMessageErr
 	}
-	return ui.RenderLogViewer(m.logLines, m.logScroll, m.width, viewH, m.logFollow, m.logWrap, m.logLineNumbers, m.logTimestamps, m.logPrevious, m.logHidePrefixes, m.logTitle, m.logSearchQuery, m.logSearchInput.Value, m.logSearchActive, canSwitchPod, canFilterContainers, m.logHasMoreHistory, m.logLoadingHistory, statusMsg, statusIsErr, m.logCursor, m.logVisualMode, m.logVisualStart, m.logVisualType, m.logVisualCol, m.logVisualCurCol)
+	return ui.RenderLogViewer(m.logLines, m.logScroll, m.width, viewH, m.logFollow, m.logWrap, m.logLineNumbers, m.logTimestamps, m.logPrevious, m.logHidePrefixes, m.logTitle, m.logSearchQuery, m.logSearchInput.Value, m.logSearchActive, canSwitchPod, canFilterContainers, m.logHasMoreHistory, m.logLoadingHistory, statusMsg, statusIsErr, m.logCursor, m.logVisualMode, m.logVisualStart, m.logVisualType, m.logVisualCol, m.logVisualCurCol, m.logWrapTopSkip)
 }
 
 func (m Model) viewDescribe() string {
@@ -285,7 +285,11 @@ func (m *Model) clampLogScroll() {
 }
 
 // ensureLogCursorVisible adjusts logScroll so the cursor is within the visible
-// content area with scrolloff margin.
+// content area. In wrap mode the math accounts for visual rows (each source
+// line may produce multiple wrapped sub-lines) so the cursor doesn't drift
+// off-screen when intermediate lines wrap heavily; outside wrap mode it's
+// classic source-line scrolloff. logFollow always wins: it snaps to the
+// (maxScroll, topSkip) pair that pins the most recent sub-line to the bottom.
 func (m *Model) ensureLogCursorVisible() {
 	if m.logCursor < 0 {
 		return
@@ -293,52 +297,129 @@ func (m *Model) ensureLogCursorVisible() {
 	if len(m.logLines) > 0 && m.logCursor >= len(m.logLines) {
 		m.logCursor = len(m.logLines) - 1
 	}
+	if m.logFollow {
+		m.logScroll, m.logWrapTopSkip = m.logMaxScrollAndSkip()
+		return
+	}
 	viewH := max(m.logContentHeight(), 1)
 	so := min(ui.ConfigScrollOff, viewH/2)
-	// Scroll up if cursor is above viewport (with scrolloff).
+
+	if m.logWrap {
+		m.adjustLogScrollForCursorWrap(viewH)
+		return
+	}
+
 	if m.logCursor < m.logScroll+so {
 		m.logScroll = m.logCursor - so
 	}
-	// Scroll down if cursor is below viewport (with scrolloff).
 	if m.logCursor >= m.logScroll+viewH-so {
 		m.logScroll = m.logCursor - viewH + so + 1
 	}
+	m.logWrapTopSkip = 0
 	m.clampLogScroll()
+}
+
+// adjustLogScrollForCursorWrap positions logScroll/logWrapTopSkip so that
+// the cursor's source line (and ideally all of its wrapped sub-lines) is
+// inside the visible viewport, in visual-row terms. Pins cursor's bottom
+// sub-line to the viewport's bottom row when scrolling down; cursor's first
+// sub-line to row 0 when scrolling up. Drops scrolloff for simplicity.
+func (m *Model) adjustLogScrollForCursorWrap(viewH int) {
+	availWidth := m.logWrapAvailWidth()
+
+	// Cursor above scroll → snap top.
+	if m.logCursor < m.logScroll {
+		m.logScroll = m.logCursor
+		m.logWrapTopSkip = 0
+		m.clampLogScroll()
+		return
+	}
+
+	// Compute the visual row where cursor's first wrapped sub-line will
+	// land given the current (logScroll, logWrapTopSkip).
+	cursorTopRow := -m.logWrapTopSkip
+	for i := m.logScroll; i < m.logCursor && i < len(m.logLines); i++ {
+		cursorTopRow += wrappedLineCount(m.logDisplayLine(i), availWidth)
+	}
+	cursorWrap := wrappedLineCount(m.logDisplayLine(m.logCursor), availWidth)
+	cursorBottomRow := cursorTopRow + cursorWrap - 1
+
+	if cursorBottomRow < viewH {
+		return // already visible
+	}
+
+	// Cursor's last sub-line is off the bottom. Place it at viewH-1 by
+	// walking back from cursor and accumulating wrap counts until the
+	// rows above sum to (viewH - cursorWrap).
+	target := viewH - cursorWrap
+	if target <= 0 {
+		// Cursor itself wraps to more than viewH rows: show its first
+		// viewH sub-lines so the cursor indicator (always on sub-line 0)
+		// stays visible at the top.
+		m.logScroll = m.logCursor
+		m.logWrapTopSkip = 0
+		m.clampLogScroll()
+		return
+	}
+	accumulated := 0
+	for i := m.logCursor - 1; i >= 0; i-- {
+		wc := wrappedLineCount(m.logDisplayLine(i), availWidth)
+		if accumulated+wc >= target {
+			m.logScroll = i
+			m.logWrapTopSkip = accumulated + wc - target
+			m.clampLogScroll()
+			return
+		}
+		accumulated += wc
+	}
+	m.logScroll = 0
+	m.logWrapTopSkip = 0
 }
 
 // logMaxScroll returns the maximum valid scroll offset for the log viewer.
 // It is wrap-aware when logWrap is enabled.
 func (m *Model) logMaxScroll() int {
+	maxScroll, _ := m.logMaxScrollAndSkip()
+	return maxScroll
+}
+
+// logMaxScrollAndSkip returns the (maxScroll, topSkip) pair that pins the
+// most recent log content to the bottom of the viewport in wrap mode. The
+// sub-line skip is non-zero only when the chosen source line wraps to more
+// rows than the renderer can show — in that case the renderer drops the
+// first topSkip wrapped sub-lines so the tail of the line lands at the
+// bottom row instead of falling off-screen. Outside wrap mode, topSkip is
+// always 0 and the math collapses to the classic source-line offset.
+func (m *Model) logMaxScrollAndSkip() (int, int) {
 	viewH := max(m.logContentHeight(), 1)
 
 	if m.logWrap {
 		availWidth := m.logWrapAvailWidth()
 		visualLines := 0
-		maxScroll := len(m.logLines)
+		// Default: everything fits, scroll stays at the top with no skip.
+		maxScroll, topSkip := 0, 0
 		for i := len(m.logLines) - 1; i >= 0; i-- {
-			// Use the displayed line (timestamps and pod prefixes stripped
-			// to match the renderer) so the wrap count reflects what the
-			// viewer actually paints — otherwise the raw line is longer
-			// than the rendered one and we overestimate wraps, which makes
-			// maxScroll too small and pushes the tail off the bottom when
-			// following.
+			// Use the displayed line (timestamps and pod prefixes
+			// stripped to match the renderer) so the wrap count reflects
+			// what the viewer actually paints — otherwise the raw line
+			// is longer than the rendered one and we'd overestimate
+			// wraps, shrinking maxScroll and pushing the tail off the
+			// bottom when following.
 			visualLines += wrappedLineCount(m.logDisplayLine(i), availWidth)
 			if visualLines >= viewH {
 				maxScroll = i
+				topSkip = visualLines - viewH
 				break
 			}
 		}
-		if maxScroll < 0 {
-			return 0
-		}
-		return maxScroll
+		return maxScroll, topSkip
 	}
 
 	ms := len(m.logLines) - viewH
 	if ms < 0 {
-		return 0
+		return 0, 0
 	}
-	return ms
+	return ms, 0
 }
 
 // logWrapAvailWidth returns the per-line content width used when computing

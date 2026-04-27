@@ -181,6 +181,7 @@ type TabState struct {
 	mode              viewMode
 	logLines          []string
 	logScroll         int
+	logWrapTopSkip    int
 	logFollow         bool
 	logWrap           bool
 	logLineNumbers    bool
@@ -429,7 +430,8 @@ type Model struct {
 
 	// Log viewer state.
 	logLines          []string           // buffered log lines
-	logScroll         int                // scroll offset (top visible line)
+	logScroll         int                // scroll offset (top visible source line)
+	logWrapTopSkip    int                // wrap mode: number of sub-lines to skip from the top of logLines[logScroll]
 	logFollow         bool               // auto-scroll to bottom
 	logWrap           bool               // wrap long lines
 	logLineNumbers    bool               // show line numbers

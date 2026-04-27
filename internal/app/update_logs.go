@@ -656,7 +656,7 @@ func (m Model) handleLogKeyF() Model {
 	m.logFollow = !m.logFollow
 	if m.logFollow {
 		m.logCursor = len(m.logLines) - 1
-		m.logScroll = m.logMaxScroll()
+		m.logScroll, m.logWrapTopSkip = m.logMaxScrollAndSkip()
 	}
 	return m
 }
@@ -664,7 +664,11 @@ func (m Model) handleLogKeyF() Model {
 func (m Model) handleLogKeyTab() Model {
 	m.logLineInput = ""
 	m.logWrap = !m.logWrap
-	m.clampLogScroll()
+	// Re-pin to the bottom on toggle: maxScroll and topSkip both depend on
+	// wrap mode, so the previous values are stale. ensureLogCursorVisible
+	// snaps to the follow position when m.logFollow is true and otherwise
+	// just clamps + clears the sub-line skip.
+	m.ensureLogCursorVisible()
 	return m
 }
 

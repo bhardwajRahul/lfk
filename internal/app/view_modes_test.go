@@ -150,6 +150,32 @@ func TestClampLogScrollWithWrap(t *testing.T) {
 		assert.LessOrEqual(t, m.logScroll, len(lines))
 	})
 
+	t.Run("wrap with long last line pins tail to bottom via topSkip", func(t *testing.T) {
+		// Regression: when following and the most recent log line wraps
+		// to more visual rows than fit in viewH, maxScroll alone (source
+		// line index) couldn't position the bottom of the wrapped output
+		// at the bottom of the viewport — the renderer filled top-down
+		// and the tail of the line dropped off the bottom. Verify
+		// logMaxScrollAndSkip returns a non-zero topSkip in that case.
+		// width=40 → contentWidth=36, availWidth=35.
+		// 350-char line wraps to 10 sub-lines.
+		longLine := strings.Repeat("x", 350)
+		m := Model{
+			height:        12, // viewH ≈ 12-5 = 7
+			width:         40,
+			tabs:          []TabState{{}},
+			logLines:      []string{longLine},
+			logWrap:       true,
+			logTimestamps: true, // no stripping
+		}
+		viewH := m.logContentHeight()
+		ms, topSkip := m.logMaxScrollAndSkip()
+		assert.Equal(t, 0, ms, "scroll stays on the only source line")
+		assert.Greater(t, topSkip, 0, "topSkip must drop wrapped sub-lines so tail fits")
+		// 350 / 35 = 10 wrapped sub-lines; viewH=7 → topSkip=3.
+		assert.Equal(t, 10-viewH, topSkip)
+	})
+
 	t.Run("wrap-aware maxScroll uses display line, not raw line with timestamp", func(t *testing.T) {
 		// Regression: clampLogScroll/logMaxScroll counted wraps on the
 		// raw log lines (timestamps included), but the renderer strips
