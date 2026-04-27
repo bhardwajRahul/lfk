@@ -880,6 +880,73 @@ func TestBuildKubeconfigPaths(t *testing.T) {
 
 		assert.NotEmpty(t, paths, "should return at least the default kubeconfig path")
 	})
+
+	t.Run("dedups KUBECONFIG entries that point at the same file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfg := filepath.Join(tmpDir, "config.yaml")
+		assert.NoError(t, os.WriteFile(cfg, []byte(""), 0o600))
+		// Reference the same file via two cosmetically different paths.
+		via := filepath.Join(tmpDir, ".", "config.yaml")
+		t.Setenv("KUBECONFIG", cfg+string(os.PathListSeparator)+via)
+
+		paths := buildKubeconfigPaths()
+		count := 0
+		for _, p := range paths {
+			if p == cfg || p == via {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count,
+			"dedup should collapse path/./path duplicates so contexts aren't loaded twice")
+	})
+
+	t.Run("dedups KUBECONFIG entry that overlaps with config.d walk", func(t *testing.T) {
+		// Regression: the same kubeconfig listed in KUBECONFIG and also
+		// living under ~/.kube/config.d/ (when both happen, e.g. a user
+		// symlinks their environment file into config.d) was being loaded
+		// twice, so each context inside it appeared as two disambiguated
+		// rows in the cluster list.
+		tmpDir := t.TempDir()
+		cfg := filepath.Join(tmpDir, "shared.yaml")
+		assert.NoError(t, os.WriteFile(cfg, []byte(""), 0o600))
+		viaSymlink := filepath.Join(tmpDir, "shared-link.yaml")
+		assert.NoError(t, os.Symlink(cfg, viaSymlink))
+		t.Setenv("KUBECONFIG", cfg+string(os.PathListSeparator)+viaSymlink)
+
+		paths := buildKubeconfigPaths()
+		// Both entries point at the same underlying file; only one should
+		// remain after dedup. Compare via EvalSymlinks on both sides so
+		// we don't trip over /tmp → /private/tmp on macOS.
+		canonCfg, err := filepath.EvalSymlinks(cfg)
+		assert.NoError(t, err)
+		seenReal := 0
+		for _, p := range paths {
+			if resolved, err := filepath.EvalSymlinks(p); err == nil && resolved == canonCfg {
+				seenReal++
+			}
+		}
+		assert.Equal(t, 1, seenReal,
+			"symlinked duplicates should collapse so collectContexts doesn't see the file twice")
+	})
+}
+
+func TestDedupKubeconfigPaths(t *testing.T) {
+	t.Run("preserves order, drops later duplicates", func(t *testing.T) {
+		tmp := t.TempDir()
+		a := filepath.Join(tmp, "a.yaml")
+		b := filepath.Join(tmp, "b.yaml")
+		assert.NoError(t, os.WriteFile(a, []byte(""), 0o600))
+		assert.NoError(t, os.WriteFile(b, []byte(""), 0o600))
+		got := dedupKubeconfigPaths([]string{a, b, a, b})
+		assert.Equal(t, []string{a, b}, got)
+	})
+
+	t.Run("keeps unresolvable paths as-is", func(t *testing.T) {
+		// Missing/dangling paths should still pass through (clientcmd will
+		// surface a clear error later) — they shouldn't crash the dedup.
+		got := dedupKubeconfigPaths([]string{"/no/such/file", "/no/such/file", "/another"})
+		assert.Equal(t, []string{"/no/such/file", "/another"}, got)
+	})
 }
 
 // --- multi-kubeconfig context switching ---

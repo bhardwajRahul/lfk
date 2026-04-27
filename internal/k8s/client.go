@@ -369,7 +369,38 @@ func buildKubeconfigPaths() []string {
 		paths = append(paths, collectConfigDirPaths(filepath.Join(home, ".kube", "config.d"))...)
 	}
 
-	return paths
+	// Dedup by canonical path. The same kubeconfig can land in `paths`
+	// twice when KUBECONFIG points at a file inside ~/.kube/config.d/, or
+	// when one path is "foo.yaml" and another is "./foo.yaml", or when a
+	// symlink resolves to a file the walk also visits directly. Without
+	// this pass collectContexts loads the same file twice and emits each
+	// context as two "disambiguated" rows in the cluster list.
+	return dedupKubeconfigPaths(paths)
+}
+
+// dedupKubeconfigPaths removes paths that resolve to the same underlying
+// file, preserving the first occurrence's order. Comparison uses
+// filepath.EvalSymlinks (canonical absolute path) so cosmetic differences
+// like trailing slashes, "./" prefixes, or symlink redirection collapse to
+// one entry. Paths that fail to resolve (missing file, dangling symlink)
+// keep their original spelling — clientcmd will still try to load them and
+// log an error if the file isn't readable, which is more informative than
+// silently dropping them here.
+func dedupKubeconfigPaths(paths []string) []string {
+	seen := make(map[string]struct{}, len(paths))
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		key := p
+		if resolved, err := filepath.EvalSymlinks(p); err == nil {
+			key = resolved
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, p)
+	}
+	return out
 }
 
 // collectConfigDirPaths returns all file paths under dir. If dir is a symlink
