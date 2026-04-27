@@ -175,14 +175,55 @@ func HighlightMatchStyledOver(line, rawQuery string, style, outerStyle lipgloss.
 // styleOpenCodes extracts just the SGR open sequence a style emits
 // when rendering. Returns "" when the style produces no codes (zero
 // value or color-less). Used by HighlightMatchStyledOver to splice
-// the outer style back in after each inner highlight reset.
+// the outer style back in after each inner highlight reset, and by
+// RenderOverPrestyled to re-open the outer style around an already-
+// highlighted line.
+//
+// Implementation note: a single ASCII character is used as the marker
+// because lipgloss in some profile/attribute combinations (notably
+// Underline(true) under termenv.ANSI — the NO_COLOR profile) renders
+// each input character through a fresh open/close SGR pair. A
+// multi-character marker would be split across those per-char wraps
+// and never appear contiguously in the output, so the search would
+// fall through and return "" — yielding a missing outer style (e.g.
+// the Bold+Underline category bar losing its underline whenever
+// search highlighting was active under NO_COLOR).
 func styleOpenCodes(style lipgloss.Style) string {
-	const marker = "\x00LFK_HL_MARKER\x00"
+	const marker = "x"
 	open, _, found := strings.Cut(style.Render(marker), marker)
 	if !found {
 		return ""
 	}
 	return open
+}
+
+// ansiReset is the SGR reset sequence emitted at the end of a rendered
+// run. Matches what lipgloss appends to its own Render output.
+const ansiReset = "\x1b[0m"
+
+// RenderOverPrestyled wraps a line that may already contain inner ANSI
+// codes (from a prior HighlightMatchStyledOver pass) with outerStyle's
+// open/close SGR codes, bypassing lipgloss.Render.
+//
+// This exists because lipgloss.Render fragments any embedded ANSI in
+// its input — every byte of the embedded escape sequences gets wrapped
+// with outerStyle individually, doubling the ESC introducer and
+// producing malformed output of the form "\x1b\x1b[0m...". Most
+// terminals tolerate that, but in NO_COLOR / ANSI profile mode some
+// terminals render the second sequence as literal text ("[1;7mNetw[0m"),
+// and the visible-width calculation goes off so the line wraps.
+//
+// The manual SGR open + content + reset path keeps the inner
+// highlights intact and produces a stream the terminal can parse
+// uniformly.
+//
+// Returns line unchanged when outerStyle has no open codes.
+func RenderOverPrestyled(line string, outerStyle lipgloss.Style) string {
+	open := styleOpenCodes(outerStyle)
+	if open == "" {
+		return line
+	}
+	return open + line + ansiReset
 }
 
 // highlightSubstring highlights all occurrences of query in line

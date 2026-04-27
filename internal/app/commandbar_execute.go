@@ -21,16 +21,34 @@ func (m Model) kubectlEnv() []string {
 		if ctx == "" {
 			ctx = m.client.CurrentContext()
 		}
-		// Use only the kubeconfig file that defines the current context.
+		// Use only the kubeconfig file that defines the current context so
+		// kubectl doesn't trip over collapsed cluster/user names from a
+		// multi-file merge — see issue #23.
 		kubeconfigPath := m.client.KubeconfigPathForContext(ctx)
 		if kubeconfigPath != "" {
 			env = append(env, "KUBECONFIG="+kubeconfigPath)
 		}
+		// KUBECTL_CONTEXT is consumed by the helper that runs `:!` shell
+		// commands and forwarded as kubectl's default context. It must be
+		// the kubeconfig's *original* name, not lfk's potentially
+		// disambiguated display name.
 		if ctx != "" {
-			env = append(env, "KUBECTL_CONTEXT="+ctx)
+			env = append(env, "KUBECTL_CONTEXT="+m.client.OriginalContextName(ctx))
 		}
 	}
 	return env
+}
+
+// kubectlContext maps an lfk display name back to the kubectl/helm --context
+// argument it should be passed as. When two kubeconfigs declare the same
+// context name, lfk disambiguates the display name (e.g. "dev (dev-envs)");
+// this reverses that so subprocess invocations receive the literal name
+// kubectl knows.
+func (m Model) kubectlContext(displayName string) string {
+	if m.client == nil {
+		return displayName
+	}
+	return m.client.OriginalContextName(displayName)
 }
 
 // executeCommandBarInput is the main entry point for command bar execution.
@@ -490,7 +508,7 @@ func (m *Model) injectKubectlDefaults(args []string) []string {
 	copy(result, args)
 
 	if !hasContext && m.nav.Context != "" {
-		result = append(result, "--context", m.nav.Context)
+		result = append(result, "--context", m.kubectlContext(m.nav.Context))
 	}
 
 	if !hasNamespace && !hasAllNamespaces {

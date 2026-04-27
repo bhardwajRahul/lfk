@@ -669,3 +669,136 @@ func TestCollectExtraColumns_NameReservationCappedAtHalfWidth(t *testing.T) {
 		"a single very long name must not starve extras to nothing — "+
 			"Name reservation has to be capped so HOSTS still appears")
 }
+
+// TestRenderTable_NodeNamesNotTruncatedEarly is a regression test for the
+// reported "node names still get truncated" bug: realistic Node items with
+// FQDN-style names plus the columns that populateNodeDetails attaches (Role,
+// Version, Taints, address types in fullscreen) must not be cut off when the
+// terminal is wide enough to show them in full.
+//
+// The previous fix (commit 1331bd2) reserved longestName+1 for the Name
+// column inside collectExtraColumns. Long node names re-surface the bug when
+// an aggressive extras column (Role with several comma-separated values,
+// Taints with NoSchedule/NoExecute markers) inflates beyond the cap, eating
+// the Name budget.
+func TestRenderTable_NodeNamesNotTruncatedEarly(t *testing.T) {
+	origMS := ActiveMiddleScroll
+	ActiveMiddleScroll = -1
+	t.Cleanup(func() { ActiveMiddleScroll = origMS })
+
+	origQuery := ActiveHighlightQuery
+	ActiveHighlightQuery = ""
+	t.Cleanup(func() { ActiveHighlightQuery = origQuery })
+
+	origSel := ActiveSelectedItems
+	ActiveSelectedItems = nil
+	t.Cleanup(func() { ActiveSelectedItems = origSel })
+
+	// Realistic node names: long FQDN format common on managed K8s. These
+	// are 50+ chars; the regression hides exactly when names are long.
+	names := []string{
+		"ip-10-0-1-100.eu-west-1.compute.internal",
+		"prod-eu-west-1-worker-pool-spot-instance-12345-67890",
+		"gke-cluster-default-pool-1a2b3c4d-abcd",
+	}
+	items := make([]model.Item, 0, len(names))
+	for _, n := range names {
+		items = append(items, model.Item{
+			Name:   n,
+			Kind:   "Node",
+			Status: "Ready",
+			Ready:  "True",
+			Age:    "10d",
+			Columns: []model.KeyValue{
+				{Key: "Role", Value: "control-plane,master,etcd"},
+				{Key: "Version", Value: "v1.28.5+rke2r1"},
+				{Key: "Taints", Value: "node-role.kubernetes.io/control-plane:=NoSchedule, node.kubernetes.io/disk-pressure:=NoSchedule"},
+				{Key: "InternalIP", Value: "10.0.1.100"},
+				{Key: "ExternalIP", Value: "54.123.45.67"},
+				{Key: "Hostname", Value: "ip-10-0-1-100"},
+			},
+		})
+	}
+
+	t.Run("normal mode 200 columns: full names visible", func(t *testing.T) {
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+		out := stripANSI(RenderTable("NAME", items, 0, 200, 20, false, "", ""))
+		for _, n := range names {
+			assert.Contains(t, out, n,
+				"node name %q must appear in full at 200 cols (truncated form would have a trailing ~)", n)
+		}
+	})
+
+	t.Run("fullscreen 200 columns: full names visible", func(t *testing.T) {
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = true
+		t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+		out := stripANSI(RenderTable("NAME", items, 0, 200, 20, false, "", ""))
+		for _, n := range names {
+			assert.Contains(t, out, n,
+				"node name %q must appear in full at 200 cols in fullscreen mode", n)
+		}
+	})
+
+	t.Run("normal mode 140 columns: longest name still visible", func(t *testing.T) {
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+		out := stripANSI(RenderTable("NAME", items, 0, 140, 20, false, "", ""))
+		for _, n := range names {
+			assert.Contains(t, out, n,
+				"node name %q must appear in full at 140 cols", n)
+		}
+	})
+
+	t.Run("middle column 100 columns: longest name still visible", func(t *testing.T) {
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+		out := stripANSI(RenderTable("NAME", items, 0, 100, 20, false, "", ""))
+		for _, n := range names {
+			assert.Contains(t, out, n,
+				"node name %q must appear in full at 100 cols", n)
+		}
+	})
+
+	// Realistic middle-column widths: at 51% of total, a 200-char terminal
+	// gives the middle column ~97 chars; a 160-char terminal gives ~80;
+	// a 120-char terminal gives ~58. The middle column is where Nodes
+	// actually render in the user's three-column layout.
+	t.Run("middle column at 200-col terminal (~97 wide)", func(t *testing.T) {
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+		out := stripANSI(RenderTable("NAME", items, 0, 97, 20, false, "", ""))
+		for _, n := range names {
+			assert.Contains(t, out, n,
+				"node name %q must appear in full at 97 cols (middle col of 200-wide terminal)", n)
+		}
+	})
+
+	t.Run("middle column at 160-col terminal (~80 wide): names up to ~50 chars fit", func(t *testing.T) {
+		origFS := ActiveFullscreenMode
+		ActiveFullscreenMode = false
+		t.Cleanup(func() { ActiveFullscreenMode = origFS })
+
+		// Drop the 52-char outlier — at 80 cols the budget genuinely
+		// can't accommodate it once builtins (~19) and one extras
+		// column (~22) are reserved. Asserting the 38- and 40-char
+		// names still fit captures the real complaint: moderate
+		// names should not be truncated.
+		shorter := []model.Item{items[0], items[2]} // 40-char + 38-char
+		out := stripANSI(RenderTable("NAME", shorter, 0, 80, 20, false, "", ""))
+		assert.Contains(t, out, "ip-10-0-1-100.eu-west-1.compute.internal",
+			"40-char node name must appear in full at 80 cols")
+		assert.Contains(t, out, "gke-cluster-default-pool-1a2b3c4d-abcd",
+			"38-char node name must appear in full at 80 cols")
+	})
+}

@@ -570,6 +570,8 @@ type Model struct {
 
 	middleTableRenderer *ui.TableRenderer
 
+	previewDebounceGen uint64
+
 	// Context cancellation for in-flight API requests. Cancelled on every
 	// navigation change so stale requests are aborted early instead of
 	// running to completion.

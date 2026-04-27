@@ -326,12 +326,30 @@ func (c *Client) GetDeploymentRevisions(ctx context.Context, contextName, namesp
 
 // --- internal helpers ---
 
-func (c *Client) restConfigForContext(contextName string) (*rest.Config, error) {
-	overrides := &clientcmd.ConfigOverrides{CurrentContext: contextName}
-	cc := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(c.loadingRules, overrides)
+func (c *Client) restConfigForContext(displayName string) (*rest.Config, error) {
+	// Load only the kubeconfig file that defines the requested context. When
+	// multiple files are merged via clientcmd, clusters and users sharing a
+	// name across files collapse into a single entry — issue #23: every
+	// ~/.kube/config.d/*.yaml declared cluster "dev" and user "dev", so
+	// every context routed to the same cluster after the merge. Loading the
+	// origin file in isolation keeps each context's clusters/users intact.
+	//
+	// displayName is the lfk-side identifier (potentially disambiguated to
+	// "name (basename)"). The override below uses the *original* name from
+	// the source kubeconfig because that's what's recorded inside the file.
+	rules := c.loadingRules
+	overrideName := displayName
+	if info, ok := c.contexts[displayName]; ok {
+		rules = &clientcmd.ClientConfigLoadingRules{Precedence: []string{info.sourcePath}}
+		overrideName = info.original
+	} else if path := c.KubeconfigPathForContext(displayName); path != "" {
+		rules = &clientcmd.ClientConfigLoadingRules{Precedence: []string{path}}
+	}
+	overrides := &clientcmd.ConfigOverrides{CurrentContext: overrideName}
+	cc := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides)
 	cfg, err := cc.ClientConfig()
 	if err != nil {
-		return nil, fmt.Errorf("building rest config for context %q: %w", contextName, err)
+		return nil, fmt.Errorf("building rest config for context %q: %w", displayName, err)
 	}
 	return cfg, nil
 }

@@ -562,10 +562,11 @@ func (m Model) executeActionLogsWithTail(pendingLabel string, tailLines int) (te
 		m.logParentName = ""
 	}
 
+	kubectlCtx := m.kubectlContext(ctx)
 	if m.actionCtx.containerName != "" {
-		m.addLogEntry("DBG", fmt.Sprintf("$ kubectl logs -f %s -c %s -n %s --context %s", name, m.actionCtx.containerName, ns, ctx))
+		m.addLogEntry("DBG", fmt.Sprintf("$ kubectl logs -f %s -c %s -n %s --context %s", name, m.actionCtx.containerName, ns, kubectlCtx))
 	} else {
-		m.addLogEntry("DBG", fmt.Sprintf("$ kubectl logs -f %s --all-containers --prefix -n %s --context %s", name, ns, ctx))
+		m.addLogEntry("DBG", fmt.Sprintf("$ kubectl logs -f %s --all-containers --prefix -n %s --context %s", name, ns, kubectlCtx))
 	}
 	// Initialize log viewer state.
 	m.mode = modeLogs

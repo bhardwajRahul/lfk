@@ -94,7 +94,7 @@ func (m *Model) startLogStream() tea.Cmd {
 	name := m.actionCtx.name
 	kctx := m.actionCtx.context
 	containerName := m.actionCtx.containerName
-	kubeconfigPaths := m.client.KubeconfigPaths()
+	kubeconfigPaths := m.client.KubeconfigPathForContext(kctx)
 	logPrevious := m.logPrevious
 	tailLines := m.logTailLines
 	if tailLines == 0 {
@@ -134,22 +134,22 @@ func (m *Model) startLogStream() tea.Cmd {
 		case "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Service":
 			// Try to get the pod selector via kubectl so we can follow ALL pods.
 			// kubectl logs deployment/<name> only follows a single pod.
-			selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx)
+			selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, m.kubectlContext(kctx))
 			if selector != "" {
 				args = []string{
 					"logs", "-l", selector, "--all-containers=true", "--prefix", followFlag,
-					"--max-log-requests=20", "--ignore-errors", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "--ignore-errors", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			} else {
 				// Fallback: use resource reference (follows only one pod).
 				resourceRef := strings.ToLower(kind) + "/" + name
 				args = []string{
 					"logs", resourceRef, "--all-containers=true", "--prefix", followFlag,
-					"--max-log-requests=20", "--ignore-errors", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "--ignore-errors", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			}
 		default:
-			args = []string{"logs", followFlag, name, "-n", ns, "--context", kctx}
+			args = []string{"logs", followFlag, name, "-n", ns, "--context", m.kubectlContext(kctx)}
 			if containerName != "" {
 				args = append(args, "-c", containerName)
 			} else if kind == "Pod" {
@@ -231,6 +231,11 @@ func (m *Model) startLogStream() tea.Cmd {
 // parent resource (Deployment, StatefulSet, etc.). It uses kubectl rather than
 // the Go client so that OIDC tokens are discovered/cached by the same credential
 // helper that kubectl uses, avoiding a separate browser auth flow.
+//
+// kctx must be the kubeconfig's *original* context name (the one kubectl will
+// recognise), not lfk's potentially disambiguated display name. Callers in
+// the app package should use Model.kubectlContext to translate before
+// invoking this helper.
 func kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx string) string {
 	// For CronJobs there's no direct pod selector.
 	if kind == "CronJob" {
@@ -391,13 +396,13 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 		case "Pod":
 			args = []string{
 				"logs", item.Name, "--all-containers=true", "--prefix", followFlag,
-				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+				"--max-log-requests=20", "-n", itemNs, "--context", m.kubectlContext(kctx),
 			}
 		default:
 			resourceRef := strings.ToLower(kind) + "/" + item.Name
 			args = []string{
 				"logs", resourceRef, "--all-containers=true", "--prefix", followFlag,
-				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+				"--max-log-requests=20", "-n", itemNs, "--context", m.kubectlContext(kctx),
 			}
 		}
 
@@ -412,7 +417,7 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 		m.addLogEntry("DBG", "kubectl "+strings.Join(args, " "))
 
 		cmd := exec.CommandContext(ctx, kubectlPath, args...)
-		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPaths())
+		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPathForContext(kctx))
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			logger.Error("Failed to create stdout pipe for multi-log", "item", item.Name, "error", err)
@@ -486,13 +491,13 @@ func (m Model) restartMultiLogStream() (Model, tea.Cmd) {
 		case "Pod":
 			args = []string{
 				"logs", item.Name, "--all-containers=true", "--prefix", followFlag,
-				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+				"--max-log-requests=20", "-n", itemNs, "--context", m.kubectlContext(kctx),
 			}
 		default:
 			resourceRef := strings.ToLower(kind) + "/" + item.Name
 			args = []string{
 				"logs", resourceRef, "--all-containers=true", "--prefix", followFlag,
-				"--max-log-requests=20", "-n", itemNs, "--context", kctx,
+				"--max-log-requests=20", "-n", itemNs, "--context", m.kubectlContext(kctx),
 			}
 		}
 
@@ -504,7 +509,7 @@ func (m Model) restartMultiLogStream() (Model, tea.Cmd) {
 		args = append(args, "--timestamps")
 
 		cmd := exec.CommandContext(ctx, kubectlPath, args...)
-		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPaths())
+		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPathForContext(kctx))
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			continue
@@ -552,7 +557,7 @@ func (m *Model) fetchOlderLogs() tea.Cmd {
 	name := m.actionCtx.name
 	kctx := m.actionCtx.context
 	containerName := m.actionCtx.containerName
-	kubeconfigPaths := m.client.KubeconfigPaths()
+	kubeconfigPaths := m.client.KubeconfigPathForContext(kctx)
 	newTail := m.logTailLines + ui.ConfigLogTailLines
 	prevTotal := len(m.logLines)
 	// Only filter client-side when in --all-containers mode (no -c flag).
@@ -570,17 +575,17 @@ func (m *Model) fetchOlderLogs() tea.Cmd {
 		var args []string //nolint:prealloc
 		switch kind {
 		case "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Service":
-			selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx)
+			selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, m.kubectlContext(kctx))
 			if selector != "" {
 				args = []string{
 					"logs", "-l", selector, "--all-containers=true", "--prefix",
-					"--max-log-requests=20", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			} else {
 				resourceRef := strings.ToLower(kind) + "/" + name
 				args = []string{
 					"logs", resourceRef, "--all-containers=true", "--prefix",
-					"--max-log-requests=20", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			}
 		case "Pod":
@@ -589,11 +594,11 @@ func (m *Model) fetchOlderLogs() tea.Cmd {
 			if len(selectedContainers) > 0 || containerName == "" {
 				args = []string{
 					"logs", name, "--all-containers=true", "--prefix",
-					"--max-log-requests=20", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			} else {
 				args = []string{
-					"logs", name, "-c", containerName, "-n", ns, "--context", kctx,
+					"logs", name, "-c", containerName, "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			}
 		default:
@@ -667,7 +672,7 @@ func (m *Model) saveAllLogs() tea.Cmd {
 	name := m.actionCtx.name
 	kctx := m.actionCtx.context
 	containerName := m.actionCtx.containerName
-	kubeconfigPaths := m.client.KubeconfigPaths()
+	kubeconfigPaths := m.client.KubeconfigPathForContext(kctx)
 	logPrevious := m.logPrevious
 	sanitized := sanitizeFilename(name)
 
@@ -675,29 +680,29 @@ func (m *Model) saveAllLogs() tea.Cmd {
 		var args []string
 		switch kind {
 		case "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Service":
-			selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx)
+			selector := kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, m.kubectlContext(kctx))
 			if selector != "" {
 				args = []string{
 					"logs", "-l", selector, "--all-containers=true", "--prefix",
-					"--max-log-requests=20", "--timestamps", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "--timestamps", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			} else {
 				resourceRef := strings.ToLower(kind) + "/" + name
 				args = []string{
 					"logs", resourceRef, "--all-containers=true", "--prefix",
-					"--timestamps", "--max-log-requests=20", "-n", ns, "--context", kctx,
+					"--timestamps", "--max-log-requests=20", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			}
 		case "Pod":
 			if containerName != "" {
 				args = []string{
 					"logs", name, "-c", containerName, "--prefix", "--timestamps",
-					"-n", ns, "--context", kctx,
+					"-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			} else {
 				args = []string{
 					"logs", name, "--all-containers=true", "--prefix", "--timestamps",
-					"--max-log-requests=20", "-n", ns, "--context", kctx,
+					"--max-log-requests=20", "-n", ns, "--context", m.kubectlContext(kctx),
 				}
 			}
 		default:

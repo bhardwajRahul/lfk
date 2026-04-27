@@ -873,10 +873,10 @@ func (m Model) loadHelmRevisions() tea.Cmd {
 	ns := m.actionCtx.namespace
 	name := m.actionCtx.name
 	ctx := m.actionCtx.context
-	kubeconfigPaths := m.client.KubeconfigPaths()
+	kubeconfigPaths := m.client.KubeconfigPathForContext(ctx)
 
 	return func() tea.Msg {
-		revisions, err := fetchHelmHistory(helmPath, name, ns, ctx, kubeconfigPaths)
+		revisions, err := fetchHelmHistory(helmPath, name, ns, m.kubectlContext(ctx), kubeconfigPaths)
 		if err != nil {
 			return helmRevisionListMsg{err: err}
 		}
@@ -898,10 +898,10 @@ func (m Model) loadHelmHistory() tea.Cmd {
 	ns := m.actionCtx.namespace
 	name := m.actionCtx.name
 	ctx := m.actionCtx.context
-	kubeconfigPaths := m.client.KubeconfigPaths()
+	kubeconfigPaths := m.client.KubeconfigPathForContext(ctx)
 
 	return func() tea.Msg {
-		revisions, err := fetchHelmHistory(helmPath, name, ns, ctx, kubeconfigPaths)
+		revisions, err := fetchHelmHistory(helmPath, name, ns, m.kubectlContext(ctx), kubeconfigPaths)
 		if err != nil {
 			return helmHistoryListMsg{err: err}
 		}
