@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -56,8 +58,21 @@ func RenderVisualSelection(line string, visualType rune, lineIdx, selStart, selE
 	case 'B': // Block (column) visual mode
 		return renderBlockSelection(runes, lineLen, colStart, colEnd)
 	default: // 'V' or zero value: Line visual mode
-		return SelectedStyle.Render(line)
+		return renderOuterStyleAcrossEmbeddedANSI(line, SelectedStyle)
 	}
+}
+
+// renderOuterStyleAcrossEmbeddedANSI wraps content with outerStyle's open
+// codes and re-asserts them after every embedded \x1b[0m so producer-emitted
+// resets (kyverno, klog, etc. between fields) don't kill the outer style for
+// the rest of the segment. Mirrors the trick FillLinesBg uses to keep a row
+// background alive across embedded ANSI.
+func renderOuterStyleAcrossEmbeddedANSI(content string, outerStyle lipgloss.Style) string {
+	open := styleOpenCodes(outerStyle)
+	if open == "" {
+		return outerStyle.Render(content)
+	}
+	return open + strings.ReplaceAll(content, ansiReset, ansiReset+open) + ansiReset
 }
 
 // renderCharSelection highlights a character-level selection range.

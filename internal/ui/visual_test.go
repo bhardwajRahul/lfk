@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- RenderCursorAtCol ---
@@ -130,6 +131,34 @@ func TestRenderCursorAtCol_PreservesANSIInPlainLine(t *testing.T) {
 				"literal '[0m' would mean the closing SGR ESC was eaten")
 		})
 	}
+}
+
+// Regression: line-mode visual selection (V) over a producer-colored log
+// line lost its background after every embedded `\x1b[0m`. The user enters
+// visual line mode on a kyverno row, the selection paints only the first
+// field (e.g. timestamp), then drops out for the rest. Fix re-asserts the
+// outer selection style's open codes after each embedded reset, same trick
+// FillLinesBg uses for log line backgrounds.
+func TestRenderVisualSelection_LineModePreservesBgAcrossEmbeddedResets(t *testing.T) {
+	originalProfile := lipgloss.DefaultRenderer().ColorProfile()
+	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(originalProfile) })
+	lipgloss.DefaultRenderer().SetColorProfile(termenv.ANSI)
+
+	line := "\x1b[90mtimestamp\x1b[0m \x1b[34mlevel\x1b[0m message"
+
+	result := RenderVisualSelection(line, 'V', 0, 0, 0, 0, 0, 0, 0, 0)
+
+	openCodes := styleOpenCodes(SelectedStyle)
+	require.NotEmpty(t, openCodes, "SelectedStyle must emit open codes for this test to be meaningful")
+
+	// The selection's open codes must appear at the start of the result and
+	// again after each producer-emitted reset; otherwise the bg dies on the
+	// first \x1b[0m and the post-reset segment loses the selection.
+	occurrences := strings.Count(result, openCodes)
+	embeddedResets := strings.Count(line, "\x1b[0m")
+	assert.GreaterOrEqual(t, occurrences, embeddedResets+1,
+		"selection bg must be re-asserted after each embedded reset (got %d open occurrences, line has %d resets)",
+		occurrences, embeddedResets)
 }
 
 // --- RenderVisualSelection ---
