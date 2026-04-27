@@ -137,7 +137,7 @@ func (m *PortForwardManager) Start(kubectlPath, kubeconfigPaths, resourceKind, r
 		cancel:       cancel,
 	}
 
-	logger.Info("Running kubectl command", "cmd", cmd.String())
+	logger.Info("Running kubectl command", "cmd", cmd.String(), "kubeconfig", kubeconfigPaths)
 	if err := cmd.Start(); err != nil {
 		cancel()
 		logger.Error("kubectl port-forward failed to start", "cmd", cmd.String(), "error", err)

@@ -176,7 +176,7 @@ func (m *Model) startLogStream() tea.Cmd {
 		// Always include --timestamps so toggling visibility doesn't need a restart.
 		args = append(args, "--timestamps")
 
-		logger.Info("Starting kubectl logs", "args", strings.Join(args, " "))
+		logger.Info("Starting kubectl logs", "args", strings.Join(args, " "), "kubeconfig", kubeconfigPaths)
 
 		cmd := exec.CommandContext(ctx, kubectlPath, args...)
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
@@ -252,7 +252,7 @@ func kubectlGetPodSelector(kubectlPath, kubeconfigPaths, ns, kind, name, kctx st
 
 	cmd := exec.Command(kubectlPath, getArgs...)
 	cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
-	logger.Info("Running kubectl command", "cmd", cmd.String())
+	logExecCmd("Running kubectl command", cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		logger.Error("Failed to get pod selector via kubectl", "cmd", cmd.String(), "resource", resourceRef, "error", err)
@@ -413,11 +413,14 @@ func (m *Model) startMultiLogStream(items []model.Item) (tea.Model, tea.Cmd) {
 
 		args = append(args, "--timestamps")
 
-		logger.Info("Starting multi-log kubectl", "item", item.Name, "args", strings.Join(args, " "))
 		m.addLogEntry("DBG", "kubectl "+strings.Join(args, " "))
 
 		cmd := exec.CommandContext(ctx, kubectlPath, args...)
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPathForContext(kctx))
+		logger.Info("Starting multi-log kubectl",
+			"item", item.Name,
+			"cmd", cmd.String(),
+			"kubeconfig", m.client.KubeconfigPathForContext(kctx))
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			logger.Error("Failed to create stdout pipe for multi-log", "item", item.Name, "error", err)
@@ -719,7 +722,7 @@ func (m *Model) saveAllLogs() tea.Cmd {
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
 		// Match commands_exec.go convention: log every kubectl invocation
 		// before running so the slog file records what we actually ran.
-		logger.Info("Running kubectl command", "cmd", cmd.String())
+		logExecCmd("Running kubectl command", cmd)
 		output, err := cmd.Output()
 		if err != nil {
 			return logSaveAllMsg{err: err}

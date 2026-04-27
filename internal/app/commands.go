@@ -27,6 +27,22 @@ func scheduleStatusClear() tea.Cmd {
 	})
 }
 
+// logExecCmd emits a structured Info entry for a subprocess invocation,
+// recording the full command line plus the KUBECONFIG path extracted from
+// cmd.Env so postmortems can tell which kubeconfig was active when the
+// command ran. label distinguishes event kinds (e.g. "Running kubectl
+// command", "Running helm command").
+func logExecCmd(label string, cmd *exec.Cmd) {
+	var kubeconfig string
+	for _, e := range cmd.Env {
+		if rest, ok := strings.CutPrefix(e, "KUBECONFIG="); ok {
+			kubeconfig = rest
+			break
+		}
+	}
+	logger.Info(label, "cmd", cmd.String(), "kubeconfig", kubeconfig)
+}
+
 // startupTips is the list of tips shown randomly on startup.
 var startupTips = []string{
 	"Press ? to see all keybindings",
@@ -171,7 +187,7 @@ func (m Model) loadPodsForLogAction() tea.Cmd {
 		args := []string{"get", "pods", "-l", selector, "-n", ns, "--context", m.kubectlContext(kctx), "-o", "json"}
 		cmd := exec.Command(kubectlPath, args...)
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
-		logger.Info("Running kubectl command", "cmd", cmd.String())
+		logExecCmd("Running kubectl command", cmd)
 		out, err := cmd.Output()
 		if err != nil {
 			logger.Error("kubectl get pods failed", "cmd", cmd.String(), "error", err)
@@ -347,7 +363,7 @@ func (m Model) bulkForceDeleteResources() tea.Cmd {
 			}
 			patchCmd := exec.Command(kubectlPath, patchArgs...)
 			patchCmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPath)
-			logger.Info("Running kubectl command", "cmd", patchCmd.String())
+			logExecCmd("Running kubectl command", patchCmd)
 			patchCmd.Run() //nolint:errcheck
 
 			// Force delete.
@@ -360,7 +376,7 @@ func (m Model) bulkForceDeleteResources() tea.Cmd {
 			}
 			cmd := exec.Command(kubectlPath, deleteArgs...)
 			cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPath)
-			logger.Info("Running kubectl command", "cmd", cmd.String())
+			logExecCmd("Running kubectl command", cmd)
 			if output, err := cmd.CombinedOutput(); err != nil {
 				logger.Error("kubectl bulk force delete failed", "cmd", cmd.String(), "error", err, "output", string(output))
 				failed++
@@ -654,7 +670,7 @@ func (m Model) applyTemplateFile(tmpFile, ctx, ns string) tea.Cmd {
 		}
 		cmd := exec.Command(kubectlPath, args...)
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+m.client.KubeconfigPathForContext(ctx))
-		logger.Info("Running kubectl command", "cmd", cmd.String())
+		logExecCmd("Running kubectl command", cmd)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			logger.Error("kubectl apply failed", "cmd", cmd.String(), "error", err, "output", string(output))
