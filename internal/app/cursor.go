@@ -134,21 +134,22 @@ func (m *Model) carryOverMetricsColumns(newItems []model.Item) {
 		"MEM": true, "MEM/R": true, "MEM/L": true,
 		"CPU%": true, "MEM%": true,
 	}
-	// Build lookup from old items -- only if they have real usage data.
+	// Build lookup from old items. Carry over whatever metrics columns the
+	// item already had so the column set stays visually stable across watch
+	// ticks -- including "n/a" placeholders set by the node enrichment path
+	// when metrics-server returned nothing. The previous hasUsage gate
+	// dropped the carryover whenever every value was empty/zero, which made
+	// the metrics columns flicker out and back in on each refresh.
 	type itemKey struct{ ns, name string }
 	oldMetrics := make(map[itemKey][]model.KeyValue)
 	for _, item := range m.middleItems {
 		var cols []model.KeyValue
-		hasUsage := false
 		for _, kv := range item.Columns {
 			if metricsKeys[kv.Key] {
 				cols = append(cols, kv)
-				if (kv.Key == "CPU" || kv.Key == "MEM") && kv.Value != "" && kv.Value != "0" && kv.Value != "0m" && kv.Value != "0B" {
-					hasUsage = true
-				}
 			}
 		}
-		if hasUsage && len(cols) > 0 {
+		if len(cols) > 0 {
 			oldMetrics[itemKey{item.Namespace, item.Name}] = cols
 		}
 	}

@@ -1980,11 +1980,26 @@ func (m Model) updatePodMetricsEnriched(msg podMetricsEnrichedMsg) Model {
 	return m
 }
 
+// ensureNodeMetricsColumnsPlaceholder adds CPU/CPU%/MEM/MEM% columns to a node
+// item using "n/a" placeholders when metrics-server returned no data for it.
+// Stable column visibility is the contract — without these placeholders,
+// autoDetectColumns drops the metrics columns whenever every visible row
+// lacks them, and the user sees the column set blink in and out as
+// metrics-server health fluctuates.
+func ensureNodeMetricsColumnsPlaceholder(item *model.Item) {
+	wanted := map[string]bool{"CPU": true, "CPU%": true, "MEM": true, "MEM%": true}
+	for _, kv := range item.Columns {
+		delete(wanted, kv.Key)
+	}
+	for _, key := range []string{"CPU", "CPU%", "MEM", "MEM%"} {
+		if wanted[key] {
+			item.Columns = append(item.Columns, model.KeyValue{Key: key, Value: "n/a"})
+		}
+	}
+}
+
 func (m Model) updateNodeMetricsEnriched(msg nodeMetricsEnrichedMsg) Model {
 	if msg.gen != m.requestGen {
-		return m
-	}
-	if len(msg.metrics) == 0 {
 		return m
 	}
 	m.middleItemsRev++
@@ -1992,6 +2007,12 @@ func (m Model) updateNodeMetricsEnriched(msg nodeMetricsEnrichedMsg) Model {
 		item := &m.middleItems[i]
 		nm, ok := msg.metrics[item.Name]
 		if !ok {
+			// Metrics-server didn't return data for this node (or not yet).
+			// Touch the item so CPU/CPU%/MEM/MEM% columns exist with "n/a"
+			// values; otherwise autoDetectColumns hides the columns
+			// entirely whenever metrics are unavailable, and they pop
+			// in/out as metrics-server churns.
+			ensureNodeMetricsColumnsPlaceholder(item)
 			continue
 		}
 
@@ -2038,9 +2059,14 @@ func (m Model) updateNodeMetricsEnriched(msg nodeMetricsEnrichedMsg) Model {
 		cpuPct := ui.ComputePctStr(nm.CPU, cpuAllocStr, true)
 		memPct := ui.ComputePctStr(nm.Memory, memAllocStr, false)
 
+		// Strip only the columns we're about to re-emit. CPU Alloc / Mem Alloc
+		// stay in place: they're populator-supplied capacity data the right-
+		// pane summary needs whenever the user navigates to a node, and
+		// removing them used to leave a window after metrics enrichment but
+		// before the next watch-tick list refresh where the preview had no
+		// alloc info to render.
 		removeCols := map[string]bool{
 			"CPU": true, "CPU%": true, "MEM": true, "MEM%": true,
-			"CPU Alloc": true, "Mem Alloc": true,
 		}
 		var newCols []model.KeyValue
 		newCols = append(newCols,

@@ -650,7 +650,11 @@ func TestCarryOverMetricsColumns(t *testing.T) {
 		assert.Equal(t, "Status", newItems[0].Columns[3].Key)
 	})
 
-	t.Run("no carryover when old items have no real usage", func(t *testing.T) {
+	t.Run("zero-value metrics columns still carry across ticks", func(t *testing.T) {
+		// Behavior changed deliberately so the metrics column set stays
+		// visually stable across watch ticks even when a pod/node has zero
+		// load or only "n/a" placeholders. Values get refreshed when the
+		// next podMetricsEnrichedMsg / nodeMetricsEnrichedMsg arrives.
 		m := Model{
 			middleItems: []model.Item{
 				{
@@ -671,8 +675,10 @@ func TestCarryOverMetricsColumns(t *testing.T) {
 			},
 		}
 		m.carryOverMetricsColumns(newItems)
-		assert.Len(t, newItems[0].Columns, 1)
-		assert.Equal(t, "Status", newItems[0].Columns[0].Key)
+		assert.Len(t, newItems[0].Columns, 3)
+		assert.Equal(t, "CPU", newItems[0].Columns[0].Key)
+		assert.Equal(t, "MEM", newItems[0].Columns[1].Key)
+		assert.Equal(t, "Status", newItems[0].Columns[2].Key)
 	})
 
 	t.Run("no carryover for unmatched items", func(t *testing.T) {
@@ -2307,7 +2313,14 @@ func TestCovCarryOverMetricsColumns(t *testing.T) {
 	assert.Len(t, newItems[1].Columns, 1)
 }
 
-func TestCovCarryOverMetricsNoUsage(t *testing.T) {
+func TestCovCarryOverMetricsZeroValuesStillCarry(t *testing.T) {
+	// Behavior changed deliberately: the carryover used to drop any item
+	// whose CPU and MEM were "0" / empty. That kept the metrics columns
+	// flickering out and back in whenever a node had zero load — and
+	// blocked "n/a" placeholders from surviving across watch ticks. Now
+	// the carryover always persists existing metrics columns so the
+	// column set stays stable; the actual values get refreshed on the
+	// next podMetricsEnrichedMsg / nodeMetricsEnrichedMsg.
 	m := baseModelCov()
 	m.middleItems = []model.Item{
 		{
@@ -2325,8 +2338,10 @@ func TestCovCarryOverMetricsNoUsage(t *testing.T) {
 	}
 
 	m.carryOverMetricsColumns(newItems)
-	// No usage data, so no carryover.
-	assert.Empty(t, newItems[0].Columns)
+	assert.Equal(t, []model.KeyValue{
+		{Key: "CPU", Value: "0"},
+		{Key: "MEM", Value: "0"},
+	}, newItems[0].Columns)
 }
 
 func TestCovClampAllCursors(t *testing.T) {
