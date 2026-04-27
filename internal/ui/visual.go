@@ -1,29 +1,37 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+)
 
 // CursorBlockStyle is the reverse-video style used to render a block cursor at a column position.
 var CursorBlockStyle = lipgloss.NewStyle().Reverse(true)
 
-// RenderCursorAtCol renders a block cursor at the given column position within a line.
-// If the column is at or beyond the line length, the cursor is shown as a highlighted space
-// appended to the line. The styledLine parameter is the already-styled version of the line
-// (with syntax highlighting etc.), and plainLine is the raw text used for column counting.
-// When the cursor is at a negative column the original styled line is returned unchanged.
+// RenderCursorAtCol renders a block cursor at the given visual column within a
+// line. If the column is at or beyond the line's visual width, the cursor is
+// shown as a highlighted space appended to the line. styledLine is the already-
+// styled version (line numbers, syntax highlighting); plainLine is the source
+// of truth for column counting and may contain ANSI SGR sequences from the
+// underlying log producer (kyverno, klog, etc. when ConfigLogRenderAnsi is on).
+// When the cursor is at a negative column the styled line is returned as-is.
+//
+// The split is ANSI-aware on purpose: rune-indexing across an SGR sequence
+// would land the cursor on the ESC byte or a payload digit, and lipgloss
+// strips bare ESC bytes when wrapping content with reverse-video codes. The
+// remaining "[NNm" payload then leaks as literal text in front of the line.
 func RenderCursorAtCol(styledLine, plainLine string, col int) string {
 	if col < 0 {
 		return styledLine
 	}
-	runes := []rune(plainLine)
-	if col >= len(runes) {
+	visualWidth := ansi.StringWidth(plainLine)
+	if col >= visualWidth {
 		// Cursor is past end of line: append a highlighted space.
 		return styledLine + CursorBlockStyle.Render(" ")
 	}
-	// Rebuild the line with the cursor character highlighted.
-	// Use plain text to get precise column positions, then rebuild with the cursor.
-	before := string(runes[:col])
-	cursorChar := string(runes[col : col+1])
-	after := string(runes[col+1:])
+	before := ansi.Truncate(plainLine, col, "")
+	cursorChar := ansi.Strip(ansi.Cut(plainLine, col, col+1))
+	after := ansi.TruncateLeft(plainLine, col+1, "")
 	return before + CursorBlockStyle.Render(cursorChar) + after
 }
 

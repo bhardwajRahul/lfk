@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -77,6 +79,55 @@ func TestRenderCursorAtCol(t *testing.T) {
 			for _, absent := range tt.wantAbsent {
 				assert.NotContains(t, result, absent, "result should not contain %q", absent)
 			}
+		})
+	}
+}
+
+// Regression for kyverno-style log lines: producers that emit colored
+// timestamps (`\x1b[90m2026-...`) reach the log viewer with the SGR sequence
+// preserved (ConfigLogRenderAnsi defaults on). With rune-based slicing, any
+// cursor column that landed inside an SGR sequence split it -- the cursor
+// wrapper consumed the partial introducer and the remaining "NNm" leaked as
+// literal text. The cursor must address visible columns and treat embedded
+// SGR sequences as zero-width.
+func TestRenderCursorAtCol_PreservesANSIInPlainLine(t *testing.T) {
+	// Force ANSI so CursorBlockStyle emits real reverse-video codes.
+	// In the default test profile lipgloss strips styles and the regression
+	// becomes invisible.
+	originalProfile := lipgloss.DefaultRenderer().ColorProfile()
+	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(originalProfile) })
+	lipgloss.DefaultRenderer().SetColorProfile(termenv.ANSI)
+
+	line := "\x1b[90m2026-04-27T12:52:19Z TRC msg\x1b[0m"
+
+	tests := []struct {
+		name           string
+		col            int
+		wantCursorChar string
+	}{
+		{name: "cursor on first visible char", col: 0, wantCursorChar: "2"},
+		{name: "cursor on second visible char", col: 1, wantCursorChar: "0"},
+		{name: "cursor mid-timestamp", col: 4, wantCursorChar: "-"},
+		{name: "cursor on T separator", col: 10, wantCursorChar: "T"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RenderCursorAtCol(line, line, tt.col)
+
+			assert.Contains(t, result, "\x1b[90m",
+				"original SGR opener must remain intact, not split by the cursor wrapper")
+
+			assert.Contains(t, result, CursorBlockStyle.Render(tt.wantCursorChar),
+				"cursor should highlight the visible character at column %d", tt.col)
+
+			// A literal "[90m" preceded by anything other than ESC means the
+			// SGR introducer was lost and the rest leaked as plain text.
+			assert.NotRegexp(t, `(^|[^\x1b])\[90m`, result,
+				"literal '[90m' would mean the SGR ESC was eaten")
+			// Same regression check for the closing reset.
+			assert.NotRegexp(t, `(^|[^\x1b])\[0m`, result,
+				"literal '[0m' would mean the closing SGR ESC was eaten")
 		})
 	}
 }
