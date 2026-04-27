@@ -823,7 +823,7 @@ func fetchHelmHistory(helmPath, name, ns, kubeCtx, kubeconfigPaths string) ([]ui
 	args := []string{"history", name, "-n", ns, "--kube-context", kubeCtx, "-o", "json", "--max", "50"}
 	cmd := exec.CommandContext(ctx, helmPath, args...)
 	cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
-	logger.Info("Running helm command", "cmd", cmd.String())
+	logExecCmd("Running helm command", cmd)
 	output, cmdErr := cmd.CombinedOutput()
 	if cmdErr != nil {
 		truncated := truncateHelmOutput(output)

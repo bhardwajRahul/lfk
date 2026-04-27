@@ -349,15 +349,7 @@ func (m Model) viewExplorer() string {
 	middleCol = ui.FillLinesBg(middleCol, middleInner, ui.BaseBg)
 	middle := ui.ActiveColumnStyle.Width(middleW).Height(contentHeight).MaxHeight(contentHeight + 2).Render(middleCol)
 
-	var columns string
-	switch {
-	case m.fullscreenDashboard:
-		columns = m.viewExplorerDashboard(contentHeight)
-	case m.fullscreenMiddle:
-		columns = middle
-	default:
-		columns = m.viewExplorerThreeCol(middle, leftW, leftInner, rightW, rightInner, contentHeight)
-	}
+	columns := m.viewExplorerColumns(middle, leftW, leftInner, rightW, rightInner, contentHeight)
 
 	// Title bar with namespace indicator on the right.
 	title := ui.FillLinesBg(m.renderTitleBar(), m.width, ui.BarBg)
@@ -484,6 +476,56 @@ func (m Model) viewExplorerDashboard(contentHeight int) string {
 		return m.viewExplorerDashboardTwoCol(dashContent, fullW, contentHeight)
 	}
 	return m.viewExplorerDashboardSingleCol(dashContent, fullW, contentHeight)
+}
+
+// viewExplorerColumns picks which view fills the explorer's columns slot.
+// Fullscreen variants (error log, dashboard, single middle column) take
+// precedence over the three-column layout. Extracted so viewExplorer
+// itself stays under the gocyclo cap.
+func (m Model) viewExplorerColumns(middle string, leftW, leftInner, rightW, rightInner, contentHeight int) string {
+	switch {
+	case m.overlayErrorLog && m.errorLogFullscreen:
+		return m.viewErrorLogFullscreen(contentHeight)
+	case m.fullscreenDashboard:
+		return m.viewExplorerDashboard(contentHeight)
+	case m.fullscreenMiddle:
+		return middle
+	default:
+		return m.viewExplorerThreeCol(middle, leftW, leftInner, rightW, rightInner, contentHeight)
+	}
+}
+
+// viewErrorLogFullscreen renders the in-app error log as the columns slot
+// of viewExplorer when the user has fullscreened it. This reuses the same
+// fullscreen pattern as viewExplorerDashboard so the surrounding title
+// bar, tab bar, and status bar (with the overlayErrorLog-specific hints)
+// stay consistent — instead of doing custom slice-and-rebuild that would
+// drop background fills and break global keys like the theme selector.
+func (m Model) viewErrorLogFullscreen(contentHeight int) string {
+	vp := ui.ErrorLogVisualParams{
+		VisualMode:     m.errorLogVisualMode,
+		VisualStart:    m.errorLogVisualStart,
+		VisualStartCol: m.errorLogVisualStartCol,
+		CursorLine:     m.errorLogCursorLine,
+		CursorCol:      m.errorLogCursorCol,
+	}
+	fullW := m.width - 2
+	innerW := max(fullW-2, 1) // minus column padding
+	content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, contentHeight, m.showDebugLogs, vp)
+	content = clampErrorLogLines(content, innerW, contentHeight)
+	content = ui.PadToHeight(content, contentHeight)
+	content = ui.FillLinesBg(content, innerW, ui.BaseBg)
+	// Apply BaseBg to the column wrapper too so the 1-char padding lipgloss
+	// adds inside the rounded border doesn't render with the terminal's
+	// default background — that's the "background looks different" gap
+	// users see between the inner BaseBg-filled content and the border.
+	style := ui.ActiveColumnStyle.
+		Width(fullW).
+		Height(contentHeight).
+		MaxHeight(contentHeight + 2).
+		Background(ui.BaseBg).
+		BorderBackground(ui.BaseBg)
+	return style.Render(content)
 }
 
 // viewExplorerDashboardSingleCol renders a single-column fullscreen dashboard.

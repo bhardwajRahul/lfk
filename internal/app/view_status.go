@@ -730,12 +730,11 @@ func (m Model) renderErrorLogOverlay(background string) string {
 	}
 
 	if m.errorLogFullscreen {
-		// Fullscreen: use full terminal dimensions, no overlay border.
-		content := ui.RenderErrorLogOverlay(m.errorLog, m.errorLogScroll, m.height-1, m.showDebugLogs, vp)
-		// Truncate each line to terminal width so long messages do not wrap
-		// and push content off the bottom of the screen.
-		content = clampErrorLogLines(content, m.width, m.height-1)
-		return content
+		// Fullscreen rendering is handled by viewExplorer via the
+		// viewErrorLogFullscreen helper (same pattern as the dashboard
+		// fullscreen). The background passed in here is already that
+		// composed view, so just return it unchanged.
+		return background
 	}
 
 	overlayW := min(140, m.width-4)

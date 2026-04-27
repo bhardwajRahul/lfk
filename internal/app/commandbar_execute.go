@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/janosmiko/lfk/internal/logger"
 	"github.com/janosmiko/lfk/internal/model"
 	"github.com/janosmiko/lfk/internal/ui"
 )
@@ -452,7 +451,7 @@ func (m Model) executeKubectlCommand(input string) tea.Cmd {
 	c := exec.Command("sh", "-c", shellCmd)
 	c.Env = m.kubectlEnv()
 
-	logger.Info("Running kubectl command", "cmd", shellCmd)
+	logExecCmd("Running kubectl command", c)
 
 	return tea.ExecProcess(c, func(err error) tea.Msg {
 		return actionResultMsg{err: err, invalidateNamespaceCache: affectsNamespaces}

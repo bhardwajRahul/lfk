@@ -722,6 +722,7 @@ func (m *Model) saveCurrentTab() {
 	t.mode = m.mode
 	t.logLines = append([]string(nil), m.logLines...)
 	t.logScroll = m.logScroll
+	t.logWrapTopSkip = m.logWrapTopSkip
 	t.logFollow = m.logFollow
 	t.logWrap = m.logWrap
 	t.logLineNumbers = m.logLineNumbers
@@ -825,6 +826,7 @@ func (m *Model) loadTab(idx int) tea.Cmd {
 	m.mode = t.mode
 	m.logLines = append([]string(nil), t.logLines...)
 	m.logScroll = t.logScroll
+	m.logWrapTopSkip = t.logWrapTopSkip
 	m.logFollow = t.logFollow
 	m.logWrap = t.logWrap
 	m.logLineNumbers = t.logLineNumbers

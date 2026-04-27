@@ -402,10 +402,12 @@ func (m Model) loadHelmValues(allValues bool) tea.Cmd {
 	return m.trackBgTask(bgtasks.KindSubprocess, title, bgtaskTarget(ctx, ns), func() tea.Msg {
 		cmd := exec.Command(helmPath, args...)
 		cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfigPaths)
-		logger.Info("Running helm command", "cmd", cmd.String())
+		logExecCmd("Running helm command", cmd)
 		output, cmdErr := cmd.CombinedOutput()
 		if cmdErr != nil {
-			logger.Error("helm get values failed", "cmd", cmd.String(), "error", cmdErr, "output", string(output))
+			// Helm chart values commonly embed secrets/passwords; redact
+			// the captured output before persisting it to lfk.log.
+			logger.Error("helm get values failed", "cmd", cmd.String(), "error", cmdErr, "output", logger.Redact(string(output)))
 			return helmValuesLoadedMsg{
 				title: title,
 				err:   fmt.Errorf("%w: %s", cmdErr, strings.TrimSpace(string(output))),

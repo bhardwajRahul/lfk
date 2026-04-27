@@ -15,7 +15,7 @@ var LogSearchHighlightStyle = lipgloss.NewStyle().
 	Bold(true)
 
 // RenderLogViewer renders the full-screen log viewer.
-func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, lineNumbers, timestamps, previous, hidePrefixes bool, title, searchQuery, searchInput string, searchActive, canSwitchPod, canFilterContainers, hasMoreHistory, loadingHistory bool, statusMsg string, statusIsErr bool, cursor int, visualMode bool, visualStart int, visualType rune, visualCol, visualCurCol int) string {
+func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, lineNumbers, timestamps, previous, hidePrefixes bool, title, searchQuery, searchInput string, searchActive, canSwitchPod, canFilterContainers, hasMoreHistory, loadingHistory bool, statusMsg string, statusIsErr bool, cursor int, visualMode bool, visualStart int, visualType rune, visualCol, visualCurCol, wrapTopSkip int) string {
 	titleBar := renderLogTitleBar(title, lines, width, follow, wrap, lineNumbers, timestamps, previous, hidePrefixes, visualMode, visualType, loadingHistory, searchQuery)
 	footer := renderLogFooter(width, statusMsg, statusIsErr, searchActive, searchInput, visualMode, canSwitchPod, canFilterContainers)
 
@@ -73,7 +73,7 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	// Build visible lines, handling wrapping.
 	var rendered []string
 	if wrap {
-		rendered = renderWrappedLines(displayLines, scroll, contentHeight, contentWidth, lineNumbers, lineNumWidth, cursor, selStart, selEnd, visualStart, visualType, visualCol, visualCurCol)
+		rendered = renderWrappedLines(displayLines, scroll, contentHeight, contentWidth, lineNumbers, lineNumWidth, cursor, selStart, selEnd, visualStart, visualType, visualCol, visualCurCol, wrapTopSkip)
 	} else {
 		rendered = renderPlainLines(displayLines, scroll, contentHeight, contentWidth, lineNumbers, lineNumWidth, cursor, selStart, selEnd, visualStart, visualType, visualCol, visualCurCol)
 	}
@@ -286,7 +286,11 @@ func renderPlainLines(lines []string, scroll, height, width int, lineNumbers boo
 }
 
 // renderWrappedLines renders lines with wrapping, accounting for scroll position.
-func renderWrappedLines(lines []string, scroll, height, width int, lineNumbers bool, lineNumWidth int, cursor int, selStart, selEnd, visualStart int, visualType rune, visualCol, visualCurCol int) []string {
+// topSkip drops that many wrapped sub-lines from the top of lines[scroll], so
+// the renderer can pin a too-tall final source line's tail to the bottom row
+// when following — without it, long log lines wrapping past viewH lose their
+// most recent sub-lines off the bottom.
+func renderWrappedLines(lines []string, scroll, height, width int, lineNumbers bool, lineNumWidth int, cursor int, selStart, selEnd, visualStart int, visualType rune, visualCol, visualCurCol, topSkip int) []string {
 	// Reserve 1 column for cursor gutter.
 	gutterWidth := 1
 	availWidth := width - gutterWidth
@@ -298,15 +302,21 @@ func renderWrappedLines(lines []string, scroll, height, width int, lineNumbers b
 	}
 
 	// We need to figure out which source lines and which wrapped sub-lines
-	// correspond to the scroll offset. For wrapping, scroll refers to source lines.
+	// correspond to the scroll offset. For wrapping, scroll refers to source
+	// lines; topSkip drops sub-lines from the very top of lines[scroll].
 	var result []string
 
+	skipped := 0
 	end := len(lines)
 	for i := scroll; i < end && len(result) < height; i++ {
 		line := lines[i]
 		isSelected := selStart >= 0 && i >= selStart && i <= selEnd
 		wrapped := wrapLine(line, availWidth)
 		for j, wl := range wrapped {
+			if skipped < topSkip {
+				skipped++
+				continue
+			}
 			if len(result) >= height {
 				break
 			}
