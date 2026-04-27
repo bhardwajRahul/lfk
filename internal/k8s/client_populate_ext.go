@@ -51,6 +51,12 @@ func populateResourceDetailsExt(ti *model.Item, obj map[string]any, kind string,
 	case "ServiceAccount":
 		populateServiceAccount(ti, obj)
 
+	case "Endpoints":
+		populateEndpoints(ti, obj)
+
+	case "EndpointSlice":
+		populateEndpointSlice(ti, obj)
+
 	case "PriorityClass":
 		if val, ok := spec["globalDefault"].(bool); ok && val {
 			ti.Name += " (default)"
@@ -855,5 +861,143 @@ func populateNetworkPolicy(ti *model.Item, spec map[string]any) {
 	}
 	if egress, ok := spec["egress"].([]any); ok {
 		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Egress Rules", Value: fmt.Sprintf("%d", len(egress))})
+	}
+}
+
+// populateEndpoints surfaces the actual endpoint addresses and ports for a
+// classic v1 Endpoints object. The summary collapses subsets so the table
+// shows a count plus a sample, and per-row columns let the user spot
+// "service has zero ready endpoints" at a glance.
+func populateEndpoints(ti *model.Item, obj map[string]any) {
+	subsets, ok := obj["subsets"].([]any)
+	if !ok {
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Endpoints", Value: "<none>"})
+		return
+	}
+	var addrs, notReady, portStrs []string
+	for _, s := range subsets {
+		subset, ok := s.(map[string]any)
+		if !ok {
+			continue
+		}
+		if list, ok := subset["addresses"].([]any); ok {
+			for _, a := range list {
+				if amap, ok := a.(map[string]any); ok {
+					if ip, ok := amap["ip"].(string); ok {
+						addrs = append(addrs, ip)
+					}
+				}
+			}
+		}
+		if list, ok := subset["notReadyAddresses"].([]any); ok {
+			for _, a := range list {
+				if amap, ok := a.(map[string]any); ok {
+					if ip, ok := amap["ip"].(string); ok {
+						notReady = append(notReady, ip)
+					}
+				}
+			}
+		}
+		if list, ok := subset["ports"].([]any); ok {
+			for _, p := range list {
+				if pmap, ok := p.(map[string]any); ok {
+					portStrs = append(portStrs, formatEndpointPort(pmap))
+				}
+			}
+		}
+	}
+	ti.Columns = append(ti.Columns, model.KeyValue{Key: "Ready", Value: fmt.Sprintf("%d", len(addrs))})
+	if len(notReady) > 0 {
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Not Ready", Value: fmt.Sprintf("%d", len(notReady))})
+	}
+	if v := summarizeEndpointAddresses(addrs); v != "" {
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Addresses", Value: v})
+	}
+	if len(portStrs) > 0 {
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Ports", Value: strings.Join(portStrs, ", ")})
+	}
+}
+
+// populateEndpointSlice mirrors populateEndpoints for the discovery.k8s.io/v1
+// EndpointSlice resource. Reads ready/serving conditions per endpoint so a
+// slice carrying half-degraded backends shows up plainly in the list.
+func populateEndpointSlice(ti *model.Item, obj map[string]any) {
+	if t, ok := obj["addressType"].(string); ok && t != "" {
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Type", Value: t})
+	}
+	endpoints, _ := obj["endpoints"].([]any)
+	var ready, notReady, addrs []string
+	for _, e := range endpoints {
+		ep, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		isReady := false
+		if cond, ok := ep["conditions"].(map[string]any); ok {
+			if r, ok := cond["ready"].(bool); ok && r {
+				isReady = true
+			}
+		}
+		if as, ok := ep["addresses"].([]any); ok {
+			for _, a := range as {
+				if s, ok := a.(string); ok {
+					addrs = append(addrs, s)
+					if isReady {
+						ready = append(ready, s)
+					} else {
+						notReady = append(notReady, s)
+					}
+				}
+			}
+		}
+	}
+	ti.Columns = append(ti.Columns, model.KeyValue{Key: "Ready", Value: fmt.Sprintf("%d", len(ready))})
+	if len(notReady) > 0 {
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Not Ready", Value: fmt.Sprintf("%d", len(notReady))})
+	}
+	if v := summarizeEndpointAddresses(addrs); v != "" {
+		ti.Columns = append(ti.Columns, model.KeyValue{Key: "Addresses", Value: v})
+	}
+	if ports, ok := obj["ports"].([]any); ok {
+		var portStrs []string
+		for _, p := range ports {
+			if pmap, ok := p.(map[string]any); ok {
+				portStrs = append(portStrs, formatEndpointPort(pmap))
+			}
+		}
+		if len(portStrs) > 0 {
+			ti.Columns = append(ti.Columns, model.KeyValue{Key: "Ports", Value: strings.Join(portStrs, ", ")})
+		}
+	}
+}
+
+// formatEndpointPort renders a port spec map as "name:port/protocol" or
+// "port/protocol" when no name is set. Falls back to the bare port number
+// if the map shape is unexpected.
+func formatEndpointPort(p map[string]any) string {
+	port, _ := p["port"].(float64)
+	proto, _ := p["protocol"].(string)
+	name, _ := p["name"].(string)
+	if proto == "" {
+		proto = "TCP"
+	}
+	if name != "" {
+		return fmt.Sprintf("%s:%d/%s", name, int64(port), proto)
+	}
+	return fmt.Sprintf("%d/%s", int64(port), proto)
+}
+
+// summarizeEndpointAddresses returns a comma-joined preview of up to three
+// addresses, with a "+N more" tail when the list is longer. Empty list
+// returns an empty string so the caller can skip emitting the column.
+func summarizeEndpointAddresses(addrs []string) string {
+	const maxShown = 3
+	switch {
+	case len(addrs) == 0:
+		return ""
+	case len(addrs) <= maxShown:
+		return strings.Join(addrs, ", ")
+	default:
+		return strings.Join(addrs[:maxShown], ", ") + fmt.Sprintf(" +%d more", len(addrs)-maxShown)
 	}
 }
