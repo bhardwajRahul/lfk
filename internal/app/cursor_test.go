@@ -602,6 +602,19 @@ func TestParentIndex(t *testing.T) {
 	})
 }
 
+// --- setMiddleItems ---
+
+func TestSetMiddleItemsBumpsRev(t *testing.T) {
+	m := Model{middleItemsRev: 7}
+	m.setMiddleItems([]model.Item{{Name: "x"}})
+	assert.Equal(t, uint64(8), m.middleItemsRev, "rev must bump on reassignment")
+	assert.Equal(t, []model.Item{{Name: "x"}}, m.middleItems)
+
+	m.setMiddleItems(nil)
+	assert.Equal(t, uint64(9), m.middleItemsRev, "rev must bump even when items go nil")
+	assert.Nil(t, m.middleItems)
+}
+
 // --- carryOverMetricsColumns ---
 
 func TestCarryOverMetricsColumns(t *testing.T) {

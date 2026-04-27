@@ -3,14 +3,26 @@ package ui
 import (
 	"sort"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/janosmiko/lfk/internal/model"
 )
 
+// ageBucketSeconds bounds the staleness window for LiveAge values baked into
+// cached non-cursor row strings. Bumping the bucket invalidates the cache, so
+// ages tick on screen even when the data slice is otherwise unchanged (e.g.
+// watch mode is off).
+const ageBucketSeconds = 30
+
 // TableRenderer caches the non-cursor row strings and column-width layout
 // across renders, keyed by an input fingerprint. Cursor rows are always
 // re-rendered.
+//
+// Concurrency: Render mutates package-level globals (ActiveRowCache,
+// ActiveTableLayout) and assumes the caller is the single-threaded Bubble
+// Tea View() goroutine. Calling Render from multiple goroutines races on
+// those globals.
 type TableRenderer struct {
 	fp     tableFingerprint
 	rows   map[int]string
@@ -22,6 +34,7 @@ type tableFingerprint struct {
 	itemsLen     int
 	middleRev    uint64
 	selRev       uint64
+	ageBucket    int64
 	width        int
 	height       int
 	highlight    string
@@ -29,6 +42,8 @@ type tableFingerprint struct {
 	columnOrder  string
 	sessionCols  string
 	contextLabel string
+	iconMode     string
+	noColor      bool
 }
 
 func NewTableRenderer() *TableRenderer {
@@ -41,6 +56,7 @@ func (r *TableRenderer) Render(headerLabel string, items []model.Item, cursor in
 		itemsLen:     len(items),
 		middleRev:    middleRev,
 		selRev:       selRev,
+		ageBucket:    time.Now().Unix() / ageBucketSeconds,
 		width:        width,
 		height:       height,
 		highlight:    ActiveHighlightQuery,
@@ -48,6 +64,8 @@ func (r *TableRenderer) Render(headerLabel string, items []model.Item, cursor in
 		columnOrder:  strings.Join(ActiveColumnOrder, "|"),
 		sessionCols:  strings.Join(ActiveSessionColumns, "|"),
 		contextLabel: ActiveContext,
+		iconMode:     IconMode,
+		noColor:      ConfigNoColor,
 	}
 	if r.fp != fp {
 		r.fp = fp
@@ -56,12 +74,13 @@ func (r *TableRenderer) Render(headerLabel string, items []model.Item, cursor in
 	}
 	prevCache := ActiveRowCache
 	prevLayout := ActiveTableLayout
+	defer func() {
+		ActiveRowCache = prevCache
+		ActiveTableLayout = prevLayout
+	}()
 	ActiveRowCache = r.rows
 	ActiveTableLayout = &r.layout
-	out := RenderTable(headerLabel, items, cursor, width, height, loading, spinnerView, errMsg)
-	ActiveRowCache = prevCache
-	ActiveTableLayout = prevLayout
-	return out
+	return RenderTable(headerLabel, items, cursor, width, height, loading, spinnerView, errMsg)
 }
 
 func itemsHeaderPtr(items []model.Item) uintptr {

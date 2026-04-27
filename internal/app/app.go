@@ -558,10 +558,15 @@ type Model struct {
 	// they were created with and are discarded if it no longer matches.
 	requestGen uint64
 
-	// Bumped on in-place mutation of middleItems / selectedItems. Slice-
-	// header reassignments are caught by the TableRenderer fingerprint.
+	// middleItemsRev is the authoritative cache-invalidation signal for the
+	// middle-column TableRenderer. It MUST be bumped whenever a render of
+	// the same indices would produce different output: in-place element
+	// mutation AND every slice reassignment (use setMiddleItems for the
+	// latter). itemsPtr in the fingerprint is only a fast-path safety net.
 	middleItemsRev uint64
-	selectionRev   uint64
+	// selectionRev is bumped on every change to selectedItems so the row
+	// cache invalidates and the selection marker on non-cursor rows updates.
+	selectionRev uint64
 
 	middleTableRenderer *ui.TableRenderer
 

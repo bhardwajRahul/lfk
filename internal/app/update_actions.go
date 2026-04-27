@@ -1145,7 +1145,7 @@ func (m Model) executeActionRemove() (tea.Model, tea.Cmd) {
 		pfID := m.getPortForwardID(m.actionCtx.columns)
 		if pfID > 0 {
 			m.portForwardMgr.Remove(pfID)
-			m.middleItems = m.portForwardItems()
+			m.setMiddleItems(m.portForwardItems())
 			m.clampCursor()
 			m.saveCurrentPortForwards()
 			m.setStatusMessage("Port forward removed", false)

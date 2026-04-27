@@ -601,7 +601,7 @@ func (m *Model) navigateToPortForwards() {
 	m.leftItemsHistory = [][]model.Item{contexts}
 	m.leftItems = resourceTypes
 	m.clearRight()
-	m.middleItems = m.portForwardItems()
+	m.setMiddleItems(m.portForwardItems())
 	m.setCursor(0)
 	// Try to position cursor on the newly created port forward.
 	if m.pfLastCreatedID > 0 {
@@ -779,7 +779,7 @@ func (m *Model) loadTab(idx int) tea.Cmd {
 	m.activeTab = idx
 	m.nav = t.nav
 	m.leftItems = append([]model.Item(nil), t.leftItems...)
-	m.middleItems = append([]model.Item(nil), t.middleItems...)
+	m.setMiddleItems(append([]model.Item(nil), t.middleItems...))
 	m.rightItems = append([]model.Item(nil), t.rightItems...)
 	m.leftItemsHistory = make([][]model.Item, len(t.leftItemsHistory))
 	for i, hist := range t.leftItemsHistory {
@@ -897,7 +897,7 @@ func (m *Model) loadTab(idx int) tea.Cmd {
 			// At resources level: left = resource types, history = [contexts].
 			m.leftItemsHistory = [][]model.Item{contexts}
 			m.leftItems = resourceTypes
-			m.middleItems = nil
+			m.setMiddleItems(nil)
 			m.clearRight()
 			m.setCursor(0)
 			m.loading = true
@@ -906,7 +906,7 @@ func (m *Model) loadTab(idx int) tea.Cmd {
 			// At resource types level: left = contexts, middle = resource types.
 			m.leftItemsHistory = nil
 			m.leftItems = contexts
-			m.middleItems = resourceTypes
+			m.setMiddleItems(resourceTypes)
 			m.itemCache[m.navKey()] = m.middleItems
 			m.clearRight()
 			m.clampCursor()

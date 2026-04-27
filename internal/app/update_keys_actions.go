@@ -146,7 +146,7 @@ func (m Model) handleExplorerActionKeyToggleRare() (tea.Model, tea.Cmd, bool) {
 		// cursor identity so they don't lose their place when entries
 		// appear or disappear.
 		prevName, prevNs, prevExtra, prevKind := m.cursorItemKey()
-		m.middleItems = merged
+		m.setMiddleItems(merged)
 		m.restoreCursorToItem(prevName, prevNs, prevExtra, prevKind)
 	default:
 		// User is deeper (LevelResources / LevelOwned / LevelContainers):
@@ -599,7 +599,7 @@ func (m Model) handleExplorerActionKeyFilterPresets() (tea.Model, tea.Cmd, bool)
 		// Clear the active filter preset and restore the full list.
 		name := m.activeFilterPreset.Name
 		m.activeFilterPreset = nil
-		m.middleItems = m.unfilteredMiddleItems
+		m.setMiddleItems(m.unfilteredMiddleItems)
 		m.unfilteredMiddleItems = nil
 		m.setCursor(0)
 		m.clampCursor()
