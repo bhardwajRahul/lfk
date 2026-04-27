@@ -367,6 +367,33 @@ func TestRenderTable(t *testing.T) {
 		assert.GreaterOrEqual(t, nsIdx, 0)
 		assert.Less(t, nameIdx, nsIdx, "NAME before NAMESPACE")
 	})
+
+	t.Run("namespace shrinks so long pod names render without truncation", func(t *testing.T) {
+		// Regression: a 28-char namespace burned ~29 columns on the
+		// NAMESPACE column at the default cap, leaving the NAME column
+		// too narrow for a 35-char pod name even though the row had
+		// plenty of total width. Now nsW shrinks toward its header
+		// width so name fits when the budget allows it.
+		origMS := ActiveMiddleScroll
+		ActiveMiddleScroll = -1
+		defer func() { ActiveMiddleScroll = origMS }()
+		origLayout := ActiveTableLayout
+		ActiveTableLayout = nil
+		defer func() { ActiveTableLayout = origLayout }()
+		origSel := ActiveSelectedItems
+		ActiveSelectedItems = nil
+		defer func() { ActiveSelectedItems = origSel }()
+
+		longName := "nginx-deployment-7c9f8d8f6c-x9k2m" // 33 chars
+		longNs := "kube-system-very-long-name"          // 26 chars
+		items := []model.Item{
+			{Name: longName, Namespace: longNs, Status: "Running", Ready: "1/1", Age: "5m"},
+		}
+		result := RenderTable("NAME", items, 0, 100, 20, false, "", "")
+		plain := stripANSI(result)
+		assert.Contains(t, plain, longName,
+			"long pod name must render in full when total width allows it")
+	})
 }
 
 // --- collectExtraColumns ---

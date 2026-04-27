@@ -714,6 +714,34 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 			}
 		}
 	}
+
+	// Prefer keeping the full Name visible over a content-sized Namespace.
+	// Pods can have long names (5-suffix generated, plus deployment template
+	// hashes) and a single 28-char namespace would otherwise burn ~29 cols on
+	// NAMESPACE while the name column truncates. Shrink nsW down toward its
+	// header width when doing so keeps the longest name from being cut.
+	if hasNs && (ActiveTableLayout == nil || !ActiveTableLayout.Computed) {
+		longestName := 0
+		for _, item := range items {
+			if w := len(item.Name); w > longestName {
+				longestName = w
+			}
+		}
+		// Marker col is reserved later but also counts toward the layout
+		// budget — include it so the floor matches what nameW will see.
+		markerW := 0
+		if len(showMarker) == 0 || showMarker[0] {
+			markerW = 2
+		}
+		fixedOther := readyW + restartsW + ageW + statusW + markerW
+		nsHeaderW := len("NAMESPACE") + 1
+		// Largest nsW that still leaves room for the longest name (+1
+		// spacing) without truncation, floored at the NAMESPACE header.
+		targetNs := max(width-fixedOther-(longestName+1), nsHeaderW)
+		if targetNs < nsW {
+			nsW = targetNs
+		}
+	}
 	// Reserve space for the selection marker column in the focus pane
 	// so the table doesn't shift when selections are made.
 	wantMarker := len(showMarker) == 0 || showMarker[0]
