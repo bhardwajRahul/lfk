@@ -4,7 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/janosmiko/lfk/internal/model"
 )
@@ -430,6 +433,41 @@ func TestHighlightSearchInLine(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression: searching for a substring in the YAML preview used to drop
+// syntax highlighting on matched lines entirely. HighlightSearchInLine
+// returned the bare HighlightMatchStyled output, never running the YAML
+// styler — so the matched line went from "key in yellow, value in green,
+// punctuation dim" to plain text with just the search bg on the match.
+//
+// Now matched lines keep their YAML token styling (the open codes the
+// renderer would have applied) and the search highlight overlays on top.
+func TestHighlightSearchInLine_PreservesYAMLSyntaxStyling(t *testing.T) {
+	originalProfile := lipgloss.DefaultRenderer().ColorProfile()
+	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(originalProfile) })
+	lipgloss.DefaultRenderer().SetColorProfile(termenv.ANSI)
+
+	line := "  name: nginx"
+	withMatch := HighlightSearchInLine(line, "nginx", false)
+	noMatch := HighlightSearchInLine(line, "", false)
+
+	// Whatever ANSI codes the YAML highlighter emits for the unmatched
+	// line — for the key, the punctuation, the value — must still be
+	// present after we add the search overlay. styleOpenCodes pulls a
+	// stable representation from a known YAML style.
+	keyOpen := styleOpenCodes(YamlKeyStyle)
+	require.NotEmpty(t, keyOpen, "YamlKeyStyle must emit codes for this assertion to mean anything")
+	assert.Contains(t, noMatch, keyOpen,
+		"baseline: no-match path must apply YAML key styling")
+	assert.Contains(t, withMatch, keyOpen,
+		"matched line must STILL apply YAML key styling alongside the search highlight — that was the bug")
+
+	// And the search highlight itself must still be on the result.
+	highlightOpen := styleOpenCodes(SearchHighlightStyle)
+	require.NotEmpty(t, highlightOpen)
+	assert.Contains(t, withMatch, highlightOpen,
+		"matched line must contain the search highlight bg")
 }
 
 // --- FormatItemNameOnly ---

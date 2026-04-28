@@ -325,21 +325,25 @@ func findInlineComment(s string) int {
 	return -1
 }
 
-// HighlightSearchInLine highlights search matches in a line.
-// If isCurrent is true, uses a more prominent style for the current match.
+// HighlightSearchInLine highlights search matches in a YAML line, applying
+// the YAML syntax styling first and then overlaying the search highlight on
+// the styled output. Earlier this dropped the syntax highlight entirely on
+// matched lines (the styled call was bypassed when a match existed); now
+// matched lines keep their key/value/punctuation/comment colors and the
+// matched substring(s) are wrapped with the search bg on top.
+//
+// When isCurrent is true, uses a more prominent style for the current match.
 // Supports substring, regex, and fuzzy search modes.
 func HighlightSearchInLine(line, query string, isCurrent bool) string {
-	if query == "" {
-		return HighlightYAMLLine(line)
+	styled := HighlightYAMLLine(line)
+	if query == "" || !MatchLine(line, query) {
+		return styled
 	}
-	if !MatchLine(line, query) {
-		return HighlightYAMLLine(line)
-	}
-	style := SearchHighlightStyle
+	highlight := SearchHighlightStyle
 	if isCurrent {
-		style = SelectedSearchHighlightStyle
+		highlight = SelectedSearchHighlightStyle
 	}
-	return HighlightMatchStyled(line, query, style)
+	return HighlightMatchStyled(styled, query, highlight)
 }
 
 // FormatItemNameOnly formats an item showing only its name and icon (no status, age, etc.).
