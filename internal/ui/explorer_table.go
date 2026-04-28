@@ -327,13 +327,22 @@ func findInlineComment(s string) int {
 
 // HighlightSearchInLine highlights search matches in a YAML line, applying
 // the YAML syntax styling first and then overlaying the search highlight on
-// the styled output. Earlier this dropped the syntax highlight entirely on
-// matched lines (the styled call was bypassed when a match existed); now
-// matched lines keep their key/value/punctuation/comment colors and the
-// matched substring(s) are wrapped with the search bg on top.
+// the styled output. Two passes are needed:
+//
+//  1. YAML syntax: keys/values/punctuation/comments each get their own SGR
+//     pair. Without this, matched lines used to render as plain text — the
+//     old code returned HighlightMatchStyled(line, ...) directly when a
+//     match existed, bypassing HighlightYAMLLine entirely.
+//
+//  2. Search overlay via HighlightMatchInline: re-asserts the YAML token's
+//     active open SGR after each highlight's reset so the rest of the token
+//     after the match keeps its color. Without re-assertion the post-match
+//     tail of the matched word dropped to terminal default — the user saw
+//     "ngi" highlighted in yellow but "nx" rendered in plain white.
 //
 // When isCurrent is true, uses a more prominent style for the current match.
-// Supports substring, regex, and fuzzy search modes.
+// Supports substring (the YAML preview's main path) plus regex/fuzzy via
+// fallback to HighlightMatchStyled.
 func HighlightSearchInLine(line, query string, isCurrent bool) string {
 	styled := HighlightYAMLLine(line)
 	if query == "" || !MatchLine(line, query) {
@@ -343,7 +352,7 @@ func HighlightSearchInLine(line, query string, isCurrent bool) string {
 	if isCurrent {
 		highlight = SelectedSearchHighlightStyle
 	}
-	return HighlightMatchStyled(styled, query, highlight)
+	return HighlightMatchInline(styled, query, highlight)
 }
 
 // FormatItemNameOnly formats an item showing only its name and icon (no status, age, etc.).

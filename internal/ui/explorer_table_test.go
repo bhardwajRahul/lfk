@@ -435,6 +435,39 @@ func TestHighlightSearchInLine(t *testing.T) {
 	}
 }
 
+// Regression: when the search query matched the middle of a YAML token,
+// the highlight wrapper's trailing reset cancelled the token's open SGR
+// and the rest of the word dropped to terminal default. The user saw
+// "ngi" highlighted in yellow inside "nginx" but "nx" rendered as plain
+// text instead of staying in the value style.
+//
+// HighlightMatchInline re-emits the active SGR after each highlight reset
+// so the post-match segment keeps the token's color.
+func TestHighlightSearchInLine_PostMatchKeepsTokenStyle(t *testing.T) {
+	originalProfile := lipgloss.DefaultRenderer().ColorProfile()
+	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(originalProfile) })
+	lipgloss.DefaultRenderer().SetColorProfile(termenv.ANSI)
+
+	// "name: nginx" — match "ngi" inside the value token "nginx".
+	line := "  name: nginx"
+	result := HighlightSearchInLine(line, "ngi", false)
+
+	// Without the inline re-assertion the post-match tail "nx" would be
+	// preceded directly by the highlight's "\x1b[0m" reset, leaving it
+	// in terminal default color. With the fix, "nx" must be preceded by
+	// a non-reset SGR open code so the value-style color carries over.
+	assert.NotContains(t, result, "\x1b[0mnx",
+		"trailing 'nx' must NOT come right after a bare reset — that's the regression. got %q", result)
+
+	// And the highlight itself is on the matched substring. Build the
+	// expected wrapper inline since SearchHighlightStyle's exact bytes
+	// depend on the renderer profile.
+	highlightOpen := styleOpenCodes(SearchHighlightStyle)
+	require.NotEmpty(t, highlightOpen)
+	assert.Contains(t, result, highlightOpen+"ngi",
+		"matched substring must be wrapped with the search highlight bg")
+}
+
 // Regression: searching for a substring in the YAML preview used to drop
 // syntax highlighting on matched lines entirely. HighlightSearchInLine
 // returned the bare HighlightMatchStyled output, never running the YAML

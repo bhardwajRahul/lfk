@@ -226,6 +226,91 @@ func RenderOverPrestyled(line string, outerStyle lipgloss.Style) string {
 	return open + line + ansiReset
 }
 
+// HighlightMatchInline overlays hlStyle on each occurrence of query in a
+// line that already contains inline SGR codes (e.g. YAML syntax styling).
+// After each match's reset it re-emits the SGR sequence that was active
+// just before the match so the rest of the surrounding token keeps its
+// styling — without this, hlStyle.Render's trailing "\x1b[0m" cancels the
+// outer token's open codes and the post-match segment renders in the
+// terminal default.
+//
+// Substring mode only. Skips ANSI escape sequences while scanning for
+// matches and refuses matches whose byte range crosses an ESC byte, so a
+// query like "[33m" can't latch onto an SGR introducer.
+func HighlightMatchInline(line, rawQuery string, hlStyle lipgloss.Style) string {
+	if rawQuery == "" {
+		return line
+	}
+	mode, query := DetectSearchMode(rawQuery)
+	if query == "" {
+		return line
+	}
+	switch mode {
+	case SearchRegex, SearchFuzzy:
+		// Regex / fuzzy don't get the inline-aware treatment yet; fall
+		// back to the plain substring path so they keep the existing
+		// behavior. The YAML preview's main caller uses substring.
+		return HighlightMatchStyled(line, rawQuery, hlStyle)
+	}
+
+	queryLen := len(query)
+	var b strings.Builder
+	b.Grow(len(line))
+	activeOpen := ""
+
+	i := 0
+	for i < len(line) {
+		// Pass through ANSI CSI sequences and update the active SGR state.
+		if i+1 < len(line) && line[i] == 0x1b && line[i+1] == '[' {
+			j := i + 2
+			for j < len(line) && line[j] >= 0x30 && line[j] <= 0x3F {
+				j++
+			}
+			for j < len(line) && line[j] >= 0x20 && line[j] <= 0x2F {
+				j++
+			}
+			if j < len(line) && line[j] >= 0x40 && line[j] <= 0x7E {
+				seq := line[i : j+1]
+				b.WriteString(seq)
+				if line[j] == 'm' {
+					if seq == ansiReset || seq == "\x1b[m" {
+						activeOpen = ""
+					} else {
+						activeOpen = seq
+					}
+				}
+				i = j + 1
+				continue
+			}
+		}
+		// Try matching the query at this byte position.
+		if i+queryLen <= len(line) {
+			tail := line[i : i+queryLen]
+			hasEsc := false
+			for k := range len(tail) {
+				if tail[k] == 0x1b {
+					hasEsc = true
+					break
+				}
+			}
+			if !hasEsc && strings.EqualFold(tail, query) {
+				b.WriteString(hlStyle.Render(tail))
+				// Re-assert the active outer SGR so the rest of the
+				// token reads in its original color instead of dropping
+				// to terminal default after hlStyle's reset.
+				if activeOpen != "" {
+					b.WriteString(activeOpen)
+				}
+				i += queryLen
+				continue
+			}
+		}
+		b.WriteByte(line[i])
+		i++
+	}
+	return b.String()
+}
+
 // highlightSubstring highlights all occurrences of query in line
 // (case-insensitive). When restoreCodes is non-empty it's emitted
 // after each inner highlight reset so a wrapping outer style's
