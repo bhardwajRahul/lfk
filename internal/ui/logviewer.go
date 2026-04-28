@@ -235,13 +235,21 @@ func renderPlainLines(lines []string, scroll, height, width int, lineNumbers boo
 		if isSelected {
 			// Build plain text for selection highlight on raw content (no line numbers).
 			// Line numbers are prepended after highlighting to avoid column offset mismatch.
+			//
+			// Use ansi.Truncate (visual-width aware) for the pre-trim instead
+			// of rune-slicing. On a kyverno-style log row each embedded SGR
+			// sequence costs 4-5 rune slots while contributing zero visual
+			// width; the rune-based cap chopped lines off mid-content (and
+			// often mid-CSI), which downstream let "0m" / "[NNm" leak as
+			// literal text and the visible payload was replaced by trailing
+			// spaces from FillLinesBg's pad-to-width pass.
 			plainLine := lines[i]
 			selEffWidth := effectiveWidth
 			if lineNumbers {
 				selEffWidth -= lineNumWidth
 			}
-			if len([]rune(plainLine)) > selEffWidth {
-				plainLine = string([]rune(plainLine)[:selEffWidth])
+			if ansi.StringWidth(plainLine) > selEffWidth {
+				plainLine = ansi.Truncate(plainLine, selEffWidth, "")
 			}
 			line = RenderVisualSelection(plainLine, visualType, i, selStart, selEnd, visualStart, visualCol, visualCurCol, min(visualCol, visualCurCol), max(visualCol, visualCurCol))
 			if lineNumbers {
