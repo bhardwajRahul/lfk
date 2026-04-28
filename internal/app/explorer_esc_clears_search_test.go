@@ -10,13 +10,11 @@ import (
 
 // After / + text + Enter, m.searchActive is false but searchInput.Value
 // stays populated so highlights persist and n/N navigation still works.
-// Esc must peel that state off as a distinct step before falling
-// through to the navigate-parent default — otherwise Esc jumps the
-// user out of the current level when they only meant to dismiss the
-// search highlights.
-func TestExplorerEscClearsSearchHighlightsBeforeNavigatingParent(t *testing.T) {
+// Esc must peel that state off so the user can dismiss the search
+// highlights without leaving the current level.
+func TestExplorerEscClearsSearchHighlights(t *testing.T) {
 	m := baseModelCov()
-	m.nav.Level = model.LevelResources // not at root → parent navigation possible
+	m.nav.Level = model.LevelResources
 	m.nav.Context = "test-ctx"
 	m.searchInput.Value = "nginx"
 
@@ -24,9 +22,9 @@ func TestExplorerEscClearsSearchHighlightsBeforeNavigatingParent(t *testing.T) {
 	rm := r.(Model)
 
 	assert.Empty(t, rm.searchInput.Value,
-		"first Esc must clear the persisted search query (and its highlights)")
+		"Esc must clear the persisted search query (and its highlights)")
 	assert.Equal(t, model.LevelResources, rm.nav.Level,
-		"first Esc must NOT navigate to parent when there's a search to clear first")
+		"Esc must stay on the current level after clearing search")
 }
 
 // Esc cascade: selection → search → filter → fullscreen → navigate.
@@ -48,20 +46,20 @@ func TestExplorerEscClearsSearchBeforeExitingFullscreen(t *testing.T) {
 		"first Esc must NOT exit fullscreen when there's content state to peel first")
 }
 
-// Once highlights are gone, a second Esc falls through to the existing
-// navigate-parent behavior — preserves the cascade so users can still
-// back out of nested levels with repeated Esc presses.
-func TestExplorerEscNavigatesParentWhenNoSearchHighlights(t *testing.T) {
+// With no transient state to peel and no fullscreen to exit, Esc is a
+// no-op on a non-cluster level. Esc is reserved for cancel / dismiss
+// semantics; navigation back is via h/Left.
+func TestExplorerEscIsNoOpWhenNoStateToClear(t *testing.T) {
 	m := baseModelCov()
 	m.nav.Level = model.LevelResources
 	m.nav.Context = "test-ctx"
-	m.searchInput.Value = "" // no search to clear
+	m.searchInput.Value = ""
 	m.leftItems = []model.Item{{Name: "test-ctx"}}
 	m.leftItemsHistory = [][]model.Item{{{Name: "root"}}}
 
 	r, _ := m.handleExplorerEsc()
 	rm := r.(Model)
 
-	assert.NotEqual(t, model.LevelResources, rm.nav.Level,
-		"with no search highlights, Esc must navigate to parent")
+	assert.Equal(t, model.LevelResources, rm.nav.Level,
+		"Esc must NOT walk back to parent — that's h/Left's job")
 }

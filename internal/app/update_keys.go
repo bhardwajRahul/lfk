@@ -311,12 +311,17 @@ func (m Model) handleExplorerNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 }
 
 // handleExplorerEsc handles the Escape key in explorer mode. Cascades
-// from transient content state (selection, search, filter) down to
-// viewport state (fullscreen) and finally to navigation. Content state
-// is what the user just did — peeling it off first matches the
-// intent of "undo the most recent thing"; fullscreen is a more
-// persistent toggle that the user is less likely to want exited
-// before their search/filter work.
+// from transient content state (selection, search, filter) through
+// viewport state (fullscreen). Esc is intentionally NOT bound to
+// navigation -- pressing Esc on a pod list used to walk back up to
+// resource types and then to clusters, which conflicted with Esc's
+// "cancel / dismiss" semantics elsewhere in the app. Use h / Left or
+// the parent navigation key to drill back out.
+//
+// At LevelClusters with multiple tabs Esc still closes the active tab
+// (a "dismiss this tab" action, consistent with cancel semantics). On
+// a single-tab cluster level Esc is a no-op; use q to quit, which goes
+// through the standard confirmation overlay.
 func (m Model) handleExplorerEsc() (tea.Model, tea.Cmd) {
 	if m.hasSelection() {
 		m.clearSelection()
@@ -341,24 +346,20 @@ func (m Model) handleExplorerEsc() (tea.Model, tea.Cmd) {
 		m.setStatusMessage("Dashboard fullscreen OFF", false)
 		return m, scheduleStatusClear()
 	}
-	if m.nav.Level == model.LevelClusters {
-		if len(m.tabs) > 1 {
-			m.cancelActiveTabLogStreams()
-			m.tabs = append(m.tabs[:m.activeTab], m.tabs[m.activeTab+1:]...)
-			if m.activeTab > 0 {
-				m.activeTab--
-			}
-			cmd := m.loadTab(m.activeTab)
-			m.saveCurrentSession()
-			if cmd != nil {
-				return m, cmd
-			}
-			return m, m.loadPreview()
+	if m.nav.Level == model.LevelClusters && len(m.tabs) > 1 {
+		m.cancelActiveTabLogStreams()
+		m.tabs = append(m.tabs[:m.activeTab], m.tabs[m.activeTab+1:]...)
+		if m.activeTab > 0 {
+			m.activeTab--
 		}
-		m.cancelAllTabLogStreams()
-		return m, tea.Quit
+		cmd := m.loadTab(m.activeTab)
+		m.saveCurrentSession()
+		if cmd != nil {
+			return m, cmd
+		}
+		return m, m.loadPreview()
 	}
-	return m.navigateParent()
+	return m, nil
 }
 
 // handleExplorerJumpTop handles g/gg (jump to top) in explorer mode.

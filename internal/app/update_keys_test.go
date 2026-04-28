@@ -208,13 +208,15 @@ func TestHandleKeyEscExitsFullscreenDashboard(t *testing.T) {
 	assert.False(t, result.fullscreenDashboard)
 }
 
-func TestHandleKeyEscNavigatesParent(t *testing.T) {
+func TestHandleKeyEscDoesNotNavigateParent(t *testing.T) {
+	// Esc is reserved for cancel-style actions (clearing selection /
+	// search / filter, exiting fullscreen, dismissing a tab) and is
+	// intentionally NOT a navigation key. Use h/Left to walk back.
 	m := baseExplorerModel()
-	// At resources level with no filter/selection, esc navigates parent.
 	ret, _ := m.handleKey(specialKey(tea.KeyEsc))
 	result := ret.(Model)
-	// Should have navigated to resource types level.
-	assert.Equal(t, model.LevelResourceTypes, result.nav.Level)
+	assert.Equal(t, model.LevelResources, result.nav.Level,
+		"Esc on a resource list with no transient state to clear must stay put, not walk back to resource types")
 }
 
 // --- handleKey: h/left navigates parent ---
@@ -849,12 +851,15 @@ func TestPush4HandleKeyEscClearFilter(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func TestPush4HandleKeyEscAtClusterLevel(t *testing.T) {
+func TestPush4HandleKeyEscAtClusterLevelSingleTab(t *testing.T) {
+	// Esc at LevelClusters with a single tab is a no-op: quitting via
+	// Esc was surprising and conflicted with Esc's "cancel / dismiss"
+	// semantics elsewhere. Use q (which goes through the confirm
+	// overlay) to quit lfk.
 	m := basePush4Model()
 	m.nav.Level = model.LevelClusters
 	_, cmd := m.handleKey(keyMsg("esc"))
-	// Should try to quit.
-	assert.NotNil(t, cmd)
+	assert.Nil(t, cmd, "Esc at single-tab cluster level must not fire a quit cmd")
 }
 
 func TestPush4HandleKeyDownFullscreenDashboard(t *testing.T) {
