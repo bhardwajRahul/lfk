@@ -411,6 +411,41 @@ func styledExtraCell(ec extraColumn, item *model.Item) string {
 
 // plainBuiltinCell builds the plain-text cell for a single built-in column.
 // Values are the already-resolved display strings for this row (e.g. ns with
+// statusAbbreviations maps long-form Pod-ish status strings to a compact
+// label used when the STATUS column has been shrunk under width pressure.
+// Entries here are status values that are otherwise too verbose for narrow
+// layouts; status values not in the map render as-is and rely on the
+// width-aware Truncate fallback. AbbreviateStatusForWidth picks between
+// the full string and the abbreviation based on the column's width budget.
+var statusAbbreviations = map[string]string{
+	"PodInitializing":            "Init",
+	"ContainerCreating":          "Creating",
+	"Terminating":                "Term",
+	"CrashLoopBackOff":           "CrashLoop",
+	"ImagePullBackOff":           "ImgPull",
+	"ErrImagePull":               "ImgPull",
+	"InvalidImageName":           "BadImage",
+	"CreateContainerConfigError": "CfgErr",
+	"CreateContainerError":       "CtrErr",
+	"Succeeded":                  "Done",
+	"Completed":                  "Done",
+}
+
+// AbbreviateStatusForWidth returns a status label that fits within w
+// visible columns. Returns the full status when it already fits; otherwise
+// looks up a curated abbreviation; otherwise falls back to the original
+// (the caller will then truncate it). Pure function so the layout pass
+// and the cell renderer can both use it.
+func AbbreviateStatusForWidth(status string, w int) string {
+	if len(status) <= w {
+		return status
+	}
+	if abbrev, ok := statusAbbreviations[status]; ok {
+		return abbrev
+	}
+	return status
+}
+
 // dash fallback, preprocessed restarts with arrow prefix).
 func plainBuiltinCell(key string, ns, ready, restarts, status, age string,
 	nsW, readyW, restartsW, statusW, ageW int,
@@ -423,7 +458,7 @@ func plainBuiltinCell(key string, ns, ready, restarts, status, age string,
 	case "Restarts":
 		return padRight(restarts, restartsW)
 	case "Status":
-		return padRight(Truncate(status, statusW-1), statusW)
+		return padRight(Truncate(AbbreviateStatusForWidth(status, statusW-1), statusW-1), statusW)
 	case "Age":
 		return padRight(age, ageW)
 	}
@@ -449,7 +484,8 @@ func styledBuiltinCell(key string, item model.Item,
 	case "Restarts":
 		return styledRestartsCell(item, restartsW, anyRecentRestart)
 	case "Status":
-		return StatusStyle(item.Status).Render(padRight(Truncate(item.Status, statusW-1), statusW))
+		val := AbbreviateStatusForWidth(item.Status, statusW-1)
+		return StatusStyle(val).Render(padRight(Truncate(val, statusW-1), statusW))
 	case "Age":
 		age := LiveAge(item)
 		return AgeStyle(age).Render(padRight(age, ageW))

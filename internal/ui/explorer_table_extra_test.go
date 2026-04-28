@@ -829,3 +829,57 @@ func TestRenderTable_NodeNamesNotTruncatedEarly(t *testing.T) {
 			"38-char node name must appear in full at 80 cols")
 	})
 }
+
+// Regression: long Pod statuses (PodInitializing, ContainerCreating,
+// Succeeded, ...) used to burn enough STATUS-column width on narrow
+// layouts to force NAME / NAMESPACE truncation. Now the column shrinks
+// to its abbreviated cap when the budget would otherwise truncate names,
+// and the renderer swaps to the abbreviation for affected rows.
+func TestRenderTable_PodStatusAbbreviatesUnderWidthPressure(t *testing.T) {
+	origMS := ActiveMiddleScroll
+	ActiveMiddleScroll = -1
+	t.Cleanup(func() { ActiveMiddleScroll = origMS })
+
+	origQuery := ActiveHighlightQuery
+	ActiveHighlightQuery = ""
+	t.Cleanup(func() { ActiveHighlightQuery = origQuery })
+
+	origSel := ActiveSelectedItems
+	ActiveSelectedItems = nil
+	t.Cleanup(func() { ActiveSelectedItems = origSel })
+
+	origLayout := ActiveTableLayout
+	ActiveTableLayout = nil
+	t.Cleanup(func() { ActiveTableLayout = origLayout })
+
+	// Realistic pod-list snapshot mirroring the user's report.
+	items := []model.Item{
+		{Name: "magento-cron-29622472-abcde", Namespace: "m2communityteam-lkajzltdo", Kind: "Pod", Status: "PodInitializing", Ready: "0/1", Restarts: "0", Age: "45s"},
+		{Name: "magento-cron-29622472-fghij", Namespace: "m2communityteam-lkajzltdo", Kind: "Pod", Status: "Succeeded", Ready: "0/1", Restarts: "0", Age: "1m"},
+		{Name: "magento-cron-29622473-klmno", Namespace: "m2commerceteam-zxywvutsr", Kind: "Pod", Status: "PodInitializing", Ready: "0/1", Restarts: "0", Age: "7s"},
+		{Name: "magento-pwa-69dc46b76-pqrst", Namespace: "good360uat-12345", Kind: "Pod", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d"},
+	}
+
+	t.Run("narrow layout abbreviates long statuses", func(t *testing.T) {
+		// 65-col middle column reproduces the user's report: the longest
+		// pod name (~30 chars) won't fit alongside a 20-char namespace
+		// header, READY, RS, STATUS=PodInitializing, AGE, and gutter.
+		ActiveTableLayout = nil
+		out := stripANSI(RenderTable("NAME", items, 0, 65, 20, false, "", ""))
+		assert.Contains(t, out, "Init",
+			"PodInitializing must abbreviate to Init when layout is too narrow")
+		assert.Contains(t, out, "Done",
+			"Succeeded must abbreviate to Done when layout is too narrow")
+		assert.NotContains(t, out, "PodInitializing",
+			"full PodInitializing must NOT appear once the layout has shrunk STATUS")
+	})
+
+	t.Run("wide layout keeps full status labels", func(t *testing.T) {
+		ActiveTableLayout = nil
+		out := stripANSI(RenderTable("NAME", items, 0, 200, 20, false, "", ""))
+		assert.Contains(t, out, "PodInitializing",
+			"full PodInitializing must remain at 200 cols where there's no width pressure")
+		assert.Contains(t, out, "Succeeded",
+			"full Succeeded must remain at 200 cols")
+	})
+}

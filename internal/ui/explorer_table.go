@@ -742,6 +742,49 @@ func RenderTable(headerLabel string, items []model.Item, cursor int, width, heig
 			nsW = targetNs
 		}
 	}
+	// Same idea for STATUS: when the width budget is tight enough that
+	// names would still truncate even after the namespace shrink above,
+	// fall back to abbreviated status labels (PodInitializing → Init,
+	// Succeeded → Done) so the saved cells flow into NAME instead of
+	// being burned on long status strings the layout can't drop. Skipped
+	// when no status value would actually shrink, since recomputing here
+	// would otherwise undo a wider cap users had set explicitly.
+	if hasStatus && (ActiveTableLayout == nil || !ActiveTableLayout.Computed) {
+		longestName := 0
+		for _, item := range items {
+			if w := len(item.Name); w > longestName {
+				longestName = w
+			}
+		}
+		markerW := 0
+		if len(showMarker) == 0 || showMarker[0] {
+			markerW = 2
+		}
+		// What's the smallest STATUS width if every value used its
+		// abbreviation? The header floor still applies.
+		abbrevMaxW := len("STATUS")
+		willShrinkAny := false
+		for _, item := range items {
+			abbr := AbbreviateStatusForWidth(item.Status, 0)
+			if abbr != item.Status {
+				willShrinkAny = true
+			}
+			if w := len(abbr); w > abbrevMaxW {
+				abbrevMaxW = w
+			}
+		}
+		abbrevStatusW := abbrevMaxW + 1 // matches the +1 spacing applied above
+		if willShrinkAny && abbrevStatusW < statusW {
+			fixedOther := readyW + restartsW + ageW + markerW
+			minNsW := 0
+			if hasNs {
+				minNsW = min(len("NAMESPACE")+1, nsW)
+			}
+			if width-fixedOther-statusW-minNsW-(longestName+1) < 0 {
+				statusW = abbrevStatusW
+			}
+		}
+	}
 	// Reserve space for the selection marker column in the focus pane
 	// so the table doesn't shift when selections are made.
 	wantMarker := len(showMarker) == 0 || showMarker[0]
