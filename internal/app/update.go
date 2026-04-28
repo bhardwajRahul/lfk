@@ -1732,6 +1732,7 @@ func (m Model) updateExplainRecursive(msg explainRecursiveMsg) (tea.Model, tea.C
 }
 
 func (m Model) updateLogContainersLoaded(msg logContainersLoadedMsg) (tea.Model, tea.Cmd) {
+	m.loading = false
 	if msg.err != nil {
 		m.setErrorFromErr("Failed to load containers: ", msg.err)
 		m.overlay = overlayNone
@@ -1754,6 +1755,14 @@ func (m Model) updateLogContainersLoaded(msg logContainersLoadedMsg) (tea.Model,
 		items = append(items, model.Item{Name: c})
 	}
 	m.overlayItems = items
+	// Open the overlay only now that the data is ready, so the user never
+	// sees a flashing empty/loading overlay before the real content arrives.
+	m.overlay = overlayLogContainerSelect
+	m.overlayCursor = 0
+	m.logContainerFilterText = ""
+	m.logContainerFilterActive = false
+	m.logContainerSelectionModified = false
+	ui.ResetOverlayContainerScroll()
 	return m, nil
 }
 

@@ -943,19 +943,16 @@ func (m Model) handleLogKeyOther() (tea.Model, tea.Cmd) {
 		return m, m.loadPodsForLogAction()
 	}
 	if m.actionCtx.kind == "Pod" {
-		// Single pod: show container selector for filtering.
-		m.overlay = overlayLogContainerSelect
-		m.overlayCursor = 0
-		// Clear leftover items so the renderer doesn't briefly show stale
-		// content (e.g. namespace entries from a prior namespace selector
-		// use) for the few hundred ms before the container list loads.
-		// Mirrors how handleKeyNamespaceSelector nils overlayItems before
-		// its own load.
+		// Single pod: load the container list, then open the filter overlay
+		// once the data is ready. Setting m.overlay = overlayLogContainerSelect
+		// before the load completes used to flash the empty/loading overlay
+		// (and any leftover overlayItems from a prior selector use, often
+		// namespaces) for the few hundred ms while kubectl returned. Mirror
+		// the group-resource branch above and the existing pattern in
+		// handleKeyNamespaceSelector: defer the overlay until data lands.
 		m.overlayItems = nil
-		m.logContainerFilterText = ""
-		m.logContainerFilterActive = false
-		m.logContainerSelectionModified = false
-		ui.ResetOverlayContainerScroll()
+		m.loading = true
+		m.setStatusMessage("Loading containers...", false)
 		return m, m.loadContainersForLogFilter()
 	}
 	return m, nil

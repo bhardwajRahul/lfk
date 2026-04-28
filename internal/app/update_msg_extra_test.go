@@ -789,17 +789,28 @@ func TestUpdateLogContainersLoadedSingleContainer(t *testing.T) {
 	assert.NotNil(t, cmd) // scheduleStatusClear
 }
 
+// The handler is the one that opens the overlay so the user never sees
+// an empty/loading flicker — handleLogKeyOther dispatches the load
+// without setting m.overlay, and the overlay is set here only once the
+// container items are ready to render.
 func TestUpdateLogContainersLoadedMultiple(t *testing.T) {
 	m := baseModel()
-	m.overlay = overlayLogContainerSelect
+	// Overlay starts closed; the handler opens it.
 
 	result, cmd := m.Update(logContainersLoadedMsg{
 		containers: []string{"app", "sidecar", "init"},
 	})
 	mdl := result.(Model)
+	assert.Equal(t, overlayLogContainerSelect, mdl.overlay,
+		"handler must open the overlay once containers have loaded")
 	assert.Equal(t, "app", mdl.logContainers[0])
 	assert.Len(t, mdl.overlayItems, 4) // "All Containers" + 3
 	assert.Equal(t, "All Containers", mdl.overlayItems[0].Name)
+	assert.Equal(t, 0, mdl.overlayCursor, "cursor must reset to top of new overlay")
+	assert.Empty(t, mdl.logContainerFilterText, "filter text must be clear when overlay opens")
+	assert.False(t, mdl.logContainerFilterActive, "filter must be inactive when overlay opens")
+	assert.False(t, mdl.logContainerSelectionModified, "modified flag must be false on a fresh open")
+	assert.False(t, mdl.loading, "loading flag must be cleared once data is ready")
 	assert.Nil(t, cmd)
 }
 

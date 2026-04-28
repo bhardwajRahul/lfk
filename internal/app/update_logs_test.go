@@ -600,31 +600,37 @@ func TestHandleLogKeyS2CopiesPathToClipboard(t *testing.T) {
 	assert.NotNil(t, cmd, "cmd should batch the clipboard write with the status-clear timer")
 }
 
-// Pressing \ in the log viewer for a single Pod opens the container filter
-// overlay. The handler sets m.overlay = overlayLogContainerSelect immediately
-// and dispatches the load asynchronously, so for the few hundred ms before
-// containers arrive the renderer reads m.overlayItems. If those items still
-// hold leftover namespace entries from an earlier namespace selector use,
-// the user sees the container overlay flash with namespace names in it —
-// reading as "the namespace selector appears for a moment". Mirrors how
-// handleKeyNamespaceSelector clears m.overlayItems before its own load.
-func TestHandleLogKeyOtherSinglePodClearsStaleOverlayItems(t *testing.T) {
+// Pressing \ in the log viewer for a single Pod must NOT open the container
+// filter overlay until the container list has loaded. Setting the overlay
+// up-front and rendering it with empty/loading state caused a visible
+// flash before the real data arrived; users perceived the brief overlay
+// (especially when stale items from a prior namespace selector use were
+// still in m.overlayItems) as "the namespace selector flashing". Mirrors
+// the group-resource branch which only sets overlayLogPodSelect from
+// updatePodLogSelect after the pods have loaded.
+func TestHandleLogKeyOtherSinglePodDefersOverlayUntilContainersLoad(t *testing.T) {
 	m := baseModel()
 	m.mode = modeLogs
 	m.actionCtx.kind = "Pod"
 	m.actionCtx.name = "my-pod"
-	// Stale items from a previous namespace selector use.
+	// Stale items from a previous namespace selector use must not bleed
+	// into the next overlay either.
 	m.overlayItems = []model.Item{
 		{Name: "All Namespaces", Status: "all"},
 		{Name: "default"},
 		{Name: "kube-system"},
 	}
-	ret, _ := m.handleLogKeyOther()
+	ret, cmd := m.handleLogKeyOther()
 	rm := ret.(Model)
-	assert.Equal(t, overlayLogContainerSelect, rm.overlay,
-		"single-pod \\ must open the container filter overlay")
+	assert.Equal(t, overlayNone, rm.overlay,
+		"overlay must stay closed while the container list is loading; updateLogContainersLoaded opens it once data arrives")
 	assert.Nil(t, rm.overlayItems,
-		"stale overlay items must be cleared so the renderer does not briefly show old namespace data")
+		"stale overlay items must be cleared so any later overlay open does not see leftover content")
+	assert.True(t, rm.loading,
+		"loading flag must be set so the user gets visual feedback that work is happening")
+	assert.Contains(t, rm.statusMessage, "Loading containers",
+		"status bar must announce the load so the user knows something is happening")
+	assert.NotNil(t, cmd, "loadContainersForLogFilter command must be returned")
 }
 
 func TestHandleLogKeyS2ErrorPathDoesNotCopy(t *testing.T) {
