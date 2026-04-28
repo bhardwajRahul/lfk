@@ -42,7 +42,7 @@ func RenderRollbackOverlay(revisions []k8s.DeploymentRevision, cursor int, scree
 				img += fmt.Sprintf(" +%d", len(rev.Images)-1)
 			}
 		}
-		age := formatAge(rev.CreatedAt)
+		age := FormatAge(rev.CreatedAt)
 		line := fmt.Sprintf("  %-8d  %-30s  %-8d  %-30s  %s",
 			rev.Revision, Truncate(rev.Name, 30), rev.Replicas, Truncate(img, 30), age)
 
@@ -126,20 +126,13 @@ func RenderHelmRollbackOverlay(revisions []HelmRevision, cursor int, screenWidth
 		Render(body)
 }
 
-// formatAge returns a human-readable age string.
-func formatAge(t time.Time) string {
+// FormatAge returns a human-readable age string for a timestamp. Zero time
+// renders as "-"; otherwise delegates to k8s.FormatAge so deployment-rollback
+// rows match the format used everywhere else in the app (including the year
+// suffix once a revision is older than ~12 months).
+func FormatAge(t time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh", int(d.Hours()))
-	default:
-		return fmt.Sprintf("%dd", int(d.Hours()/24))
-	}
+	return k8s.FormatAge(time.Since(t))
 }
