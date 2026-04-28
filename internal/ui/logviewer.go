@@ -83,7 +83,14 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 		rendered = highlightSearchMatches(rendered, searchQuery)
 	}
 
-	// Pad to fill content height.
+	// Pad to fill content height. Cap at contentHeight too: if the line
+	// renderers ever return more rows than the body can hold (a wrap
+	// underestimate, a stray newline embedded in a producer log line, etc.)
+	// the surplus rows would push the bottom border off the visible area.
+	// User-reported on dragonfly-operator logs in particular.
+	if len(rendered) > contentHeight {
+		rendered = rendered[:contentHeight]
+	}
 	for len(rendered) < contentHeight {
 		rendered = append(rendered, "")
 	}
@@ -91,8 +98,15 @@ func RenderLogViewer(lines []string, scroll, width, height int, follow, wrap, li
 	// Ensure no rendered line exceeds contentWidth visual cells. Wrapped lines
 	// or FillLinesBg padding can occasionally produce lines wider than the border
 	// container expects, causing lipgloss to re-wrap them internally and push the
-	// bottom border out of view.
+	// bottom border out of view. Same defense extends to lines that contain an
+	// embedded newline (a sanitize gap or a producer with unusual control bytes)
+	// — strip those so each row stays a single visible row before lipgloss
+	// counts heights.
 	for i, line := range rendered {
+		if strings.ContainsRune(line, '\n') {
+			line = strings.ReplaceAll(line, "\n", " ")
+			rendered[i] = line
+		}
 		if lipgloss.Width(line) > contentWidth {
 			rendered[i] = ansi.Truncate(line, contentWidth, "")
 		}
