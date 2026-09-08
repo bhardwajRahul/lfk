@@ -84,6 +84,9 @@ func (m *Model) saveCurrentTab() {
 	t.cacheFingerprints = copyMapStringString(m.cacheFingerprints)
 	t.previewContentFingerprints = copyMapStringString(m.previewContentFingerprints)
 	t.yamlContent = m.yamlView.content
+	t.yamlSource = m.yamlView.source
+	t.yamlKYAML = m.yamlView.kyaml
+	t.yamlKYAMLReq = m.yamlView.kyamlReq
 	t.yamlScroll = m.yamlView.scroll
 	t.yamlCursor = m.yamlView.cursor
 	t.yamlScrollOption = m.yamlView.scrollOption
@@ -228,6 +231,9 @@ func (m *Model) loadTab(idx int) tea.Cmd {
 	m.cacheFingerprints = copyMapStringString(t.cacheFingerprints)
 	m.previewContentFingerprints = copyMapStringString(t.previewContentFingerprints)
 	m.yamlView.content = t.yamlContent
+	m.yamlView.source = t.yamlSource
+	m.yamlView.kyaml = t.yamlKYAML
+	m.yamlView.kyamlReq = t.yamlKYAMLReq
 	m.yamlView.scroll = t.yamlScroll
 	m.yamlView.cursor = t.yamlCursor
 	m.yamlView.scrollOption = t.yamlScrollOption
@@ -482,43 +488,48 @@ func (m *Model) cloneCurrentTab() TabState {
 		cacheFingerprints:          copyMapStringString(m.cacheFingerprints),
 		previewContentFingerprints: copyMapStringString(m.previewContentFingerprints),
 		yamlContent:                m.yamlView.content,
-		yamlCollapsed:              copyMapStringBool(m.yamlView.collapsed),
-		splitPreview:               m.splitPreview,
-		fullYAMLPreview:            m.fullYAMLPreview,
-		fullLogPreview:             m.fullLogPreview,
-		previewYAML:                m.previewYAML,
-		namespace:                  m.namespace,
-		allNamespaces:              m.allNamespaces,
-		selectedNamespaces:         copyMapStringBool(m.selectedNamespaces),
-		nsSelectionNegated:         m.nsSelectionNegated,
-		savedSelectedNamespaces:    copyMapStringBool(m.savedSelectedNamespaces),
-		savedNsSelectionNegated:    m.savedNsSelectionNegated,
-		previousNsScope:            m.previousNsScope.clone(),
-		sortColumnName:             m.sortColumnName,
-		sortAscending:              m.sortAscending,
-		filterText:                 m.filterText,
-		watchMode:                  m.watchMode,
-		objectExplorerLive:         m.objectExplorerLive,
-		objectExplorerTree:         m.objectExplorerTree,
-		readOnly:                   m.readOnly,
-		requestGen:                 m.requestGen,
-		selectedItems:              copyMapStringBool(m.selectedItems),
-		selectionAnchor:            m.selectionAnchor,
-		fullscreenMiddle:           m.fullscreenMiddle,
-		fullscreenDashboard:        m.fullscreenDashboard,
-		dashboardPreview:           m.dashboardPreview,
-		dashboardEventsPreview:     m.dashboardEventsPreview,
-		monitoringPreview:          m.monitoringPreview,
-		metricsContent:             m.metricsContent,
-		previewEventsContent:       m.previewEventsContent,
-		metricsData:                m.metricsData,
-		metricsLoading:             m.metricsLoading,
-		metricsSpark:               m.metricsSpark,
-		previewEventsData:          append([]ui.EventTimelineEntry(nil), m.previewEventsData...),
-		warningEventsOnly:          m.warningEventsOnly,
-		eventGrouping:              m.eventGrouping,
-		expandedGroup:              m.expandedGroup,
-		allGroupsExpanded:          m.allGroupsExpanded,
+		yamlSource:                 m.yamlView.source,
+		yamlKYAML:                  m.yamlView.kyaml,
+		// A fresh id: a conversion in flight for the source tab must not
+		// repaint the copy.
+		yamlKYAMLReq:            kyamlReqSeq.Add(1),
+		yamlCollapsed:           copyMapStringBool(m.yamlView.collapsed),
+		splitPreview:            m.splitPreview,
+		fullYAMLPreview:         m.fullYAMLPreview,
+		fullLogPreview:          m.fullLogPreview,
+		previewYAML:             m.previewYAML,
+		namespace:               m.namespace,
+		allNamespaces:           m.allNamespaces,
+		selectedNamespaces:      copyMapStringBool(m.selectedNamespaces),
+		nsSelectionNegated:      m.nsSelectionNegated,
+		savedSelectedNamespaces: copyMapStringBool(m.savedSelectedNamespaces),
+		savedNsSelectionNegated: m.savedNsSelectionNegated,
+		previousNsScope:         m.previousNsScope.clone(),
+		sortColumnName:          m.sortColumnName,
+		sortAscending:           m.sortAscending,
+		filterText:              m.filterText,
+		watchMode:               m.watchMode,
+		objectExplorerLive:      m.objectExplorerLive,
+		objectExplorerTree:      m.objectExplorerTree,
+		readOnly:                m.readOnly,
+		requestGen:              m.requestGen,
+		selectedItems:           copyMapStringBool(m.selectedItems),
+		selectionAnchor:         m.selectionAnchor,
+		fullscreenMiddle:        m.fullscreenMiddle,
+		fullscreenDashboard:     m.fullscreenDashboard,
+		dashboardPreview:        m.dashboardPreview,
+		dashboardEventsPreview:  m.dashboardEventsPreview,
+		monitoringPreview:       m.monitoringPreview,
+		metricsContent:          m.metricsContent,
+		previewEventsContent:    m.previewEventsContent,
+		metricsData:             m.metricsData,
+		metricsLoading:          m.metricsLoading,
+		metricsSpark:            m.metricsSpark,
+		previewEventsData:       append([]ui.EventTimelineEntry(nil), m.previewEventsData...),
+		warningEventsOnly:       m.warningEventsOnly,
+		eventGrouping:           m.eventGrouping,
+		expandedGroup:           m.expandedGroup,
+		allGroupsExpanded:       m.allGroupsExpanded,
 
 		// logFilterQuery/logSevThreshold are intentionally left zero: a cloned tab
 		// starts with no active log filter.
