@@ -78,20 +78,32 @@ func populateResourceDetailsExt(ti *model.Item, obj map[string]any, kind string,
 	case "MutatingAdmissionPolicyBinding":
 		populateMutatingAdmissionPolicyBinding(ti, spec)
 
-	case "ResourceClaim":
-		populateResourceClaim(ti, status)
+	case "ResourceClaim", "ResourceClaimTemplate", "ResourceSlice", "DeviceClass":
+		populateDRAResource(ti, kind, status, spec)
 
-	case "ResourceClaimTemplate":
-		populateResourceClaimTemplate(ti, spec)
+	case "PodCertificateRequest":
+		populatePodCertificateRequest(ti, spec, status)
 
-	case "ResourceSlice":
-		populateResourceSlice(ti, spec)
-
-	case "DeviceClass":
-		populateDeviceClass(ti, spec)
+	case "ClusterTrustBundle":
+		populateClusterTrustBundle(ti, spec)
 
 	default:
 		populateGenericCRDResource(ti, status)
+	}
+}
+
+// populateDRAResource keeps the resource.k8s.io kinds out of the main switch,
+// which sits at the gocyclo cap.
+func populateDRAResource(ti *model.Item, kind string, status, spec map[string]any) {
+	switch kind {
+	case "ResourceClaim":
+		populateResourceClaim(ti, status)
+	case "ResourceClaimTemplate":
+		populateResourceClaimTemplate(ti, spec)
+	case "ResourceSlice":
+		populateResourceSlice(ti, spec)
+	case "DeviceClass":
+		populateDeviceClass(ti, spec)
 	}
 }
 
